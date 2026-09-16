@@ -1,0 +1,642 @@
+import type { TeamMember, Task } from '../types';
+
+export const initialTeamMembers: TeamMember[] = [
+  {
+    id: 'usr_alex',
+    name: 'Agam Grover',
+    role: 'CEO & Co-Founder',
+    department: 'Executive Leadership',
+    seniority: 'CEO',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 0, // CEOs are executive leadership, not tracked on hourly specialist capacity
+    skills: [
+      'Client Strategy',
+      'Agency Leadership',
+      'Technical SEO',
+      'Site Architecture',
+      'Client Communication'
+    ],
+    completedSprintTasks: 14,
+    colorSwatch: '#10B981', // Emerald
+    generalCompetency: {
+      englishProficiency: 9.8,
+      clientCommunication: 9.9,
+      requirementUnderstanding: 9.9,
+      proactivityReliability: 9.9,
+      clientReadyTier: 'Tier 1: Client-Facing Lead',
+      lastTestedDate: '2026-06-20'
+    },
+    skillScores: [
+      { skill: 'Client Strategy', quality: 9.9, speedEfficiency: 9.8, communication: 9.9 },
+      { skill: 'Agency Leadership', quality: 9.9, speedEfficiency: 9.8, communication: 9.9 },
+      { skill: 'Technical SEO', quality: 9.8, speedEfficiency: 9.5, communication: 9.7 }
+    ]
+  },
+  {
+    id: 'usr_aarav',
+    name: 'Manpreet S. Nagpal',
+    role: 'CEO & Co-Founder',
+    department: 'Executive Leadership',
+    seniority: 'CEO',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 0, // CEOs are executive leadership, not tracked on hourly specialist capacity
+    skills: [
+      'Client Account Strategy',
+      'Agency Leadership',
+      'Business Growth',
+      'Client Communication'
+    ],
+    completedSprintTasks: 12,
+    colorSwatch: '#64748B', // Slate
+    generalCompetency: {
+      englishProficiency: 9.8,
+      clientCommunication: 9.9,
+      requirementUnderstanding: 9.8,
+      proactivityReliability: 9.9,
+      clientReadyTier: 'Tier 1: Client-Facing Lead',
+      lastTestedDate: '2026-06-20'
+    },
+    skillScores: [
+      { skill: 'Client Account Strategy', quality: 9.9, speedEfficiency: 9.7, communication: 9.9 },
+      { skill: 'Agency Leadership', quality: 9.8, speedEfficiency: 9.8, communication: 9.9 }
+    ]
+  },
+  {
+    id: 'usr_rohan',
+    name: 'Vinay Datyal',
+    role: 'Agency Operations Manager',
+    department: 'Operations & Management',
+    seniority: 'Manager',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 40,
+    skills: [
+      'Operations Management',
+      'Team Allocation',
+      'Off-Page SEO',
+      'Link Building',
+      'Client Account Management'
+    ],
+    completedSprintTasks: 18,
+    colorSwatch: '#F59E0B', // Amber
+    generalCompetency: {
+      englishProficiency: 9.4,
+      clientCommunication: 9.3,
+      requirementUnderstanding: 9.5,
+      proactivityReliability: 9.6,
+      clientReadyTier: 'Tier 1: Client-Facing Lead',
+      lastTestedDate: '2026-06-15'
+    },
+    skillScores: [
+      { skill: 'Operations Management', quality: 9.6, speedEfficiency: 9.5, communication: 9.5 },
+      { skill: 'Team Allocation', quality: 9.7, speedEfficiency: 9.6, communication: 9.4 },
+      { skill: 'Off-Page SEO', quality: 9.5, speedEfficiency: 9.4, communication: 9.2 }
+    ]
+  },
+  {
+    id: 'usr_priya',
+    name: 'Khuvaish',
+    role: 'Senior Strategy Team Lead',
+    department: 'SEO & Strategy',
+    seniority: 'Team Lead',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 40,
+    skills: [
+      'AEO (Answer Engine Opt)',
+      'GEO (Generative Engine Opt)',
+      'Content Writing',
+      'On-Page Optimization',
+      'Client Strategy'
+    ],
+    completedSprintTasks: 18,
+    colorSwatch: '#06B6D4', // Cyan
+    generalCompetency: {
+      englishProficiency: 9.9,
+      clientCommunication: 9.6,
+      requirementUnderstanding: 9.7,
+      proactivityReliability: 9.6,
+      clientReadyTier: 'Tier 1: Client-Facing Lead',
+      lastTestedDate: '2026-06-25'
+    },
+    skillScores: [
+      { skill: 'AEO (Answer Engine Opt)', quality: 9.8, speedEfficiency: 9.5, communication: 9.7 },
+      { skill: 'GEO (Generative Engine Opt)', quality: 9.7, speedEfficiency: 9.4, communication: 9.6 },
+      { skill: 'Content Writing', quality: 9.8, speedEfficiency: 9.6, communication: 9.8 },
+      { skill: 'On-Page Optimization', quality: 9.5, speedEfficiency: 9.4, communication: 9.5 }
+    ]
+  },
+  {
+    id: 'usr_elena',
+    name: 'Vansh',
+    role: 'SEO Operations Team Lead',
+    department: 'SEO & Delivery',
+    seniority: 'Team Lead',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 40,
+    skills: [
+      'Technical SEO',
+      'On-Page Optimization',
+      'Off-Page SEO',
+      'Link Building',
+      'Guest Posting'
+    ],
+    completedSprintTasks: 16,
+    colorSwatch: '#8B5CF6', // Purple
+    generalCompetency: {
+      englishProficiency: 9.2,
+      clientCommunication: 9.1,
+      requirementUnderstanding: 9.4,
+      proactivityReliability: 9.5,
+      clientReadyTier: 'Tier 1: Client-Facing Lead',
+      lastTestedDate: '2026-06-18'
+    },
+    skillScores: [
+      { skill: 'Technical SEO', quality: 9.4, speedEfficiency: 9.3, communication: 9.2 },
+      { skill: 'On-Page Optimization', quality: 9.5, speedEfficiency: 9.4, communication: 9.1 },
+      { skill: 'Off-Page SEO', quality: 9.3, speedEfficiency: 9.2, communication: 9.0 }
+    ]
+  },
+  {
+    id: 'usr_amrit',
+    name: 'Amrit Kaur',
+    role: 'Web & Tech Team Lead',
+    department: 'Web Development',
+    seniority: 'Team Lead',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 40,
+    skills: [
+      'WordPress & Web Dev',
+      'Core Web Vitals',
+      'Site Migration',
+      'Technical SEO'
+    ],
+    completedSprintTasks: 15,
+    colorSwatch: '#3B82F6', // Blue
+    generalCompetency: {
+      englishProficiency: 9.4,
+      clientCommunication: 9.2,
+      requirementUnderstanding: 9.6,
+      proactivityReliability: 9.5,
+      clientReadyTier: 'Tier 1: Client-Facing Lead',
+      lastTestedDate: '2026-06-22'
+    },
+    skillScores: [
+      { skill: 'WordPress & Web Dev', quality: 9.7, speedEfficiency: 9.5, communication: 9.3 },
+      { skill: 'Core Web Vitals', quality: 9.6, speedEfficiency: 9.4, communication: 9.2 },
+      { skill: 'Site Migration', quality: 9.5, speedEfficiency: 9.3, communication: 9.1 }
+    ]
+  },
+  {
+    id: 'usr_nidhi',
+    name: 'Nidhi',
+    role: 'Project Coordinator',
+    department: 'Operations & Project Coordination',
+    seniority: 'Project Coordinator',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 40,
+    skills: [
+      'Project Coordination',
+      'Deliverable Tracking',
+      'Client Communication',
+      'Task Management',
+      'Operations Support'
+    ],
+    completedSprintTasks: 17,
+    colorSwatch: '#EC4899', // Pink
+    generalCompetency: {
+      englishProficiency: 9.6,
+      clientCommunication: 9.5,
+      requirementUnderstanding: 9.7,
+      proactivityReliability: 9.8,
+      clientReadyTier: 'Tier 1: Client-Facing Lead',
+      lastTestedDate: '2026-07-01'
+    },
+    skillScores: [
+      { skill: 'Project Coordination', quality: 9.8, speedEfficiency: 9.6, communication: 9.7 },
+      { skill: 'Deliverable Tracking', quality: 9.7, speedEfficiency: 9.6, communication: 9.6 },
+      { skill: 'Client Communication', quality: 9.6, speedEfficiency: 9.5, communication: 9.7 }
+    ]
+  },
+  {
+    id: 'usr_aakash',
+    name: 'Aakash Jaggi',
+    role: 'Technical SEO Specialist',
+    department: 'SEO Delivery',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Technical SEO', 'Site Architecture', 'Site Migration', 'Core Web Vitals'],
+    completedSprintTasks: 16,
+    colorSwatch: '#10B981',
+    generalCompetency: { englishProficiency: 9.2, clientCommunication: 9.0, requirementUnderstanding: 9.3, proactivityReliability: 9.4, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Technical SEO', quality: 9.4, speedEfficiency: 9.2, communication: 9.1 }]
+  },
+  {
+    id: 'usr_abhishek',
+    name: 'Abhishek Katariya',
+    role: 'On-Page & AEO Specialist',
+    department: 'SEO Delivery',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['On-Page Optimization', 'AEO (Answer Engine Opt)', 'GEO (Generative Engine Opt)'],
+    completedSprintTasks: 18,
+    colorSwatch: '#3B82F6',
+    generalCompetency: { englishProficiency: 9.3, clientCommunication: 9.1, requirementUnderstanding: 9.4, proactivityReliability: 9.3, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'On-Page Optimization', quality: 9.5, speedEfficiency: 9.3, communication: 9.2 }]
+  },
+  {
+    id: 'usr_akhil',
+    name: 'Akhil',
+    role: 'SEO Operations Specialist',
+    department: 'SEO Delivery',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Technical SEO', 'On-Page Optimization', 'Link Building'],
+    completedSprintTasks: 19,
+    colorSwatch: '#06B6D4',
+    generalCompetency: { englishProficiency: 9.1, clientCommunication: 8.9, requirementUnderstanding: 9.2, proactivityReliability: 9.5, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Technical SEO', quality: 9.3, speedEfficiency: 9.5, communication: 9.0 }]
+  },
+  {
+    id: 'usr_anshita',
+    name: 'Anshita Rana',
+    role: 'GEO Content Strategist',
+    department: 'SEO & Strategy',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['GEO (Generative Engine Opt)', 'Content Writing', 'AEO (Answer Engine Opt)', 'Client Strategy'],
+    completedSprintTasks: 17,
+    colorSwatch: '#8B5CF6',
+    generalCompetency: { englishProficiency: 9.6, clientCommunication: 9.4, requirementUnderstanding: 9.5, proactivityReliability: 9.4, clientReadyTier: 'Tier 1: Client-Facing Lead' },
+    skillScores: [{ skill: 'GEO (Generative Engine Opt)', quality: 9.6, speedEfficiency: 9.3, communication: 9.5 }]
+  },
+  {
+    id: 'usr_anshum',
+    name: 'Anshum',
+    role: 'Technical SEO Analyst',
+    department: 'SEO Delivery',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Technical SEO', 'Core Web Vitals', 'Site Architecture'],
+    completedSprintTasks: 14,
+    colorSwatch: '#F59E0B',
+    generalCompetency: { englishProficiency: 8.9, clientCommunication: 8.7, requirementUnderstanding: 9.0, proactivityReliability: 9.2, clientReadyTier: 'Tier 3: Internal Execution Only' },
+    skillScores: [{ skill: 'Technical SEO', quality: 9.1, speedEfficiency: 9.0, communication: 8.8 }]
+  },
+  {
+    id: 'usr_anu',
+    name: 'Anu Rana',
+    role: 'WordPress Developer',
+    department: 'Web Development',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['WordPress & Web Dev', 'Frontend Development', 'Core Web Vitals'],
+    completedSprintTasks: 15,
+    colorSwatch: '#EC4899',
+    generalCompetency: { englishProficiency: 9.0, clientCommunication: 8.8, requirementUnderstanding: 9.2, proactivityReliability: 9.3, clientReadyTier: 'Tier 3: Internal Execution Only' },
+    skillScores: [{ skill: 'WordPress & Web Dev', quality: 9.3, speedEfficiency: 9.1, communication: 8.9 }]
+  },
+  {
+    id: 'usr_gitanjali',
+    name: 'Gitanjali Khatri',
+    role: 'Content & Copywriting Specialist',
+    department: 'SEO & Strategy',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Content Writing', 'AEO (Answer Engine Opt)', 'On-Page Optimization'],
+    completedSprintTasks: 13,
+    colorSwatch: '#6366F1',
+    generalCompetency: { englishProficiency: 9.5, clientCommunication: 9.1, requirementUnderstanding: 9.3, proactivityReliability: 9.2, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Content Writing', quality: 9.4, speedEfficiency: 9.2, communication: 9.3 }]
+  },
+  {
+    id: 'usr_himanshu',
+    name: 'Himanshu Baijiwan',
+    role: 'Off-Page & Link Building Specialist',
+    department: 'SEO Delivery',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Off-Page SEO', 'Link Building', 'Guest Posting'],
+    completedSprintTasks: 17,
+    colorSwatch: '#14B8A6',
+    generalCompetency: { englishProficiency: 9.0, clientCommunication: 8.8, requirementUnderstanding: 9.2, proactivityReliability: 9.4, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Off-Page SEO', quality: 9.4, speedEfficiency: 9.3, communication: 9.0 }]
+  },
+  {
+    id: 'usr_jai',
+    name: 'Jai',
+    role: 'UI/UX & Graphic Designer',
+    department: 'Web Design',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['UI/UX Design', 'UI/UX & Redesign', 'Frontend Development'],
+    completedSprintTasks: 16,
+    colorSwatch: '#F43F5E',
+    generalCompetency: { englishProficiency: 9.1, clientCommunication: 8.9, requirementUnderstanding: 9.4, proactivityReliability: 9.3, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'UI/UX Design', quality: 9.5, speedEfficiency: 9.2, communication: 9.0 }]
+  },
+  {
+    id: 'usr_jashan',
+    name: 'JashanPreet Kaur',
+    role: 'Technical SEO Specialist',
+    department: 'SEO Delivery',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Technical SEO', 'On-Page Optimization', 'Core Web Vitals'],
+    completedSprintTasks: 18,
+    colorSwatch: '#0EA5E9',
+    generalCompetency: { englishProficiency: 9.3, clientCommunication: 9.1, requirementUnderstanding: 9.4, proactivityReliability: 9.5, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Technical SEO', quality: 9.5, speedEfficiency: 9.4, communication: 9.2 }]
+  },
+  {
+    id: 'usr_kamakshi',
+    name: 'Kamakshi Chopra',
+    role: 'Senior SEO Account Manager',
+    department: 'SEO & Strategy',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Client Strategy', 'Client Communication', 'Technical SEO', 'On-Page Optimization'],
+    completedSprintTasks: 20,
+    colorSwatch: '#8B5CF6',
+    generalCompetency: { englishProficiency: 9.7, clientCommunication: 9.6, requirementUnderstanding: 9.6, proactivityReliability: 9.7, clientReadyTier: 'Tier 1: Client-Facing Lead' },
+    skillScores: [{ skill: 'Client Strategy', quality: 9.6, speedEfficiency: 9.5, communication: 9.7 }]
+  },
+  {
+    id: 'usr_khushi',
+    name: 'Khushi Maurya',
+    role: 'AEO & Content Specialist',
+    department: 'SEO & Strategy',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['AEO (Answer Engine Opt)', 'Content Writing', 'GEO (Generative Engine Opt)'],
+    completedSprintTasks: 15,
+    colorSwatch: '#EC4899',
+    generalCompetency: { englishProficiency: 9.4, clientCommunication: 9.0, requirementUnderstanding: 9.2, proactivityReliability: 9.3, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'AEO (Answer Engine Opt)', quality: 9.3, speedEfficiency: 9.2, communication: 9.1 }]
+  },
+  {
+    id: 'usr_komal',
+    name: 'Komal',
+    role: 'Link Building Analyst',
+    department: 'SEO Delivery',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Link Building', 'Off-Page SEO', 'Guest Posting'],
+    completedSprintTasks: 14,
+    colorSwatch: '#F59E0B',
+    generalCompetency: { englishProficiency: 8.8, clientCommunication: 8.6, requirementUnderstanding: 8.9, proactivityReliability: 9.1, clientReadyTier: 'Tier 3: Internal Execution Only' },
+    skillScores: [{ skill: 'Link Building', quality: 9.0, speedEfficiency: 9.1, communication: 8.7 }]
+  },
+  {
+    id: 'usr_mandeep',
+    name: 'Mandeep Singh',
+    role: 'Full Stack Developer',
+    department: 'Web Development',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['WordPress & Web Dev', 'Frontend Development', 'Core Web Vitals'],
+    completedSprintTasks: 17,
+    colorSwatch: '#10B981',
+    generalCompetency: { englishProficiency: 9.1, clientCommunication: 8.9, requirementUnderstanding: 9.5, proactivityReliability: 9.4, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'WordPress & Web Dev', quality: 9.5, speedEfficiency: 9.3, communication: 8.9 }]
+  },
+  {
+    id: 'usr_mukesh',
+    name: 'Mukesh Kumar',
+    role: 'Senior Technical SEO Specialist',
+    department: 'SEO Delivery',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Technical SEO', 'Site Architecture', 'Site Migration', 'Core Web Vitals'],
+    completedSprintTasks: 19,
+    colorSwatch: '#3B82F6',
+    generalCompetency: { englishProficiency: 9.2, clientCommunication: 9.0, requirementUnderstanding: 9.5, proactivityReliability: 9.6, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Technical SEO', quality: 9.6, speedEfficiency: 9.5, communication: 9.1 }]
+  },
+  {
+    id: 'usr_navjeet',
+    name: 'Navjeet Kaur',
+    role: 'Local SEO & ORM Specialist',
+    department: 'SEO Delivery',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Local SEO', 'ORM (Reputation Mgmt)', 'On-Page Optimization'],
+    completedSprintTasks: 15,
+    colorSwatch: '#14B8A6',
+    generalCompetency: { englishProficiency: 9.1, clientCommunication: 8.9, requirementUnderstanding: 9.2, proactivityReliability: 9.3, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Local SEO', quality: 9.3, speedEfficiency: 9.2, communication: 9.0 }]
+  },
+  {
+    id: 'usr_neeraj',
+    name: 'Neeraj Panwar',
+    role: 'SEO Executive',
+    department: 'SEO Delivery',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['On-Page Optimization', 'Link Building', 'Technical SEO'],
+    completedSprintTasks: 14,
+    colorSwatch: '#6366F1',
+    generalCompetency: { englishProficiency: 8.9, clientCommunication: 8.7, requirementUnderstanding: 9.0, proactivityReliability: 9.2, clientReadyTier: 'Tier 3: Internal Execution Only' },
+    skillScores: [{ skill: 'On-Page Optimization', quality: 9.1, speedEfficiency: 9.0, communication: 8.8 }]
+  },
+  {
+    id: 'usr_ramandeep',
+    name: 'Ramandeep Kaur',
+    role: 'Senior SEO Executive',
+    department: 'SEO & Strategy',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Client Strategy', 'Technical SEO', 'On-Page Optimization', 'AEO (Answer Engine Opt)'],
+    completedSprintTasks: 19,
+    colorSwatch: '#0EA5E9',
+    generalCompetency: { englishProficiency: 9.5, clientCommunication: 9.4, requirementUnderstanding: 9.5, proactivityReliability: 9.6, clientReadyTier: 'Tier 1: Client-Facing Lead' },
+    skillScores: [{ skill: 'Technical SEO', quality: 9.5, speedEfficiency: 9.4, communication: 9.4 }]
+  },
+  {
+    id: 'usr_rushali',
+    name: 'Rushali Manchanda',
+    role: 'AEO Content Writer',
+    department: 'SEO & Strategy',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Content Writing', 'AEO (Answer Engine Opt)', 'GEO (Generative Engine Opt)'],
+    completedSprintTasks: 16,
+    colorSwatch: '#EC4899',
+    generalCompetency: { englishProficiency: 9.4, clientCommunication: 9.1, requirementUnderstanding: 9.2, proactivityReliability: 9.3, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Content Writing', quality: 9.4, speedEfficiency: 9.3, communication: 9.2 }]
+  },
+  {
+    id: 'usr_sahil',
+    name: 'Sahil Attri',
+    role: 'Technical SEO Specialist',
+    department: 'SEO Delivery',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Technical SEO', 'Core Web Vitals', 'Site Architecture', 'On-Page Optimization'],
+    completedSprintTasks: 18,
+    colorSwatch: '#F59E0B',
+    generalCompetency: { englishProficiency: 9.2, clientCommunication: 9.0, requirementUnderstanding: 9.4, proactivityReliability: 9.5, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Technical SEO', quality: 9.5, speedEfficiency: 9.4, communication: 9.1 }]
+  },
+  {
+    id: 'usr_shivani',
+    name: 'Shivani Patiyal',
+    role: 'Social Media & ORM Executive',
+    department: 'Social Media',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Social Media Management', 'ORM (Reputation Mgmt)', 'Content Writing'],
+    completedSprintTasks: 14,
+    colorSwatch: '#8B5CF6',
+    generalCompetency: { englishProficiency: 9.1, clientCommunication: 8.9, requirementUnderstanding: 9.1, proactivityReliability: 9.2, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Social Media Management', quality: 9.2, speedEfficiency: 9.1, communication: 8.9 }]
+  },
+  {
+    id: 'usr_shubham',
+    name: 'Shubham Tisawer',
+    role: 'Off-Page & Outreach Specialist',
+    department: 'SEO Delivery',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Off-Page SEO', 'Link Building', 'Guest Posting'],
+    completedSprintTasks: 16,
+    colorSwatch: '#10B981',
+    generalCompetency: { englishProficiency: 9.0, clientCommunication: 8.8, requirementUnderstanding: 9.1, proactivityReliability: 9.3, clientReadyTier: 'Tier 3: Internal Execution Only' },
+    skillScores: [{ skill: 'Off-Page SEO', quality: 9.3, speedEfficiency: 9.2, communication: 8.9 }]
+  },
+  {
+    id: 'usr_siya',
+    name: 'Siya',
+    role: 'Senior SEO Specialist',
+    department: 'SEO Delivery',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['Technical SEO', 'On-Page Optimization', 'AEO (Answer Engine Opt)', 'Core Web Vitals'],
+    completedSprintTasks: 20,
+    colorSwatch: '#06B6D4',
+    generalCompetency: { englishProficiency: 9.4, clientCommunication: 9.2, requirementUnderstanding: 9.5, proactivityReliability: 9.6, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'Technical SEO', quality: 9.6, speedEfficiency: 9.4, communication: 9.2 }]
+  },
+  {
+    id: 'usr_vimla',
+    name: 'Vimla Chauhan',
+    role: 'SEO Operations Executive',
+    department: 'SEO Delivery',
+    seniority: 'Executive',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['On-Page Optimization', 'Link Building', 'Technical SEO'],
+    completedSprintTasks: 16,
+    colorSwatch: '#EC4899',
+    generalCompetency: { englishProficiency: 9.0, clientCommunication: 8.8, requirementUnderstanding: 9.2, proactivityReliability: 9.4, clientReadyTier: 'Tier 3: Internal Execution Only' },
+    skillScores: [{ skill: 'On-Page Optimization', quality: 9.3, speedEfficiency: 9.2, communication: 8.9 }]
+  },
+  {
+    id: 'usr_vivek',
+    name: 'Vivek Kumar',
+    role: 'Senior WordPress & Web Developer',
+    department: 'Web Development',
+    seniority: 'Senior Resource',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    weeklyCapacityHours: 35,
+    skills: ['WordPress & Web Dev', 'Frontend Development', 'Core Web Vitals', 'Site Migration'],
+    completedSprintTasks: 19,
+    colorSwatch: '#3B82F6',
+    generalCompetency: { englishProficiency: 9.3, clientCommunication: 9.1, requirementUnderstanding: 9.6, proactivityReliability: 9.5, clientReadyTier: 'Tier 2: Direct Email Capable' },
+    skillScores: [{ skill: 'WordPress & Web Dev', quality: 9.6, speedEfficiency: 9.5, communication: 9.2 }]
+  }
+];
+
+export const initialTasks: Task[] = [
+  {
+    id: 'tsk_01',
+    title: 'Enterprise Multi-Regional Technical SEO Audit & Migration Setup',
+    clientName: 'Apex Financial Systems',
+    clientTier: 'TIER_S_VIP',
+    requiredSkill: 'Technical SEO',
+    estimatedHours: 8,
+    actualHoursLogged: 4,
+    assignedUserId: 'usr_alex',
+    priority: 'High',
+    status: 'in_progress',
+    dueDate: '2026-07-12',
+    categoryColor: '#10B981'
+  },
+  {
+    id: 'tsk_02',
+    title: 'Q3 AEO & GEO Content Strategy & Perplexity Search Optimization',
+    clientName: 'Nova Retail Group',
+    clientTier: 'TIER_S_VIP',
+    requiredSkill: 'AEO (Answer Engine Opt)',
+    estimatedHours: 10,
+    actualHoursLogged: 0,
+    assignedUserId: 'usr_priya',
+    priority: 'High',
+    status: 'assigned',
+    dueDate: '2026-07-14',
+    categoryColor: '#06B6D4'
+  },
+  {
+    id: 'tsk_03',
+    title: 'High-DR Guest Posting & Backlink Acquisition Sprint',
+    clientName: 'CloudMatrix Enterprise',
+    clientTier: 'TIER_A_AGENCY',
+    requiredSkill: 'Guest Posting',
+    estimatedHours: 12,
+    actualHoursLogged: 12,
+    assignedUserId: 'usr_rohan',
+    priority: 'Medium',
+    status: 'review',
+    dueDate: '2026-07-10',
+    categoryColor: '#F59E0B'
+  },
+  {
+    id: 'tsk_04',
+    title: 'Landing Page UI Redesign & Conversion Figma Mockups',
+    clientName: 'TechHaven E-Commerce',
+    clientTier: 'TIER_S_VIP',
+    requiredSkill: 'UI/UX & Redesign',
+    estimatedHours: 10,
+    actualHoursLogged: 3,
+    assignedUserId: 'usr_nidhi',
+    priority: 'High',
+    status: 'in_progress',
+    dueDate: '2026-07-15',
+    categoryColor: '#EC4899'
+  },
+  {
+    id: 'tsk_05',
+    title: 'WordPress Custom Theme Performance & CLS Remediation',
+    clientName: 'Apex Financial Systems',
+    clientTier: 'TIER_B_LOCAL',
+    requiredSkill: 'WordPress & Web Dev',
+    estimatedHours: 8,
+    actualHoursLogged: 0,
+    assignedUserId: 'usr_amrit',
+    priority: 'High',
+    status: 'assigned',
+    dueDate: '2026-07-16',
+    categoryColor: '#3B82F6'
+  }
+];
