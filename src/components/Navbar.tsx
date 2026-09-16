@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { AppUserProfile } from '../types';
+import { ClickUpOAuthModal } from './ClickUpOAuthModal';
+import { handleClickUpCallback, isClickUpConnected, getClickUpUser } from '../services/clickupOAuth';
 import { 
   BarChart3, 
   Kanban, 
@@ -47,7 +49,22 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showClickUpModal, setShowClickUpModal] = useState(false);
+  const [clickupConnected, setClickupConnected] = useState(isClickUpConnected());
+  const [clickupUser, setClickupUser] = useState(getClickUpUser());
   const overallUtilization = Math.round((totalAllocated / totalCapacity) * 100) || 0;
+
+  // Handle ClickUp OAuth callback on page load
+  useEffect(() => {
+    const result = handleClickUpCallback();
+    if (result.token) {
+      setClickupConnected(true);
+      setClickupUser(result.user || null);
+      setShowClickUpModal(true); // Auto-open modal to show connected state
+    } else if (result.error) {
+      console.error('ClickUp OAuth error:', result.error);
+    }
+  }, []);
 
   const NAV_ITEMS: {
     id: 'projects' | 'calendar' | 'hours' | 'dsr' | 'skills' | 'bot' | 'finances' | 'notifications' | 'brief';
@@ -359,34 +376,77 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* SECTION 3: BOTTOM SIDEBAR FOOTER (Anchored at bottom of Left Sidebar) */}
-      <div className="block mt-6 pt-4 border-t border-slate-800/60 text-center space-y-2 shrink-0">
+      {/* SECTION 3: BOTTOM SIDEBAR FOOTER */}
+      <div className="block mt-6 pt-4 border-t border-slate-800/60 space-y-2 shrink-0">
         {!isCollapsed ? (
           <>
-            <div className="bg-slate-900/50 border border-slate-800/60 rounded-lg p-3 text-left">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-200 mb-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span>ClickUp Live Sync</span>
+            {/* ClickUp Connect Button */}
+            <button
+              type="button"
+              onClick={() => setShowClickUpModal(true)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                clickupConnected
+                  ? 'bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20'
+                  : 'bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20'
+              }`}
+            >
+              <div className={`w-6 h-6 rounded-md flex items-center justify-center text-white font-black text-xs shrink-0 ${
+                clickupConnected ? 'bg-emerald-600' : 'bg-gradient-to-br from-purple-600 to-pink-600'
+              }`}>
+                C
               </div>
-              <p className="text-[10px] text-slate-400 leading-relaxed">
-                Connected to master workspace. Capacities synchronized.
-              </p>
-            </div>
-            <div className="text-[10px] font-medium text-slate-500">
+              <div className="min-w-0">
+                <div className={`text-xs font-bold ${
+                  clickupConnected ? 'text-emerald-400' : 'text-purple-400'
+                }`}>
+                  {clickupConnected ? '● Connected' : 'Connect ClickUp'}
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">
+                  {clickupConnected ? (clickupUser || 'ClickUp Account') : 'Login with OAuth'}
+                </div>
+              </div>
+            </button>
+            <div className="text-[10px] font-medium text-slate-500 text-center">
               Smart Allocation Hub v2.6
             </div>
           </>
         ) : (
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(false)}
-            className="w-full flex justify-center p-2 rounded-lg bg-slate-900/60 hover:bg-slate-800/60 border border-slate-800/80 text-slate-400 hover:text-white transition-all cursor-pointer"
-            title="Expand Sidebar"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setShowClickUpModal(true)}
+              title={clickupConnected ? `ClickUp: ${clickupUser}` : 'Connect ClickUp'}
+              className={`w-full flex justify-center p-2 rounded-lg border transition-all cursor-pointer ${
+                clickupConnected
+                  ? 'bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20'
+                  : 'bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20'
+              }`}
+            >
+              <span className={`w-5 h-5 rounded flex items-center justify-center text-white font-black text-xs ${
+                clickupConnected ? 'bg-emerald-600' : 'bg-gradient-to-br from-purple-600 to-pink-600'
+              }`}>C</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(false)}
+              className="w-full flex justify-center p-2 rounded-lg bg-slate-900/60 hover:bg-slate-800/60 border border-slate-800/80 text-slate-400 hover:text-white transition-all cursor-pointer"
+              title="Expand Sidebar"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </>
         )}
       </div>
+
+      {/* ClickUp OAuth Modal */}
+      <ClickUpOAuthModal
+        isOpen={showClickUpModal}
+        onClose={() => {
+          setShowClickUpModal(false);
+          setClickupConnected(isClickUpConnected());
+          setClickupUser(getClickUpUser());
+        }}
+      />
     </aside>
   );
 };
