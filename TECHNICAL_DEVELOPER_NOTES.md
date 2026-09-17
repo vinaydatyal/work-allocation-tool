@@ -53,6 +53,13 @@ The integration supports two complementary connection methods:
 - **Main Dashboard Header (`VisualAgencyHub.tsx`)**: High-visibility pill button displaying real-time status (`⚡ Connect & Sync ClickUp` or `● ClickUp Connected`) placed directly in the primary executive action bar.
 - **Navigation Sidebar (`Navbar.tsx`)**: Prominent connection card situated directly below the profile/role switcher in Section 1 (always above the fold, regardless of viewport height) with an additional synchronized indicator in the bottom footer.
 
+### 3.6 Serverless API Proxy (`api/clickup/proxy.js`)
+Because ClickUp API v2 does not return permissive CORS headers to client browsers, direct browser calls to `https://api.clickup.com/api/v2/*` are blocked by web browsers. The app routes all authenticated ClickUp requests (`/team`, `/task`, etc.) through the same-origin serverless proxy:
+```
+Browser -> /api/clickup/proxy?endpoint=/team -> ClickUp API v2 -> Browser
+```
+This guarantees zero CORS errors and seamless workspace/task fetching on production and preview environments.
+
 ## 4. Vercel Routing Configuration (`vercel.json`)
 ```json
 {
@@ -78,10 +85,12 @@ The integration supports two complementary connection methods:
 
 ## 5. Key File Tree
 - `api/clickup/callback.js` — Serverless OAuth token exchange handler
-- `src/services/clickupOAuth.ts` — Client-side OAuth service, token storage, and ClickUp API callers
+- `api/clickup/proxy.js` — Serverless CORS proxy for ClickUp API v2 requests
+- `src/services/clickupOAuth.ts` — Client-side OAuth service, token storage, and proxied ClickUp API callers
 - `src/components/ClickUpOAuthModal.tsx` — Connection modal, workspace selector, and task overview
 - `src/components/Navbar.tsx` — Sidebar navigation containing the live ClickUp status button
 - `src/components/VisualAgencyHub.tsx` — Central dashboard view with team allocations, project grids, and modals
+
 
 ---
 

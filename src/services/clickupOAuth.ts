@@ -110,10 +110,25 @@ export function handleClickUpCallback(): ClickUpCallbackResult {
 // ─── ClickUp API Helpers ───────────────────────────────────────────────────────
 
 async function clickupFetch(path: string, token: string) {
-  const res = await fetch(`https://api.clickup.com/api/v2${path}`, {
-    headers: { Authorization: token },
-  });
-  if (!res.ok) throw new Error(`ClickUp API error ${res.status} on ${path}`);
+  // Use our serverless proxy route to bypass browser CORS restrictions
+  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(path)}`;
+  
+  let res: Response;
+  try {
+    res = await fetch(proxyUrl, {
+      headers: { Authorization: token },
+    });
+  } catch (netErr) {
+    // If running in pure local dev where serverless functions aren't active, try Vite proxy
+    res = await fetch(`/api/clickup${path}`, {
+      headers: { Authorization: token },
+    });
+  }
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`ClickUp API error ${res.status}: ${errText}`);
+  }
   return res.json();
 }
 
