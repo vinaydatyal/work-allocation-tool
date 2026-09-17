@@ -31,6 +31,9 @@ import {
   ArrowUpRight,
   CheckCheck,
   Trash2,
+  FolderArchive,
+  RotateCcw,
+  Inbox,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
@@ -193,6 +196,12 @@ export interface ActiveProjectItem {
   weeklyHoursTech?: number;
 }
 
+export interface ArchivedProjectItem extends ActiveProjectItem {
+  archivedAt: string;
+  archiveCategory: 'trash' | 'past_project';
+  archiveReason?: string;
+}
+
 export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   teamMembers: initialMembers,
   tasks: _tasks,
@@ -334,6 +343,118 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
 
   const [deletingProject, setDeletingProject] = useState<ActiveProjectItem | null>(null);
 
+  // Past Projects & Trash Archive with localStorage persistence
+  const [archivedProjects, setArchivedProjects] = useState<ArchivedProjectItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('vat_archived_projects_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load archived projects from localStorage', e);
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vat_archived_projects_v1', JSON.stringify(archivedProjects));
+    } catch (e) {
+      console.error('Failed to save archived projects to localStorage', e);
+    }
+  }, [archivedProjects]);
+
+  const [archiveFilterTab, setArchiveFilterTab] = useState<'all' | 'past_project' | 'trash'>('all');
+  const [archiveSearchQuery, setArchiveSearchQuery] = useState<string>('');
+
+  const handleMoveProjectToArchive = (
+    project: ActiveProjectItem,
+    category: 'trash' | 'past_project',
+    reason?: string
+  ) => {
+    const projectName = project.name || project.client || 'Project';
+    const archivedItem: ArchivedProjectItem = {
+      ...project,
+      archivedAt: new Date().toISOString(),
+      archiveCategory: category,
+      archiveReason: reason || (category === 'past_project' ? 'Moved to Past Projects' : 'Moved to Trash')
+    };
+
+    setProjectsList((prev) => prev.filter((p) => p.id !== project.id));
+    setArchivedProjects((prev) => [archivedItem, ...prev.filter((p) => p.id !== project.id)]);
+
+    if (viewingProjectDetail?.id === project.id) {
+      setViewingProjectDetail(null);
+    }
+    if (editingProject?.id === project.id) {
+      setEditingProject(null);
+    }
+    if (deletingProject?.id === project.id) {
+      setDeletingProject(null);
+    }
+
+    toast(category === 'past_project' ? 'Moved to Past Projects' : 'Moved to Trash', {
+      description: `"${projectName}" has been moved to ${category === 'past_project' ? 'Past Projects folder' : 'Trash'}.`,
+      type: 'success'
+    });
+  };
+
+  const handleRestoreProject = (projectId: string) => {
+    const target = archivedProjects.find((p) => p.id === projectId);
+    if (!target) return;
+
+    const { archivedAt: _a, archiveCategory: _c, archiveReason: _r, ...restoredProject } = target;
+    setArchivedProjects((prev) => prev.filter((p) => p.id !== projectId));
+    setProjectsList((prev) => [restoredProject as ActiveProjectItem, ...prev.filter((p) => p.id !== projectId)]);
+
+    toast('Project Restored', {
+      description: `"${target.name || target.client}" has been restored to Active Projects tracker.`,
+      type: 'success'
+    });
+  };
+
+  const handlePermanentDeleteArchived = (projectId: string) => {
+    const target = archivedProjects.find((p) => p.id === projectId);
+    const projectName = target?.name || target?.client || 'Project';
+
+    setArchivedProjects((prev) => prev.filter((p) => p.id !== projectId));
+    toast('Permanently Deleted', {
+      description: `"${projectName}" has been permanently purged from storage.`,
+      type: 'info'
+    });
+  };
+
+  const handleEmptyTrash = () => {
+    const count = archivedProjects.filter((p) => p.archiveCategory === 'trash').length;
+    if (count === 0) return;
+
+    setArchivedProjects((prev) => prev.filter((p) => p.archiveCategory !== 'trash'));
+    toast('Trash Emptied', {
+      description: `Purged ${count} project${count > 1 ? 's' : ''} permanently from Trash.`,
+      type: 'info'
+    });
+  };
+
+  const handleSwitchArchiveCategory = (projectId: string, newCategory: 'trash' | 'past_project') => {
+    setArchivedProjects((prev) =>
+      prev.map((p) => {
+        if (p.id === projectId) {
+          return {
+            ...p,
+            archiveCategory: newCategory,
+            archiveReason: newCategory === 'past_project' ? 'Moved to Past Projects' : 'Moved to Trash'
+          };
+        }
+        return p;
+      })
+    );
+    toast(newCategory === 'past_project' ? 'Moved to Past Projects' : 'Moved to Trash', {
+      description: `Project folder category updated.`,
+      type: 'success'
+    });
+  };
+
   const handleDeleteProject = (projectId: string) => {
     const target = projectsList.find((p) => p.id === projectId);
     const projectName = target?.name || target?.client || 'Project';
@@ -365,7 +486,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   };
 
   // Sub-Hub Navigation & Density States
-  type HubSubTab = 'projects' | 'squad' | 'executive';
+  type HubSubTab = 'projects' | 'squad' | 'executive' | 'archive';
   const [hubSubTab, setHubSubTab] = useState<HubSubTab>('projects');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(9);
@@ -2568,6 +2689,21 @@ Due Date: ${proj.paymentDueDate}
 
               <button
                 type="button"
+                onClick={() => setHubSubTab('archive')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-all cursor-pointer shadow-sm relative group"
+                title="View Past Projects & Trash Archive"
+              >
+                <FolderArchive className="w-3.5 h-3.5 text-amber-400" />
+                <span>Past Projects &amp; Trash</span>
+                {archivedProjects.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    {archivedProjects.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setShowAddMemberModal(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 text-cyan-700 font-semibold text-xs transition-colors cursor-pointer"
               >
@@ -2645,10 +2781,29 @@ Due Date: ${proj.paymentDueDate}
                   ${(projectsList.reduce((s, p) => s + (p.paymentAmountNumeric || 0), 0) / 1000).toFixed(0)}k/mo
                 </span>
               </button>
+
+              {/* Sub-Tab 4: Past Projects & Trash */}
+              <button
+                type="button"
+                onClick={() => setHubSubTab('archive')}
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  hubSubTab === 'archive'
+                    ? 'bg-gradient-to-r from-amber-500 to-rose-600 text-white shadow-lg shadow-amber-500/25 ring-1 ring-amber-400/40'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                }`}
+              >
+                <FolderArchive className="w-4 h-4" />
+                <span>Past Projects &amp; Trash</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                  hubSubTab === 'archive' ? 'bg-slate-950/60 text-amber-200 border-amber-400/30' : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}>
+                  {archivedProjects.length}
+                </span>
+              </button>
             </div>
 
             <div className="hidden lg:flex items-center gap-2 pr-2 text-xs font-medium text-slate-400">
-              <span>Sub-Hub: <strong className="text-white uppercase font-bold">{hubSubTab === 'projects' ? 'Project Roster' : hubSubTab === 'squad' ? 'Team Capacity' : 'Executive Pulse'}</strong></span>
+              <span>Sub-Hub: <strong className="text-white uppercase font-bold">{hubSubTab === 'projects' ? 'Project Roster' : hubSubTab === 'squad' ? 'Team Capacity' : hubSubTab === 'executive' ? 'Executive Pulse' : 'Past Projects & Trash'}</strong></span>
             </div>
           </div>
           </div>
@@ -4793,6 +4948,260 @@ Due Date: ${proj.paymentDueDate}
             })()}
             </div>
           )}
+
+          {/* SUB-HUB 4: PAST PROJECTS & TRASH ARCHIVE */}
+          {hubSubTab === 'archive' && (() => {
+            const pastCount = archivedProjects.filter(p => p.archiveCategory === 'past_project').length;
+            const trashCount = archivedProjects.filter(p => p.archiveCategory === 'trash').length;
+            const filtered = archivedProjects.filter(p => {
+              if (archiveFilterTab === 'past_project' && p.archiveCategory !== 'past_project') return false;
+              if (archiveFilterTab === 'trash' && p.archiveCategory !== 'trash') return false;
+              if (archiveSearchQuery.trim()) {
+                const q = archiveSearchQuery.toLowerCase();
+                const matchName = (p.name || '').toLowerCase().includes(q);
+                const matchClient = (p.client || '').toLowerCase().includes(q);
+                const matchLead = (p.projectLeadId || '').toLowerCase().includes(q);
+                if (!matchName && !matchClient && !matchLead) return false;
+              }
+              return true;
+            });
+
+            return (
+              <div className="space-y-6 animate-fade-in">
+                {/* Archive Header Banner */}
+                <div className="bg-gradient-to-r from-slate-900 via-[#131b2e] to-slate-900 border border-slate-700/80 rounded-2xl p-5 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/10">
+                      <FolderArchive className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2.5">
+                        <h3 className="text-lg font-black text-white tracking-tight">Past Projects &amp; Trash Archive</h3>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          {archivedProjects.length} Total
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Historical client retainers, completed deliverables, and restorable trash items. Team workload is freed up for active projects.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Filter Pills */}
+                    <div className="flex items-center bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setArchiveFilterTab('all')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          archiveFilterTab === 'all'
+                            ? 'bg-cyan-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        All ({archivedProjects.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setArchiveFilterTab('past_project')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          archiveFilterTab === 'past_project'
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        📁 Past Projects ({pastCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setArchiveFilterTab('trash')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          archiveFilterTab === 'trash'
+                            ? 'bg-rose-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        🗑️ Trash ({trashCount})
+                      </button>
+                    </div>
+
+                    {/* Empty Trash Button */}
+                    {trashCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleEmptyTrash}
+                        className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                        title="Permanently empty all projects in trash"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Empty Trash</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search archive by project name, client, or lead..."
+                      value={archiveSearchQuery}
+                      onChange={(e) => setArchiveSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-slate-900/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                    />
+                  </div>
+
+                  <div className="text-xs text-slate-400 font-medium">
+                    Showing <strong className="text-white">{filtered.length}</strong> of {archivedProjects.length} archived items
+                  </div>
+                </div>
+
+                {/* Archive List / Grid */}
+                {filtered.length === 0 ? (
+                  <div className="py-16 text-center rounded-2xl bg-slate-900/50 border border-slate-800 space-y-3">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-800/80 border border-slate-700 text-slate-400 flex items-center justify-center mx-auto">
+                      <Inbox className="w-7 h-7" />
+                    </div>
+                    <h4 className="text-base font-bold text-white">No Archived Projects Found</h4>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                      {archiveSearchQuery
+                        ? 'No archived projects match your current search query.'
+                        : 'Projects moved to the Past Projects folder or Trash will be preserved here and can be restored back to your active tracker at any time.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filtered.map((proj) => (
+                      <div
+                        key={proj.id}
+                        className="rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 p-5 shadow-lg flex flex-col justify-between transition-all group relative overflow-hidden"
+                      >
+                        <div className="space-y-3.5">
+                          {/* Top Badges */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border flex items-center gap-1 ${
+                                proj.archiveCategory === 'past_project'
+                                  ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                                  : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                              }`}
+                            >
+                              {proj.archiveCategory === 'past_project' ? (
+                                <>
+                                  <FolderArchive className="w-3 h-3" />
+                                  <span>Past Project</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>In Trash</span>
+                                </>
+                              )}
+                            </span>
+
+                            <span className="text-xs font-black text-emerald-400 font-mono">
+                              {proj.price}
+                            </span>
+                          </div>
+
+                          {/* Client & Project Name */}
+                          <div>
+                            <div className="text-[11px] font-bold text-slate-400 tracking-wide uppercase">
+                              {proj.client}
+                            </div>
+                            <h4
+                              onClick={() => setViewingProjectDetail(proj)}
+                              className="text-base font-extrabold text-white group-hover:text-cyan-300 transition-colors cursor-pointer mt-0.5 line-clamp-1"
+                              title={proj.name}
+                            >
+                              {proj.name}
+                            </h4>
+                          </div>
+
+                          {/* Details Metadata Box */}
+                          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] space-y-1.5">
+                            <div className="flex justify-between text-slate-400">
+                              <span>Deliverables:</span>
+                              <span className="text-slate-200 font-semibold">{(proj.taskBreakdown || []).length} tasks</span>
+                            </div>
+                            <div className="flex justify-between text-slate-400">
+                              <span>Weekly Hours:</span>
+                              <span className="text-cyan-400 font-semibold">{proj.activeHours} hrs/wk (Freed)</span>
+                            </div>
+                            <div className="flex justify-between text-slate-400">
+                              <span>Archived Date:</span>
+                              <span className="text-slate-300 font-medium">
+                                {new Date(proj.archivedAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-slate-400">
+                              <span>Reason:</span>
+                              <span className="text-amber-300/90 font-medium truncate max-w-[140px]" title={proj.archiveReason}>
+                                {proj.archiveReason || 'Archived'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="pt-4 mt-4 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRestoreProject(proj.id)}
+                            className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                            title="Restore project to active tracker"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Restore</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setViewingProjectDetail(proj)}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
+                            title="Inspect 360° Historical Details"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+
+                          {proj.archiveCategory === 'trash' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleSwitchArchiveCategory(proj.id, 'past_project')}
+                              className="p-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 transition-all cursor-pointer"
+                              title="Move from Trash to Past Projects Folder"
+                            >
+                              <FolderArchive className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSwitchArchiveCategory(proj.id, 'trash')}
+                              className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-all cursor-pointer"
+                              title="Move to Trash"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handlePermanentDeleteArchived(proj.id)}
+                            className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 hover:text-rose-300 border border-rose-500/40 transition-all cursor-pointer"
+                            title="Permanently Purge from Storage"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -7842,12 +8251,29 @@ Due Date: ${proj.paymentDueDate}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setDeletingProject(editingProject)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer modal-delete-btn"
-                  title="Delete this project permanently"
+                  onClick={() => handleMoveProjectToArchive(editingProject, 'past_project')}
+                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer modal-archive-btn"
+                  title="Move to Past Projects folder"
+                >
+                  <FolderArchive className="w-3.5 h-3.5" />
+                  <span>Archive to Past</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMoveProjectToArchive(editingProject, 'trash')}
+                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer modal-trash-btn"
+                  title="Move project to Trash"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete Project</span>
+                  <span>Move to Trash</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeletingProject(editingProject)}
+                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer modal-delete-btn"
+                  title="More delete and retirement options"
+                >
+                  <span>Delete…</span>
                 </button>
               </div>
               <div className="flex items-center gap-2">
@@ -8894,12 +9320,31 @@ Due Date: ${proj.paymentDueDate}
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setDeletingProject(liveProject)}
-                    className="px-3.5 py-2 rounded-xl modal-delete-btn text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-                    title="Permanently delete project"
+                    onClick={() => handleMoveProjectToArchive(liveProject, 'past_project')}
+                    className="px-3.5 py-2 rounded-xl modal-archive-btn text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                    title="Move to Past Projects folder"
+                  >
+                    <FolderArchive className="w-3.5 h-3.5" />
+                    <span>Move to Past</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleMoveProjectToArchive(liveProject, 'trash')}
+                    className="px-3.5 py-2 rounded-xl modal-trash-btn text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                    title="Move to Trash"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete Project</span>
+                    <span>Move to Trash</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDeletingProject(liveProject)}
+                    className="px-3.5 py-2 rounded-xl modal-delete-btn text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                    title="More retirement and delete options"
+                  >
+                    <span>Delete…</span>
                   </button>
 
                   <button
@@ -8931,24 +9376,35 @@ Due Date: ${proj.paymentDueDate}
       })()}
       </AnimatePresence>
 
-      {/* MODAL: Delete Project Confirmation Dialog */}
+      {/* MODAL: Move to Past Projects, Trash, or Delete Dialog */}
       {deletingProject && createPortal(
         <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4">
           <div
             className="fixed inset-0 bg-slate-950/80 backdrop-blur-md cursor-pointer transition-opacity"
             onClick={() => setDeletingProject(null)}
           />
-          <div className="relative z-10 w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700/80 shadow-2xl p-6 text-white space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center mx-auto shadow-lg shadow-rose-500/10">
-              <Trash2 className="w-6 h-6" />
+          <div className="relative z-10 w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-700/80 shadow-2xl p-6 text-white space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+                  <FolderArchive className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Project Retirement &amp; Trash</h3>
+                  <p className="text-xs text-slate-400">Choose how to handle this project</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingProject(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="text-center space-y-1">
-              <h3 className="text-lg font-black text-white">Delete Project?</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Are you sure you want to permanently delete{' '}
-                <strong className="text-white font-bold">"{deletingProject.name || deletingProject.client}"</strong>?
-              </p>
+            <div className="text-xs text-slate-300 leading-relaxed">
+              Managing project <strong className="text-white font-bold">"{deletingProject.name || deletingProject.client}"</strong>. You can move it to your Past Projects folder (archive), put it in Trash, or permanently delete it.
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs space-y-1.5">
@@ -8965,33 +9421,95 @@ Due Date: ${proj.paymentDueDate}
                 <span className="text-slate-200 font-bold">{(deletingProject.taskBreakdown || []).length} tasks</span>
               </div>
               <div className="flex justify-between text-slate-400">
-                <span>Allocated Hours:</span>
+                <span>Allocated Weekly Hours:</span>
                 <span className="text-cyan-400 font-bold">{deletingProject.activeHours} hrs/wk</span>
               </div>
             </div>
 
-            <p className="text-[11px] text-rose-400/90 text-center font-semibold">
-              ⚠️ This action cannot be undone. All assigned deliverables and member hours for this project will be removed.
-            </p>
-
-            <div className="flex items-center gap-3 pt-2">
+            {/* 3 Action Options */}
+            <div className="space-y-2.5 pt-1">
+              {/* Option 1: Move to Past Projects Folder */}
               <button
                 type="button"
-                onClick={() => setDeletingProject(null)}
-                className="flex-1 py-2.5 rounded-xl modal-cancel-btn text-xs font-bold transition-all cursor-pointer"
+                onClick={() => {
+                  handleMoveProjectToArchive(deletingProject, 'past_project', 'Moved to Past Projects folder');
+                }}
+                className="w-full text-left p-3 rounded-xl bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-500/40 hover:border-indigo-500 text-white transition-all cursor-pointer flex items-center justify-between group"
               >
-                Cancel
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0">
+                    <FolderArchive className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-indigo-200 group-hover:text-white flex items-center gap-1.5">
+                      <span>📁 Move to Past Projects Folder</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-300 font-normal">Recommended</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Preserve full history, deliverables &amp; financial ledger. Frees up active team hours.
+                    </div>
+                  </div>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
               </button>
+
+              {/* Option 2: Move to Trash */}
+              <button
+                type="button"
+                onClick={() => {
+                  handleMoveProjectToArchive(deletingProject, 'trash', 'Moved to Trash');
+                }}
+                className="w-full text-left p-3 rounded-xl bg-amber-950/30 hover:bg-amber-900/40 border border-amber-500/40 hover:border-amber-500 text-white transition-all cursor-pointer flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0">
+                    <Trash2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-amber-200 group-hover:text-white">
+                      🗑️ Move to Trash Folder
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Temporarily removes project. Can be restored anytime with 1 click.
+                    </div>
+                  </div>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+
+              {/* Option 3: Permanently Delete */}
               <button
                 type="button"
                 onClick={() => {
                   handleDeleteProject(deletingProject.id);
                   setDeletingProject(null);
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition-all cursor-pointer shadow-lg shadow-rose-600/30 flex items-center justify-center gap-1.5"
+                className="w-full text-left p-3 rounded-xl bg-rose-950/20 hover:bg-rose-950/40 border border-rose-500/30 hover:border-rose-500 text-white transition-all cursor-pointer flex items-center justify-between group"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>Yes, Delete Project</span>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-rose-300 group-hover:text-white">
+                      ⚠️ Delete Permanently
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Irreversibly purge project and task records without saving to archive.
+                    </div>
+                  </div>
+                </div>
+                <X className="w-4 h-4 text-rose-400 group-hover:scale-110 transition-transform" />
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setDeletingProject(null)}
+                className="px-4 py-2 rounded-xl modal-cancel-btn text-xs font-bold transition-all cursor-pointer"
+              >
+                Cancel &amp; Keep Project Active
               </button>
             </div>
           </div>

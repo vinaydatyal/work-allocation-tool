@@ -406,3 +406,34 @@ Agencies frequently maintain their complete client roster inside a specific Clic
     - **Unassigned / Blank Field Support**:
       - All leadership dropdowns (`Assignee (Team Lead)`, `Client Face (Call Lead)`, `Dev / Tech Lead`) and deliverable rows now support `-- Unassigned (Leave Blank) --` (`value=""`).
       - ClickUp tasks with no assignees are cleanly ingested as unassigned without forcing arbitrary fallback team members.
+
+11. **Comprehensive Past Projects Archive & Trash Safety Management Engine**:
+    - **Archived Data Model (`ArchivedProjectItem`)**:
+      - Extends `ActiveProjectItem` with non-destructive archival telemetry:
+        - `archivedAt`: ISO 8601 timestamp recording when the project was retired or trashed.
+        - `archiveCategory`: Distinct separation between `'past_project'` (historical client retainers & completed deliverables) and `'trash'` (soft-deleted items awaiting permanent removal).
+        - `archiveReason`: User or system reason (e.g., "Moved to Past Projects folder", "Moved to Trash").
+      - Persisted locally under `wat_agency_archived_projects_v1` with error resilience and instant sync.
+    - **Tri-Choice Project Retirement & Deletion Workflow**:
+      - Replaced destructive one-way deletion dialogs with a comprehensive, user-friendly **"Project Retirement & Trash"** modal dialog mounted via `createPortal(..., document.body)`:
+        1. **📁 Move to Past Projects Folder**: Safely retires the project, frees active team workload, and archives complete client records, deliverable breakdowns, GA4/GBP/GSC access history, and invoice history.
+        2. **🗑️ Move to Trash Folder**: Soft-deletes the project into the Trash holding bin, immediately restorable back into active roster with 1 click.
+        3. **⚠️ Delete Permanently**: Irreversibly purges the project without saving to archive.
+      - **Dedicated Action Buttons**: Added high-contrast `.modal-archive-btn` (indigo `#4f46e5`) and `.modal-trash-btn` (amber/orange `#d97706`) buttons to:
+        - Edit Project Drawer sticky footer
+        - 360° Visual Project Detail Modal sticky footer
+        - Project Retirement confirmation dialog
+    - **Dedicated Sub-Hub Tab 4 (`Past Projects & Trash`) & Toolbar Trigger**:
+      - **Toolbar Shortcut**: Added `Past Projects & Trash` button with folder icon and live count badge directly in the primary agency header toolbar.
+      - **Segmented Sub-Hub Tab**: Integrated Sub-Tab 4 into the primary sub-hub navigation bar alongside `Projects & Retainers`, `Squad Workload & Heatmap`, and `VIP & Financial Pulse`.
+      - **Filtering & Search Studio**:
+        - Segmented filter controls: `All (${count})`, `📁 Past Projects (${count})`, `🗑️ Trash (${count})`.
+        - Real-time search filter matching project name, client, or team lead.
+        - `Empty Trash` button with bulk removal for trashed items.
+      - **Interactive Archive Grid**:
+        - High-contrast card display with category badges (`Past Project` vs. `In Trash`), contract retainer price, deliverable counts, freed weekly hours, and archive timestamp.
+        - **🔄 1-Click Restore**: Moves project back into the active roster and recalculates employee workload instantly with toast notification.
+        - **👁️ 360° Inspection**: Full access to historic audit records, invoices, and deliverable notes.
+        - **⇄ Category Switching**: Easily move items between Trash and Past Projects folders.
+        - **❌ Permanent Purge**: Cleanly purges individual archived projects from browser storage.
+
