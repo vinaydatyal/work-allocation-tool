@@ -22,7 +22,8 @@ import {
   FolderClosed,
   ChevronDown,
   ChevronRight,
-  FileText
+  FileText,
+  Radio
 } from 'lucide-react';
 import {
   initiateClickUpOAuth,
@@ -43,6 +44,7 @@ import {
   fetchClickUpTeamMembers,
   fetchClickUpTimeEntries,
   createClickUpTask,
+  registerClickUpWebhook,
   type ClickUpWorkspace,
   type ClickUpTask,
   type ClickUpSpace,
@@ -60,7 +62,7 @@ interface ClickUpOAuthModalProps {
   onImportTimeEntries?: (entries: ClickUpTimeEntry[]) => void;
 }
 
-type ActiveFeatureTab = 'overview' | 'hierarchy' | 'time' | 'members' | 'create';
+type ActiveFeatureTab = 'overview' | 'hierarchy' | 'time' | 'members' | 'create' | 'webhooks';
 
 export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({ 
   isOpen, 
@@ -115,6 +117,40 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
   const [newTaskAssignee, setNewTaskAssignee] = useState<number | null>(null);
   const [newTaskPriority, setNewTaskPriority] = useState('3');
   const [creatingTask, setCreatingTask]     = useState(false);
+
+  // Webhooks & Live Sync state (Feature F)
+  const [webhookUrl, setWebhookUrl]         = useState(
+    typeof window !== 'undefined' ? `${window.location.origin}/api/clickup/webhook` : ''
+  );
+  const [registeringWebhook, setRegisteringWebhook] = useState(false);
+  const [webhookStatus, setWebhookStatus]   = useState<string | null>(null);
+
+  const handleRegisterWebhook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!webhookUrl.trim() || !selectedWs) return;
+    const token = getClickUpToken();
+    if (!token) return;
+
+    try {
+      setRegisteringWebhook(true);
+      setWebhookStatus(null);
+      await registerClickUpWebhook(token, selectedWs, webhookUrl.trim(), [
+        'taskCreated',
+        'taskUpdated',
+        'taskStatusUpdated',
+        'taskAssigneeUpdated',
+        'taskDeleted'
+      ]);
+      setWebhookStatus('✅ Webhook successfully registered with ClickUp API!');
+      setSyncToast('⚡ ClickUp Webhook registered: Real-time bi-directional events active!');
+      setTimeout(() => setSyncToast(null), 4000);
+    } catch (err: any) {
+      console.error('Webhook registration failed:', err);
+      setWebhookStatus(`❌ Registration failed: ${err.message || 'Check endpoint or ClickUp permissions'}`);
+    } finally {
+      setRegisteringWebhook(false);
+    }
+  };
 
   // Check if env CLIENT_ID is set
   const clientIdConfigured = !!import.meta.env.VITE_CLICKUP_CLIENT_ID;
@@ -500,6 +536,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                       { id: 'time', label: 'Time Tracking', icon: Clock },
                       { id: 'members', label: 'Team Members', icon: Users },
                       { id: 'create', label: 'Create Task', icon: PlusCircle },
+                      { id: 'webhooks', label: 'Live Sync & Webhooks', icon: Radio },
                     ].map((tab) => {
                       const Icon = tab.icon;
                       const isActive = featureTab === tab.id;
@@ -1461,6 +1498,128 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                           {creatingTask ? 'Pushing to ClickUp…' : '🚀 Push Task to ClickUp'}
                         </button>
                       </form>
+                    )}
+
+                    {/* TAB 6: LIVE SYNC & WEBHOOKS */}
+                    {featureTab === 'webhooks' && (
+                      <div className="space-y-4 text-xs">
+                        {/* 1. Automated Polling Engine Status */}
+                        <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3 shadow-md">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                              </span>
+                              <h4 className="text-sm font-bold text-white" style={{ color: '#ffffff' }}>
+                                Automated 60-Second Silent Sync Engine
+                              </h4>
+                            </div>
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                              🟢 ACTIVE & RUNNING
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-200" style={{ color: '#ffffff' }}>
+                            The tool silently polls ClickUp every 60 seconds while you work. Any changes made to task statuses, deliverables, or assignees in ClickUp are automatically mirrored into your active projects and Kanban board.
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                            <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                              <div className="text-[10px] font-bold text-purple-300 uppercase tracking-wider">Feature A</div>
+                              <div className="text-xs font-bold text-white mt-0.5" style={{ color: '#ffffff' }}>Two-Way Kanban</div>
+                              <div className="text-[10px] text-slate-300 mt-0.5" style={{ color: '#f1f5f9' }}>Drag & drop syncs ClickUp task status instantly</div>
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                              <div className="text-[10px] font-bold text-cyan-300 uppercase tracking-wider">Feature B</div>
+                              <div className="text-xs font-bold text-white mt-0.5" style={{ color: '#ffffff' }}>Direct Deep Links</div>
+                              <div className="text-[10px] text-slate-300 mt-0.5" style={{ color: '#f1f5f9' }}>[CU ↗] badges jump directly to ClickUp tasks</div>
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                              <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Feature E</div>
+                              <div className="text-xs font-bold text-white mt-0.5" style={{ color: '#ffffff' }}>Assignee Mirroring</div>
+                              <div className="text-[10px] text-slate-300 mt-0.5" style={{ color: '#f1f5f9' }}>Capacity linked to ClickUp user accounts</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 2. Webhook Registration Suite */}
+                        <form onSubmit={handleRegisterWebhook} className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3.5 shadow-md">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Radio className="w-4 h-4 text-purple-400" />
+                              <h4 className="text-sm font-bold text-white" style={{ color: '#ffffff' }}>
+                                Register Instant ClickUp Webhook
+                              </h4>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-300" style={{ color: '#ffffff' }}>
+                              POST /api/v2/team/webhook
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-slate-200 leading-relaxed" style={{ color: '#ffffff' }}>
+                            For instant push notifications when tasks change in ClickUp (without waiting for the 60-second polling interval), register your public endpoint below:
+                          </p>
+
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-white" style={{ color: '#ffffff' }}>
+                              Webhook Destination URL:
+                            </label>
+                            <input
+                              type="url"
+                              value={webhookUrl}
+                              onChange={(e) => setWebhookUrl(e.target.value)}
+                              placeholder="https://your-domain.com/api/clickup/webhook"
+                              className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"
+                              style={{ color: '#ffffff' }}
+                              required
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <span className="block text-xs font-bold text-white" style={{ color: '#ffffff' }}>
+                              Active Subscribed Events:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {['taskCreated', 'taskUpdated', 'taskStatusUpdated', 'taskAssigneeUpdated', 'taskDeleted'].map((evt) => (
+                                <span
+                                  key={evt}
+                                  className="px-2 py-0.5 rounded-md bg-purple-950/70 border border-purple-700/50 text-purple-200 text-[10px] font-mono font-bold"
+                                  style={{ color: '#e9d5ff' }}
+                                >
+                                  ✓ {evt}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {webhookStatus && (
+                            <div className={`p-3 rounded-xl text-xs font-bold border ${
+                              webhookStatus.startsWith('✅')
+                                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
+                                : 'bg-rose-950/60 border-rose-500/50 text-rose-200'
+                            }`} style={{ color: '#ffffff' }}>
+                              {webhookStatus}
+                            </div>
+                          )}
+
+                          <button
+                            type="submit"
+                            disabled={registeringWebhook || !webhookUrl.trim() || !selectedWs}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs transition-all shadow-md shadow-purple-600/30 disabled:opacity-50 cursor-pointer"
+                          >
+                            {registeringWebhook ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Registering Webhook with ClickUp…</span>
+                              </>
+                            ) : (
+                              <>
+                                <Radio className="w-4 h-4" />
+                                <span>Register Webhook with ClickUp API</span>
+                              </>
+                            )}
+                          </button>
+                        </form>
+                      </div>
                     )}
 
                   </div>

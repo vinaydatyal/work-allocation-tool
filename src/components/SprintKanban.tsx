@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Task, TeamMember, TaskStatus, AppUserProfile } from '../types';
-import { ArrowRight, CheckCircle2, Clock, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock, ShieldCheck, ExternalLink } from 'lucide-react';
+import { toast as sonnerToast } from 'sonner';
 import { isClickUpConnected, getClickUpToken, updateClickUpTaskStatus } from '../services/clickupOAuth';
 
 interface SprintKanbanProps {
@@ -29,23 +30,29 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
   const handleStatusTransition = async (taskId: string, newStatus: TaskStatus) => {
     onUpdateTaskStatus(taskId, newStatus);
 
+    const task = tasks.find(t => t.id === taskId);
     if (isClickUpConnected()) {
       const token = getClickUpToken();
-      if (token && taskId.startsWith('cu-')) {
-        const rawClickUpId = taskId.replace(/^cu-(live-)?/, '').split('-')[0];
-        if (rawClickUpId) {
-          try {
-            const clickUpStatusMap: Record<TaskStatus, string> = {
-              backlog: 'to do',
-              assigned: 'to do',
-              in_progress: 'in progress',
-              review: 'in review',
-              completed: 'complete'
-            };
-            await updateClickUpTaskStatus(token, rawClickUpId, clickUpStatusMap[newStatus]);
-          } catch (err) {
-            console.error('Failed to sync status to ClickUp:', err);
-          }
+      const rawClickUpId = task?.clickUpTaskId || (taskId.startsWith('cu-') ? taskId.replace(/^cu-(live-)?/, '').split('-')[0] : null);
+      if (token && rawClickUpId) {
+        try {
+          const clickUpStatusMap: Record<TaskStatus, string> = {
+            backlog: 'to do',
+            assigned: 'to do',
+            in_progress: 'in progress',
+            review: 'in review',
+            completed: 'complete'
+          };
+          const cuStatus = clickUpStatusMap[newStatus];
+          await updateClickUpTaskStatus(token, rawClickUpId, cuStatus);
+          sonnerToast.success('⚡ ClickUp Status Synchronized', {
+            description: `"${task?.title || 'Task'}" updated to "${cuStatus}" in ClickUp.`
+          });
+        } catch (err) {
+          console.error('Failed to sync status to ClickUp:', err);
+          sonnerToast.error('ClickUp Status Sync Failed', {
+            description: 'Could not update status in ClickUp. Check connection or permissions.'
+          });
         }
       }
     }
@@ -96,6 +103,8 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
                   ) : (
                     colTasks.map((task) => {
                       const assignee = findAssignee(task.assignedUserId);
+                      const clickUpUrl = task.clickUpUrl || (task.clickUpTaskId ? `https://app.clickup.com/t/${task.clickUpTaskId}` : (task.id.startsWith('cu-') ? `https://app.clickup.com/t/${task.id.replace(/^cu-(live-)?/, '').split('-')[0]}` : null));
+
                       return (
                         <div
                           key={task.id}
@@ -104,10 +113,25 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
                           <div>
                             <div className="flex items-center justify-between text-[10px] mb-1">
                               <span className="text-slate-400 font-semibold uppercase">{task.clientName}</span>
-                              <span
-                                className="w-2 h-2 rounded-full"
-                                style={{ backgroundColor: task.categoryColor }}
-                              />
+                              <div className="flex items-center gap-1.5">
+                                {clickUpUrl && (
+                                  <a
+                                    href={clickUpUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Open task in ClickUp"
+                                    className="px-1.5 py-0.5 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-purple-100 border border-purple-800/60 text-[10px] font-bold flex items-center gap-0.5 transition-colors cursor-pointer"
+                                  >
+                                    <span>CU</span>
+                                    <ExternalLink className="w-2.5 h-2.5" />
+                                  </a>
+                                )}
+                                <span
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: task.categoryColor }}
+                                />
+                              </div>
                             </div>
                             <h4 className="text-sm font-bold text-white leading-snug">{task.title}</h4>
                           </div>

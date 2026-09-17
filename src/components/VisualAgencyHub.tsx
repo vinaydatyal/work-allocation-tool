@@ -39,10 +39,21 @@ import {
   Moon,
   Filter,
   BarChart3,
-  ShieldCheck
+  ShieldCheck,
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import { ClickUpOAuthModal } from './ClickUpOAuthModal';
-import { isClickUpConnected } from '../services/clickupOAuth';
+import {
+  isClickUpConnected,
+  getClickUpToken,
+  getClickUpWorkspaceId,
+  setClickUpWorkspaceId,
+  fetchClickUpTasks,
+  fetchClickUpWorkspaces,
+  updateClickUpTaskAssignees,
+  updateClickUpTaskStatus
+} from '../services/clickupOAuth';
 import { AGENCY_MASTER_EXAM_BANK, type ExamQuestionType } from '../data/skillExamBank';
 import { getPDFMasterProjects, classifyClientTier } from '../data/pdfMasterProjectsData';
 import { DSRTrackerStudio } from './DSRTrackerStudio';
@@ -88,6 +99,10 @@ export interface ProjectTaskAllocation {
   taskType: string;
   assigneeId: string;
   hours: number;
+  clickUpTaskId?: string;
+  clickUpUrl?: string;
+  clickUpStatus?: string;
+  status?: string;
 }
 
 export interface ActiveProjectItem {
@@ -359,9 +374,91 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   const [modalStepTab, setModalStepTab] = useState<'core' | 'billing' | 'team' | 'access'>('core');
   const [editModalStepTab, setEditModalStepTab] = useState<'core' | 'billing' | 'team' | 'access'>('core');
 
-  // ClickUp Integration Modal State & Live Sync Handler
+  // ClickUp Integration Modal State, Background Sync & Assignee Mirroring (Features E & F)
   const [showClickUpModal, setShowClickUpModal] = useState(false);
   const [clickUpSyncStatus, setClickUpSyncStatus] = useState<'idle' | 'syncing' | 'success'>('idle');
+  const [lastSyncedTime, setLastSyncedTime] = useState<Date | null>(null);
+  const [isAutoSyncing, setIsAutoSyncing] = useState<boolean>(false);
+
+  // Automated ClickUp Background Silent Polling Sync (Feature F)
+  const performSilentClickUpSync = async (isManual = false) => {
+    if (!isClickUpConnected() || isAutoSyncing) return;
+    const token = getClickUpToken();
+    if (!token) return;
+
+    try {
+      setIsAutoSyncing(true);
+      let wsId = getClickUpWorkspaceId();
+      if (!wsId) {
+        const workspaces = await fetchClickUpWorkspaces(token);
+        if (workspaces && workspaces.length > 0) {
+          wsId = workspaces[0].id;
+          setClickUpWorkspaceId(wsId);
+        }
+      }
+      if (!wsId) return;
+
+      const liveTasks = await fetchClickUpTasks(token, wsId);
+      if (liveTasks && liveTasks.length > 0) {
+        setProjectsList((prev) =>
+          prev.map((proj) => {
+            if (!proj.taskBreakdown || proj.taskBreakdown.length === 0) return proj;
+            let modified = false;
+            const updatedBreakdown = proj.taskBreakdown.map((tb) => {
+              const matchedTask = tb.clickUpTaskId
+                ? liveTasks.find((lt) => String(lt.id) === String(tb.clickUpTaskId))
+                : null;
+              if (matchedTask) {
+                const rawStatus = matchedTask.status?.status || (typeof matchedTask.status === 'string' ? matchedTask.status : (tb.clickUpStatus || 'in progress'));
+                const sLower = rawStatus.toLowerCase();
+                const mappedStatus = (sLower.includes('complete') || sLower.includes('done') || sLower.includes('closed'))
+                  ? 'completed'
+                  : (sLower.includes('review') || sLower.includes('qa'))
+                  ? 'review'
+                  : sLower.includes('progress')
+                  ? 'in_progress'
+                  : 'assigned';
+
+                if (tb.clickUpStatus !== rawStatus || tb.status !== mappedStatus) {
+                  modified = true;
+                  return {
+                    ...tb,
+                    clickUpStatus: rawStatus,
+                    status: mappedStatus as any,
+                    clickUpUrl: matchedTask.url || tb.clickUpUrl,
+                  };
+                }
+              }
+              return tb;
+            });
+            if (modified) {
+              return { ...proj, taskBreakdown: updatedBreakdown };
+            }
+            return proj;
+          })
+        );
+        setLastSyncedTime(new Date());
+        if (isManual) {
+          sonnerToast.success('⚡ ClickUp Synchronized', {
+            description: `Refreshed ${liveTasks.length} active tasks from ClickUp.`
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('ClickUp silent background sync error:', err);
+    } finally {
+      setIsAutoSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isClickUpConnected()) return;
+    performSilentClickUpSync(false);
+    const interval = setInterval(() => {
+      performSilentClickUpSync(false);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSyncTasksIntoProjects = (tasks: any[]) => {
     if (!tasks || tasks.length === 0) return;
@@ -369,13 +466,51 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     setTimeout(() => {
       setProjectsList((prev) =>
         prev.map((proj, idx) => {
-          const clickUpDeliverables = tasks.slice(idx * 2, idx * 2 + 2).map((t: any, i: number) => ({
-            id: `cu-live-${t.id || i}-${Date.now()}`,
-            taskType: (i % 2 === 0 ? 'Technical SEO' : 'On-Page SEO') as any,
-            assigneeId: customMembers[i % customMembers.length]?.id || customMembers[0].id,
-            hours: Math.round((t.time_estimate ? t.time_estimate / 3600000 : 5)) || 5
-          }));
-          const updatedBreakdown = [...(proj.taskBreakdown || []), ...clickUpDeliverables];
+          const projectTasks = tasks.slice(idx * 2, idx * 2 + 2);
+          const clickUpDeliverables = projectTasks.map((t: any, i: number) => {
+            // Smart Assignee & Capacity Mirroring (Feature E)
+            let matchedAssigneeId = customMembers[i % customMembers.length]?.id || customMembers[0].id;
+            if (t.assignees && t.assignees.length > 0) {
+              const cuAssignee = t.assignees[0];
+              const foundMember = customMembers.find((cm) =>
+                (cm.clickUpUserId && String(cm.clickUpUserId) === String(cuAssignee.id)) ||
+                (cm.clickUpEmail && cuAssignee.email && cm.clickUpEmail.toLowerCase() === cuAssignee.email.toLowerCase()) ||
+                (cm.name.toLowerCase() === (cuAssignee.username || '').toLowerCase())
+              );
+              if (foundMember) {
+                matchedAssigneeId = foundMember.id;
+              }
+            }
+
+            const rawEstimatedHours = t.time_estimate ? Math.round(t.time_estimate / 3600000) : 5;
+            const statusName = t.status?.status?.toLowerCase() || (typeof t.status === 'string' ? t.status.toLowerCase() : 'in_progress');
+            const canonicalStatus = (statusName.includes('complete') || statusName.includes('done') || statusName.includes('closed'))
+              ? 'completed'
+              : (statusName.includes('review') || statusName.includes('qa'))
+              ? 'review'
+              : statusName.includes('progress')
+              ? 'in_progress'
+              : 'assigned';
+
+            return {
+              id: `cu-live-${t.id || i}-${Date.now()}`,
+              taskType: (i % 2 === 0 ? 'Technical SEO' : 'On-Page SEO') as any,
+              assigneeId: matchedAssigneeId,
+              hours: rawEstimatedHours || 5,
+              clickUpTaskId: String(t.id),
+              clickUpUrl: t.url || `https://app.clickup.com/t/${t.id}`,
+              clickUpStatus: t.status?.status || (typeof t.status === 'string' ? t.status : 'In Progress'),
+              status: canonicalStatus as any
+            };
+          });
+
+          // Prevent duplicate tasks by clickUpTaskId
+          const existingBreakdown = proj.taskBreakdown || [];
+          const nonDuplicateNew = clickUpDeliverables.filter(
+            (newD) => !existingBreakdown.some((ed) => ed.clickUpTaskId && ed.clickUpTaskId === newD.clickUpTaskId)
+          );
+          const updatedBreakdown = [...existingBreakdown, ...nonDuplicateNew];
+
           return {
             ...proj,
             taskBreakdown: updatedBreakdown,
@@ -383,10 +518,11 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
           };
         })
       );
+      setLastSyncedTime(new Date());
       setClickUpSyncStatus('idle');
       setCopiedToast(`⚡ Synced ${tasks.length} live ClickUp tasks into active projects!`);
       sonnerToast.success('ClickUp Live Sync Complete', {
-        description: `Mapped ${tasks.length} live ClickUp tasks into your active board!`
+        description: `Mapped ${tasks.length} live ClickUp tasks with smart assignee matching!`
       });
     }, 400);
     setTimeout(() => setCopiedToast(null), 4500);
@@ -394,13 +530,32 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
 
   const handleImportClickUpMembers = (members: any[]) => {
     let addedCount = 0;
+    let linkedCount = 0;
+
     members.forEach((m) => {
-      const exists = customMembers.some(
-        (cm) => cm.name.toLowerCase() === m.username.toLowerCase() || (m.email && cm.id.includes(String(m.id)))
+      const existingIdx = customMembers.findIndex(
+        (cm) =>
+          (cm.name.toLowerCase() === m.username.toLowerCase()) ||
+          (m.email && cm.clickUpEmail && cm.clickUpEmail.toLowerCase() === m.email.toLowerCase()) ||
+          (m.email && cm.id.includes(String(m.id)))
       );
-      if (!exists) {
+
+      if (existingIdx >= 0) {
+        setCustomMembers((prev) => {
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            clickUpUserId: Number(m.id),
+            clickUpEmail: m.email || updated[existingIdx].clickUpEmail
+          };
+          return updated;
+        });
+        linkedCount++;
+      } else {
         const newSquadMember: TeamMember = {
           id: `cu-member-${m.id}`,
+          clickUpUserId: Number(m.id),
+          clickUpEmail: m.email || undefined,
           name: m.username,
           role: `${m.role} (ClickUp)`,
           department: 'SEO',
@@ -428,9 +583,13 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         addedCount++;
       }
     });
-    setCopiedToast(`⚡ Imported ${addedCount} team members from ClickUp into active squad!`);
+
+    const msg = addedCount > 0 
+      ? `⚡ Imported ${addedCount} and linked ${linkedCount} ClickUp profiles!`
+      : `⚡ Linked ${linkedCount} squad members to ClickUp user accounts!`;
+    setCopiedToast(msg);
     sonnerToast.success('ClickUp Team Sync', {
-      description: `Imported ${addedCount} members from ClickUp into squad roster.`
+      description: msg
     });
     setTimeout(() => setCopiedToast(null), 4500);
   };
@@ -579,6 +738,40 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     field: keyof ProjectTaskAllocation,
     val: any
   ) => {
+    // Bi-directional ClickUp Assignee & Status Mirroring (Features E & A)
+    if (field === 'assigneeId' || field === 'status') {
+      const token = getClickUpToken();
+      if (token) {
+        const targetProj = projectsList.find((p) => p.id === projId);
+        const targetTb = targetProj?.taskBreakdown?.find((t) => t.id === tbId);
+        if (targetTb?.clickUpTaskId) {
+          if (field === 'assigneeId') {
+            const newMember = customMembers.find((m) => m.id === val);
+            const oldMember = customMembers.find((m) => m.id === targetTb.assigneeId);
+            const addIds = newMember?.clickUpUserId ? [Number(newMember.clickUpUserId)] : [];
+            const remIds = oldMember?.clickUpUserId ? [Number(oldMember.clickUpUserId)] : [];
+            if (addIds.length > 0 || remIds.length > 0) {
+              updateClickUpTaskAssignees(token, targetTb.clickUpTaskId, addIds, remIds)
+                .then(() => {
+                  sonnerToast.success('⚡ ClickUp Assignee Synchronized', {
+                    description: `Updated assignee to "${newMember?.name || 'Member'}" in ClickUp.`
+                  });
+                })
+                .catch((err) => console.warn('ClickUp assignee update warning:', err));
+            }
+          } else if (field === 'status') {
+            updateClickUpTaskStatus(token, targetTb.clickUpTaskId, String(val))
+              .then(() => {
+                sonnerToast.success('⚡ ClickUp Status Synchronized', {
+                  description: `Status updated to "${val}" in ClickUp.`
+                });
+              })
+              .catch((err) => console.warn('ClickUp status update warning:', err));
+          }
+        }
+      }
+    }
+
     setProjectsList((prev) =>
       prev.map((proj) => {
         if (proj.id !== projId) return proj;
@@ -1449,14 +1642,38 @@ Due Date: ${proj.paymentDueDate}
                 onClick={() => setShowClickUpModal(true)}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm ${
                   isClickUpConnected()
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                    ? 'bg-purple-950/60 hover:bg-purple-900 text-purple-200 border border-purple-500/40'
                     : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-400/30 shadow-purple-600/25'
                 }`}
-                title={isClickUpConnected() ? 'ClickUp Connected — click to view tasks or sync' : 'Connect ClickUp Account or API Token'}
+                title={isClickUpConnected() ? 'ClickUp Connected — click to view spaces, lists or sync' : 'Connect ClickUp Account or API Token'}
               >
                 <span className={`w-2 h-2 rounded-full ${isClickUpConnected() ? 'bg-emerald-400 animate-pulse' : 'bg-white'}`} />
-                <span>{isClickUpConnected() ? 'ClickUp Connected' : '⚡ Connect & Sync ClickUp'}</span>
+                <span>{isClickUpConnected() ? 'ClickUp Connected' : '⚡ Connect ClickUp'}</span>
               </button>
+
+              {isClickUpConnected() && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold shadow-sm">
+                  <span className="relative flex h-2 w-2">
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ${isAutoSyncing ? 'duration-700' : 'duration-1000'}`}></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-white font-bold">{isAutoSyncing ? 'Syncing...' : 'Live Sync'}</span>
+                  <span className="text-[10px] text-emerald-400 font-mono hidden sm:inline">
+                    {lastSyncedTime
+                      ? `(${Math.max(0, Math.round((Date.now() - lastSyncedTime.getTime()) / 60000))}m ago)`
+                      : '(60s auto)'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => performSilentClickUpSync(true)}
+                    disabled={isAutoSyncing}
+                    title="Click to trigger instant ClickUp sync"
+                    className="p-1 hover:bg-emerald-500/20 rounded text-emerald-300 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isAutoSyncing ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              )}
 
               <button
                 type="button"
@@ -2495,6 +2712,19 @@ Due Date: ${proj.paymentDueDate}
                                       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 hover:border-slate-600 text-xs font-medium transition-all max-w-full min-w-0"
                                     >
                                       <span className="text-cyan-300 font-bold truncate max-w-[120px] sm:max-w-[160px]">{tb.taskType}</span>
+                                      {tb.clickUpUrl && (
+                                        <a
+                                          href={tb.clickUpUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          title={`Open task in ClickUp${tb.clickUpStatus ? ` (${tb.clickUpStatus})` : ''}`}
+                                          className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-white border border-purple-700/60 text-[9px] font-extrabold transition-colors cursor-pointer shrink-0"
+                                        >
+                                          <span>CU</span>
+                                          <ExternalLink className="w-2 h-2" />
+                                        </a>
+                                      )}
                                       {assignee && (
                                         <img
                                           src={assignee.avatar}
@@ -7188,7 +7418,21 @@ Due Date: ${proj.paymentDueDate}
                         className="grid grid-cols-1 md:grid-cols-12 gap-3 p-3.5 rounded-2xl bg-slate-900 border border-slate-800/90 text-xs items-center shadow-md"
                       >
                         <div className="md:col-span-4 flex flex-col gap-1">
-                          <span className="text-[10px] font-bold text-slate-400">Task Category</span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-slate-400">Task Category</span>
+                            {tb.clickUpUrl && (
+                              <a
+                                href={tb.clickUpUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Open ClickUp task #${tb.clickUpTaskId || ''} in browser`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-white border border-purple-700/60 text-[9px] font-bold transition-all"
+                              >
+                                <span>ClickUp #{tb.clickUpTaskId ? tb.clickUpTaskId.slice(-6) : 'task'}</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
                           <select
                             value={tb.taskType}
                             onChange={(e) =>

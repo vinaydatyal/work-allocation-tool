@@ -370,10 +370,59 @@ export async function createClickUpTask(
   return res.json();
 }
 
+export function mapTaskStatusToClickUp(status: string): string {
+  const normalized = status.toLowerCase().trim();
+  switch (normalized) {
+    case 'backlog':
+    case 'assigned':
+    case 'to do':
+    case 'todo':
+      return 'to do';
+    case 'in_progress':
+    case 'in progress':
+    case 'doing':
+      return 'in progress';
+    case 'review':
+    case 'quality review':
+    case 'in review':
+      return 'in review';
+    case 'completed':
+    case 'done':
+    case 'complete':
+    case 'closed':
+      return 'complete';
+    default:
+      return status;
+  }
+}
+
 export async function updateClickUpTaskStatus(
   token: string,
   taskId: string,
   status: string
+): Promise<any> {
+  const normalizedStatus = mapTaskStatusToClickUp(status);
+  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/task/${taskId}`)}`;
+  const res = await fetch(proxyUrl, {
+    method: 'PUT',
+    headers: {
+      Authorization: token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status: normalizedStatus }),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Failed to update ClickUp task status: ${errText}`);
+  }
+  return res.json();
+}
+
+export async function updateClickUpTaskAssignees(
+  token: string,
+  taskId: string,
+  addAssigneeIds: number[] = [],
+  remAssigneeIds: number[] = []
 ): Promise<any> {
   const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/task/${taskId}`)}`;
   const res = await fetch(proxyUrl, {
@@ -382,11 +431,41 @@ export async function updateClickUpTaskStatus(
       Authorization: token,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({
+      assignees: {
+        add: addAssigneeIds,
+        rem: remAssigneeIds,
+      },
+    }),
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`Failed to update ClickUp task status: ${errText}`);
+    throw new Error(`Failed to update ClickUp task assignees: ${errText}`);
+  }
+  return res.json();
+}
+
+export async function registerClickUpWebhook(
+  token: string,
+  teamId: string,
+  endpointUrl: string,
+  events: string[] = ['taskCreated', 'taskUpdated', 'taskStatusUpdated']
+): Promise<any> {
+  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/team/${teamId}/webhook`)}`;
+  const res = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      endpoint: endpointUrl,
+      events,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Failed to register ClickUp webhook: ${errText}`);
   }
   return res.json();
 }

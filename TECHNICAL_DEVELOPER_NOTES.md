@@ -193,19 +193,51 @@ The Work Allocation Tool integrates 5 core feature modules connecting directly t
   - **Header**: Top-right `[Esc] Close` button with a visible red hover accent and keyboard hint badge.
   - **Footer**: Dedicated `Cancel / Close` button with clear border and icon, alongside the `Disconnect` button (for connected accounts) and `Done` confirmation button.
 
-### 7.7 Strategic Full-Power ClickUp Integration Architecture & Recommendations
-1. **Interactive Deep-Linking Across the Entire Agency App**:
-   - Enable quick ClickUp deep links (`[CU ↗]`) not only inside the modal, but directly on project cards, Kanban deliverable pills, and member profile task rosters so managers and clients can jump from any metric directly into ClickUp with 1 click.
-2. **Bi-Directional Real-Time Kanban Drag-and-Drop Sync**:
-   - When a task is dragged across sprint Kanban columns (e.g. Backlog -> Doing -> Review -> Done), trigger an automatic background `PUT /api/v2/task/{task_id}` with the mapped ClickUp status (`in progress`, `in review`, `complete`).
-3. **Custom Fields Synchronization (Financial Health & Margins)**:
-   - ClickUp custom fields (`/list/{list_id}/field` and `/task/{task_id}/field/{field_id}`) can store Agency Target Margin (%), Hourly Rate ($), and Client Ready Tier directly inside ClickUp tasks.
-4. **Bi-Directional Time Tracking & DSR Sync**:
-   - Push time logged in the Daily Status Report (DSR) directly to ClickUp time entries (`POST /api/v2/team/{team_id}/time_entries`), eliminating manual duplicate time entry for specialists.
-5. **Smart Assignee & Capacity Mirroring**:
-   - Automatically reconcile ClickUp assignees with Work Allocation squad members by matching email/name, showing live ClickUp workload alongside internal agency capacity.
-6. **Automated Webhook Subscriptions**:
-   - Register ClickUp Webhooks (`POST /api/v2/team/{team_id}/webhook`) for `taskCreated`, `taskStatusUpdated`, and `timeEntryCreated` to keep the Work Allocation Hub live without requiring manual refresh clicks.
+### 7.7 Implemented Full-Power ClickUp Integrations (Features A, B, E, F)
+
+#### A. Real-Time Two-Way Sprint Kanban Drag-and-Drop Sync
+- **Service Caller**: `updateClickUpTaskStatus(token, taskId, status)`
+- **Endpoint**: `PUT /api/v2/task/{task_id}`
+- **Status Mapping Table**:
+  | Work Allocation Status | Canonical ClickUp Status |
+  | :--- | :--- |
+  | `backlog` / `assigned` | `to do` |
+  | `in_progress` | `in progress` |
+  | `review` | `in review` |
+  | `completed` | `complete` |
+- **Components Integrated**:
+  - `SprintKanban.tsx` (`handleStatusTransition`): Automatically triggers `updateClickUpTaskStatus` when a task transitions between columns, with Sonner toast feedback confirming sync to ClickUp.
+  - `VisualAgencyHub.tsx` (`handleUpdateTaskAllocation`): When a deliverable's status is toggled, dispatches immediate status updates to ClickUp.
+
+#### B. Direct Task Deep Links Across Views
+- **Deliverable Ledgers**: Interactive `[CU ↗]` badges rendered on project card deliverable pills in `VisualAgencyHub.tsx`.
+- **Kanban Cards**: `[CU ↗]` external link badge in `SprintKanban.tsx` directly opening the ClickUp task URL in a new tab.
+- **360° Project Inspection Drawer**: Detailed `[ClickUp #taskId ↗]` badge beside the task category selector, enabling one-click drill-down to the native ClickUp issue.
+
+#### E. Smart Assignee & Capacity Mirroring
+- **Service Caller**: `updateClickUpTaskAssignees(token, taskId, addAssigneeIds, remAssigneeIds)`
+- **Endpoint**: `PUT /api/v2/task/{task_id}`
+- **Matching Algorithm**:
+  1. `clickUpUserId` exact match
+  2. `clickUpEmail` vs `assignee.email` case-insensitive match
+  3. Lowercase username vs squad member `name` fallback
+- **Capacity Impact**:
+  - When ClickUp tasks are synced or imported, the assignee's weekly allocated hours and utilization bars automatically reflect the ClickUp work scope.
+  - Reassigning a deliverable inside `VisualAgencyHub.tsx` sends real-time assignee modifications (`assignees.add` and `assignees.rem`) directly to ClickUp.
+
+#### F. Automated Background Sync & Webhook Subscriptions
+- **Silent Background Polling Loop**:
+  - Automatically activates in `VisualAgencyHub.tsx` when `isClickUpConnected()` is true.
+  - Runs every 60 seconds (`setInterval` with cleanup on unmount) calling `fetchClickUpTasks(token, workspaceId)`.
+  - Reconciles live statuses, names, and estimates with local project deliverables.
+- **Executive Command Bar Status Pill**:
+  - Displays `🟢 Live Sync Active (Synced Xm ago)` with an animated ping indicator.
+  - Includes an instant manual refresh icon button (`<RefreshCw />`) for immediate polling.
+- **Webhook Registration Suite**:
+  - New dedicated tab in `ClickUpOAuthModal.tsx` ("Live Sync & Webhooks").
+  - Registers webhook subscriptions via `registerClickUpWebhook(token, teamId, endpointUrl, events)` to `POST /api/v2/team/{team_id}/webhook`.
+  - Subscribed events: `taskCreated`, `taskUpdated`, `taskStatusUpdated`, `taskAssigneeUpdated`, `taskDeleted`.
+
 
 
 

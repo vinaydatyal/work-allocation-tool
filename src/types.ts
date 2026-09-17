@@ -122,6 +122,8 @@ export interface TeamMember {
   generalCompetency: GeneralCompetencyScores;
   completedSprintTasks: number;
   colorSwatch: string;
+  clickUpUserId?: number;
+  clickUpEmail?: string;
 }
 
 export interface Task {
@@ -129,6 +131,7 @@ export interface Task {
   title: string;
   clientName: string;
   clientTier?: ClientTier;
+  projectName?: string;
   requiredSkill: SkillCategory;
   estimatedHours: number;
   actualHoursLogged: number;
@@ -137,6 +140,9 @@ export interface Task {
   status: TaskStatus;
   dueDate: string;
   categoryColor: string;
+  clickUpTaskId?: string;
+  clickUpUrl?: string;
+  clickUpStatus?: string;
 }
 
 /* --- BRIEF ANALYZER TYPES --- */
