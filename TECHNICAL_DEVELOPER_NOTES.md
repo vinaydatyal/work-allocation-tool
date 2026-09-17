@@ -33,13 +33,16 @@ To enable secure connection without exposing the ClickUp Client Secret in the br
 | `VITE_CLAUDE_API_KEY` | Anthropic Claude API key for AI Brief Analysis |
 
 #### In Vercel Project Settings (Environment Variables):
-| Variable | Target | Description |
-|---|---|---|
-| `CLICKUP_CLIENT_ID` | Production / Preview | ClickUp App Client ID |
-| `CLICKUP_CLIENT_SECRET` | Production / Preview (Secret) | ClickUp App Client Secret |
-| `VITE_CLICKUP_CLIENT_ID` | Production / Preview | Same Client ID exposed to Vite build |
-| `VITE_APP_URL` | Production / Preview | `https://work-allocation-tool.vercel.app` |
-| `VITE_CLAUDE_API_KEY` | Production / Preview | Claude API Key |
+| Variable | Type in Vercel | Target | Description |
+|---|---|---|---|
+| `VITE_CLICKUP_CLIENT_ID` | **Config** | Production, Preview, Dev | ClickUp App Client ID (public, used in browser OAuth URL) |
+| `CLICKUP_CLIENT_ID` | **Secret** or **Config** | Production, Preview, Dev | Same Client ID used by `/api` serverless functions |
+| `CLICKUP_CLIENT_SECRET` | **Secret** | Production, Preview, Dev | ClickUp App Client Secret (**strictly private**, server-only) |
+| `VITE_APP_URL` | **Config** | Production, Preview, Dev | Base URL (e.g., `https://work-allocation-tool.vercel.app`) |
+| `VITE_CLAUDE_API_KEY` | **Config** | Production, Preview, Dev | Claude API Key for frontend analyzer |
+
+> **Note on Vercel "Public Framework Prefix" Warning**:
+> Variables starting with `VITE_` are bundled into the client browser build by Vite. Because a **Client ID** in OAuth is public by design, select the **"Config"** card (not "Secret") in Vercel to dismiss the warning. Only true secrets (like `CLICKUP_CLIENT_SECRET` without the `VITE_` prefix) should use the **"Secret"** type.
 
 ### 3.3 ClickUp App Configuration Settings
 When creating the ClickUp OAuth App in ClickUp Settings > Integrations > ClickUp API:
