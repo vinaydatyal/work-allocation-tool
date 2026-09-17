@@ -166,6 +166,7 @@ export interface ClickUpSpace {
 export interface ClickUpFolder {
   id: string;
   name: string;
+  task_count?: number | string;
   space?: { id: string; name: string };
   lists?: ClickUpList[];
 }
@@ -223,17 +224,36 @@ export async function fetchClickUpSpaces(token: string, teamId: string): Promise
 }
 
 export async function fetchClickUpFolders(token: string, spaceId: string): Promise<ClickUpFolder[]> {
-  const data = await clickupFetch(`/space/${spaceId}/folder`, token);
-  return (data.folders || []).map((f: any) => ({
+  const data = await clickupFetch(`/space/${spaceId}/folder?archived=false`, token);
+  const folders: ClickUpFolder[] = (data.folders || []).map((f: any) => ({
     id: f.id,
     name: f.name,
     space: f.space,
+    task_count: f.task_count,
     lists: (f.lists || []).map((l: any) => ({
       id: l.id,
       name: l.name,
       task_count: l.task_count,
+      folder: { id: f.id, name: f.name },
+      space: f.space,
     })),
   }));
+
+  // Backfill lists for any folder where ClickUp didn't return them inline
+  await Promise.all(
+    folders.map(async (folder) => {
+      if (!folder.lists || folder.lists.length === 0) {
+        try {
+          const childLists = await fetchClickUpLists(token, folder.id, true);
+          folder.lists = childLists;
+        } catch {
+          // keep existing empty array
+        }
+      }
+    })
+  );
+
+  return folders;
 }
 
 export async function fetchClickUpLists(

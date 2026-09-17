@@ -129,15 +129,22 @@ The Work Allocation Tool integrates 5 core feature modules connecting directly t
   - Retrieves all active workspace users, emails, roles (Owner, Admin, Member), profile pictures, and custom color accents.
   - In `VisualAgencyHub.tsx`, `handleImportClickUpMembers` provides a one-click import into the internal squad roster. Members are mapped into `TeamMember` entities with custom color swatches (`colorSwatch`), initial skills, general competency scoring, and capacity tracking.
 
-### 7.3 Spaces, Folders & Lists Hierarchy Browser
+### 7.3 Spaces, Folders & Lists Dual-Hierarchy Browser
 - **Service Callers**:
   - `fetchClickUpSpaces(teamId)`: `GET /api/v2/team/{team_id}/space`
-  - `fetchClickUpFolders(spaceId)`: `GET /api/v2/space/{space_id}/folder`
+  - `fetchClickUpFolders(spaceId)`: `GET /api/v2/space/{space_id}/folder?archived=false`
+    - Parses folder task count and nested `lists: ClickUpList[]`.
+    - Automated child list backfill: If ClickUp does not provide child lists inline for a folder, `fetchClickUpLists(token, folder.id, true)` is executed in parallel to guarantee complete sub-list population.
   - `fetchClickUpLists(folderOrSpaceId, isFolder)`: `GET /api/v2/folder/{folder_id}/list` or `GET /api/v2/space/{space_id}/list`
-  - `fetchClickUpListTasks(listId)`: `GET /api/v2/list/{list_id}/task`
-- **Functionality**:
-  - Interactive multi-level browser allowing users to select Spaces, explore client Folders, and inspect individual Lists.
-  - Displays tasks within any selected list along with assignees, status pills, and due dates.
+    - In ClickUp API v2, `GET /space/{space_id}/list` returns *only* folderless lists.
+  - `fetchClickUpListTasks(listId)`: `GET /api/v2/list/{list_id}/task?subtasks=true`
+- **Dual-Stream Hierarchy Engine (`loadHierarchy`)**:
+  - Executes `fetchClickUpFolders` and `fetchClickUpLists` in parallel with `Promise.all` upon Space selection.
+  - Separates entities into client/project **Folders** (`ClickUpFolder[]`) and **Space Lists (Folderless)** (`ClickUpList[]`).
+  - Automatically expands all folders on initial load with interactive accordion toggle (`ChevronDown` / `ChevronRight`, `FolderOpen` / `FolderClosed`).
+  - Aggregates all discovered lists into `lists` for global task count summaries and unified target selection.
+  - In the "Create Task" tab, target lists are organized by `<optgroup label="📁 Folder: {name}">` and `<optgroup label="📄 Space Lists (Folderless)">` for effortless deliverable routing.
+  - Automatically loads tasks for the first available list and renders them with pure white typography (`#ffffff`), status badges, and direct ClickUp deep-links.
 
 ### 7.4 Bi-Directional Task Creation (Deliverables -> ClickUp)
 - **Service Caller**: `createClickUpTask(listId, taskData)`

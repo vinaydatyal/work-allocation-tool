@@ -15,10 +15,14 @@ import {
   Clock,
   Layers,
   PlusCircle,
-  Folder,
   Send,
   FolderKanban,
-  UserCheck
+  UserCheck,
+  FolderOpen,
+  FolderClosed,
+  ChevronDown,
+  ChevronRight,
+  FileText
 } from 'lucide-react';
 import {
   initiateClickUpOAuth,
@@ -33,6 +37,7 @@ import {
   setClickUpWorkspaceId,
   getClickUpWorkspaceId,
   fetchClickUpSpaces,
+  fetchClickUpFolders,
   fetchClickUpLists,
   fetchClickUpListTasks,
   fetchClickUpTeamMembers,
@@ -41,6 +46,7 @@ import {
   type ClickUpWorkspace,
   type ClickUpTask,
   type ClickUpSpace,
+  type ClickUpFolder,
   type ClickUpList,
   type ClickUpTeamMember,
   type ClickUpTimeEntry
@@ -84,9 +90,13 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
   const [spaces, setSpaces]                 = useState<ClickUpSpace[]>([]);
   const [loadingSpaces, setLoadingSpaces]   = useState(false);
   const [selectedSpace, setSelectedSpace]   = useState<string | null>(null);
+  const [folders, setFolders]               = useState<ClickUpFolder[]>([]);
+  const [folderlessLists, setFolderlessLists] = useState<ClickUpList[]>([]);
   const [lists, setLists]                   = useState<ClickUpList[]>([]);
-  const [loadingLists, setLoadingLists]     = useState(false);
+  const [loadingHierarchy, setLoadingHierarchy] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [selectedList, setSelectedList]     = useState<string | null>(null);
+  const [selectedListName, setSelectedListName] = useState<string>('');
   const [listTasks, setListTasks]           = useState<ClickUpTask[]>([]);
   const [loadingListTasks, setLoadingListTasks] = useState(false);
 
@@ -191,9 +201,12 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
     try {
       const sp = await fetchClickUpSpaces(token, wsId);
       setSpaces(sp);
-      if (sp.length > 0 && !selectedSpace) {
-        setSelectedSpace(sp[0].id);
-        loadLists(sp[0].id);
+      if (sp.length > 0) {
+        const targetSpace = (selectedSpace && sp.some(s => s.id === selectedSpace))
+          ? selectedSpace
+          : sp[0].id;
+        setSelectedSpace(targetSpace);
+        loadHierarchy(targetSpace);
       }
     } catch (err) {
       console.error(err);
@@ -202,21 +215,53 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
     }
   }
 
-  async function loadLists(spaceId: string) {
+  async function loadHierarchy(spaceId: string) {
     const token = getClickUpToken();
     if (!token) return;
-    setLoadingLists(true);
+    setLoadingHierarchy(true);
+    setFolders([]);
+    setFolderlessLists([]);
     try {
-      const ls = await fetchClickUpLists(token, spaceId);
-      setLists(ls);
-      if (ls.length > 0) {
-        setSelectedList(ls[0].id);
-        loadListTasks(ls[0].id);
+      const [fldrs, fLists] = await Promise.all([
+        fetchClickUpFolders(token, spaceId).catch(err => {
+          console.warn('Error fetching folders:', err);
+          return [] as ClickUpFolder[];
+        }),
+        fetchClickUpLists(token, spaceId, false).catch(err => {
+          console.warn('Error fetching folderless lists:', err);
+          return [] as ClickUpList[];
+        })
+      ]);
+
+      setFolders(fldrs);
+      setFolderlessLists(fLists);
+
+      // Auto-expand all folders by default so user can immediately see everything
+      const exp: Record<string, boolean> = {};
+      fldrs.forEach(f => { exp[f.id] = true; });
+      setExpandedFolders(exp);
+
+      // Consolidate all lists for task creation, list lookup, and auto-selection
+      const allLists: ClickUpList[] = [
+        ...fLists,
+        ...fldrs.flatMap(f => f.lists || [])
+      ];
+      setLists(allLists);
+
+      // Auto-select first available list if exists
+      if (allLists.length > 0) {
+        setSelectedList(allLists[0].id);
+        setSelectedListName(allLists[0].name);
+        loadListTasks(allLists[0].id);
+      } else {
+        setSelectedList(null);
+        setSelectedListName('');
+        setListTasks([]);
       }
     } catch (err) {
       console.error(err);
     } finally {
-      setLoadingLists(false);
+      setLoadingHierarchy(false);
     }
   }
 
@@ -780,12 +825,21 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                       </div>
                     )}
 
-                    {/* SUB-TAB 2: SPACES & LISTS HIERARCHY */}
+                    {/* SUB-TAB 2: SPACES, FOLDERS & LISTS HIERARCHY */}
                     {featureTab === 'hierarchy' && (
                       <div className="space-y-4">
                         <div className="text-xs text-slate-400 flex items-center justify-between">
-                          <span>Browse ClickUp Spaces &amp; Lists to inspect specific deliverable lists:</span>
-                          {selectedWs && (
+                          <span>Browse ClickUp Spaces, Folders &amp; Lists to inspect deliverable tasks:</span>
+                          {selectedSpace ? (
+                            <button
+                              type="button"
+                              onClick={() => loadHierarchy(selectedSpace)}
+                              disabled={loadingHierarchy}
+                              className="text-purple-400 hover:text-purple-300 flex items-center gap-1 font-semibold cursor-pointer disabled:opacity-50"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${loadingHierarchy ? 'animate-spin' : ''}`} /> Refresh
+                            </button>
+                          ) : selectedWs ? (
                             <button
                               type="button"
                               onClick={() => loadSpaces(selectedWs)}
@@ -793,7 +847,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                             >
                               <RefreshCw className="w-3 h-3" /> Refresh
                             </button>
-                          )}
+                          ) : null}
                         </div>
 
                         {/* Spaces Horizontal Picker */}
@@ -807,7 +861,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                 type="button"
                                 onClick={() => {
                                   setSelectedSpace(sp.id);
-                                  loadLists(sp.id);
+                                  loadHierarchy(sp.id);
                                 }}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border ${
                                   selectedSpace === sp.id
@@ -823,59 +877,209 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                           </div>
                         )}
 
-                        {/* Lists in selected space */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {loadingLists ? (
-                            <div className="col-span-2 py-4 text-center text-xs text-slate-400" style={{ color: '#94a3b8' }}>Loading lists…</div>
-                          ) : lists.length === 0 ? (
-                            <div className="col-span-2 py-4 text-center text-xs text-slate-400 bg-slate-900/40 rounded-xl" style={{ color: '#94a3b8' }}>
-                              No lists found in this space.
-                            </div>
-                          ) : (
-                            lists.map((ls) => (
-                              <button
-                                key={ls.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedList(ls.id);
-                                  loadListTasks(ls.id);
-                                }}
-                                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs border text-left cursor-pointer transition-all ${
-                                  selectedList === ls.id
-                                    ? 'bg-purple-600/25 border-purple-500 text-purple-200 ring-1 ring-purple-500/30'
-                                    : 'bg-[#151d30] border-slate-700/80 text-slate-200 hover:border-slate-600 hover:bg-[#1c2742]'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <Folder className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                                  <span className="font-semibold text-white truncate" style={{ color: '#ffffff' }}>{ls.name}</span>
-                                </div>
-                                <span className="text-[10px] text-slate-400 shrink-0 ml-2" style={{ color: '#94a3b8' }}>
-                                  {ls.task_count ?? 0} tasks
+                        {/* Hierarchy Content: Folders + Lists */}
+                        {loadingHierarchy ? (
+                          <div className="flex items-center justify-center gap-2 py-8 rounded-xl clickup-card-surface border border-slate-800">
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                            <span className="text-xs text-slate-300">Loading Folders &amp; Lists from ClickUp…</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {/* Summary Counter Bar */}
+                            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900/60 border border-slate-800/80 text-[11px] text-slate-300">
+                              <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                                <Layers className="w-3.5 h-3.5 text-purple-400" />
+                                <span>Space Hierarchy:</span>
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold">
+                                  📁 {folders.length} {folders.length === 1 ? 'Folder' : 'Folders'}
                                 </span>
-                              </button>
-                            ))
-                          )}
-                        </div>
+                                <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-bold">
+                                  📄 {lists.length} {lists.length === 1 ? 'List' : 'Lists'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* SECTION 1: FOLDERS & NESTED LISTS */}
+                            {folders.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-amber-400">
+                                  <div className="flex items-center gap-1.5">
+                                    <FolderKanban className="w-3.5 h-3.5 text-amber-400" />
+                                    <span>Folders &amp; Nested Lists ({folders.length})</span>
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-normal lowercase tracking-normal">
+                                    click to expand / collapse
+                                  </span>
+                                </div>
+
+                                <div className="space-y-2.5">
+                                  {folders.map((folder) => {
+                                    const isExpanded = expandedFolders[folder.id] ?? true;
+                                    const folderLists = folder.lists || [];
+                                    return (
+                                      <div
+                                        key={folder.id}
+                                        className="rounded-xl border border-slate-800 bg-[#0e1526]/90 overflow-hidden transition-colors"
+                                      >
+                                        {/* Folder Header */}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setExpandedFolders(prev => ({
+                                              ...prev,
+                                              [folder.id]: !prev[folder.id]
+                                            }));
+                                          }}
+                                          className="w-full flex items-center justify-between px-3.5 py-2.5 bg-[#141d33] hover:bg-[#18233d] transition-all cursor-pointer text-left"
+                                        >
+                                          <div className="flex items-center gap-2.5 min-w-0">
+                                            {isExpanded ? (
+                                              <ChevronDown className="w-4 h-4 text-amber-400 shrink-0" />
+                                            ) : (
+                                              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                                            )}
+                                            {isExpanded ? (
+                                              <FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />
+                                            ) : (
+                                              <FolderClosed className="w-4 h-4 text-amber-400 shrink-0" />
+                                            )}
+                                            <span className="font-bold text-white text-xs truncate" style={{ color: '#ffffff' }}>
+                                              {folder.name}
+                                            </span>
+                                          </div>
+                                          <span className="text-[10px] text-amber-300 font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 shrink-0 ml-2">
+                                            {folderLists.length} {folderLists.length === 1 ? 'list' : 'lists'}
+                                          </span>
+                                        </button>
+
+                                        {/* Folder Child Lists */}
+                                        {isExpanded && (
+                                          <div className="p-2.5 bg-[#0a0f1d]/60 border-t border-slate-800/80">
+                                            {folderLists.length === 0 ? (
+                                              <div className="py-2 px-3 text-[11px] text-slate-400 italic">
+                                                No lists in this folder.
+                                              </div>
+                                            ) : (
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {folderLists.map((ls) => (
+                                                  <button
+                                                    key={ls.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setSelectedList(ls.id);
+                                                      setSelectedListName(ls.name);
+                                                      loadListTasks(ls.id);
+                                                    }}
+                                                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs border text-left cursor-pointer transition-all ${
+                                                      selectedList === ls.id
+                                                        ? 'bg-purple-600/30 border-purple-500 text-purple-100 ring-1 ring-purple-500/40 shadow-sm'
+                                                        : 'bg-[#121929] border-slate-700/70 text-slate-200 hover:border-purple-500/40 hover:bg-[#182238]'
+                                                    }`}
+                                                  >
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                      <ListTodo className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                                                      <span className="font-semibold text-white truncate text-xs" style={{ color: '#ffffff' }}>
+                                                        {ls.name}
+                                                      </span>
+                                                    </div>
+                                                    <span className="text-[10px] text-slate-400 shrink-0 ml-2" style={{ color: '#94a3b8' }}>
+                                                      {ls.task_count ?? 0} tasks
+                                                    </span>
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* SECTION 2: SPACE LISTS (FOLDERLESS) */}
+                            {folderlessLists.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-cyan-400 pt-1">
+                                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                                  <span>Space Lists (Folderless) ({folderlessLists.length})</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {folderlessLists.map((ls) => (
+                                    <button
+                                      key={ls.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedList(ls.id);
+                                        setSelectedListName(ls.name);
+                                        loadListTasks(ls.id);
+                                      }}
+                                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs border text-left cursor-pointer transition-all ${
+                                        selectedList === ls.id
+                                          ? 'bg-purple-600/30 border-purple-500 text-purple-100 ring-1 ring-purple-500/40 shadow-sm'
+                                          : 'bg-[#151d30] border-slate-700/80 text-slate-200 hover:border-slate-600 hover:bg-[#1c2742]'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <ListTodo className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                                        <span className="font-semibold text-white truncate text-xs" style={{ color: '#ffffff' }}>
+                                          {ls.name}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 shrink-0 ml-2" style={{ color: '#94a3b8' }}>
+                                        {ls.task_count ?? 0} tasks
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* EMPTY STATE */}
+                            {folders.length === 0 && folderlessLists.length === 0 && (
+                              <div className="py-6 text-center text-xs text-slate-400 bg-slate-900/40 rounded-xl border border-slate-800" style={{ color: '#94a3b8' }}>
+                                No folders or lists found in this space.
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Tasks in selected list */}
                         {selectedList && (
-                          <div className="space-y-2 pt-2 border-t border-slate-800">
-                            <div className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8' }}>
-                              Tasks in Selected List ({listTasks.length})
+                          <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                            <div className="flex items-center justify-between">
+                              <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5" style={{ color: '#e2e8f0' }}>
+                                <span>Tasks in</span>
+                                <span className="text-white font-extrabold px-1.5 py-0.5 rounded bg-purple-900/50 border border-purple-700/60" style={{ color: '#ffffff' }}>
+                                  {selectedListName || 'Selected List'}
+                                </span>
+                                <span>({listTasks.length})</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => loadListTasks(selectedList)}
+                                disabled={loadingListTasks}
+                                className="flex items-center gap-1 text-[11px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer disabled:opacity-50"
+                              >
+                                <RefreshCw className={`w-3 h-3 ${loadingListTasks ? 'animate-spin' : ''}`} />
+                                Refresh
+                              </button>
                             </div>
                             {loadingListTasks ? (
-                              <div className="py-4 text-center text-xs text-slate-400" style={{ color: '#94a3b8' }}>Loading tasks in list…</div>
+                              <div className="py-6 text-center text-xs text-slate-400" style={{ color: '#94a3b8' }}>Loading tasks in list…</div>
                             ) : listTasks.length === 0 ? (
-                              <div className="py-3 text-center text-xs text-slate-400 bg-slate-900/40 rounded-lg border border-slate-800" style={{ color: '#94a3b8' }}>
-                                No tasks in this list.
+                              <div className="py-4 text-center text-xs text-slate-400 bg-slate-900/40 rounded-lg border border-slate-800" style={{ color: '#94a3b8' }}>
+                                No tasks found in this list.
                               </div>
                             ) : (
                               <div className="space-y-2 clickup-list-scroll">
                                 {listTasks.map((t) => (
                                   <div
                                     key={t.id}
-                                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl clickup-card-surface text-xs"
+                                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl clickup-card-surface text-xs hover:border-purple-500/40 transition-colors"
                                   >
                                     <div className="flex items-center gap-2.5 min-w-0">
                                       <span
@@ -1087,11 +1291,36 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                             <select
                               required
                               value={selectedList || ''}
-                              onChange={(e) => setSelectedList(e.target.value)}
+                              onChange={(e) => {
+                                const lid = e.target.value;
+                                setSelectedList(lid);
+                                const found = lists.find(l => l.id === lid);
+                                if (found) setSelectedListName(found.name);
+                              }}
                               className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
                             >
                               <option value="" disabled>Select Target List</option>
-                              {lists.map((l) => (
+                              {folders.map(f => (
+                                (f.lists && f.lists.length > 0) ? (
+                                  <optgroup key={f.id} label={`📁 Folder: ${f.name}`}>
+                                    {f.lists.map(l => (
+                                      <option key={l.id} value={l.id}>
+                                        {l.name} ({l.task_count ?? 0} tasks)
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                ) : null
+                              ))}
+                              {folderlessLists.length > 0 && (
+                                <optgroup label="📄 Space Lists (Folderless)">
+                                  {folderlessLists.map(l => (
+                                    <option key={l.id} value={l.id}>
+                                      {l.name} ({l.task_count ?? 0} tasks)
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {folders.length === 0 && folderlessLists.length === 0 && lists.map(l => (
                                 <option key={l.id} value={l.id}>
                                   {l.name}
                                 </option>
