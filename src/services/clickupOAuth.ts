@@ -30,6 +30,13 @@ export function setClickUpWorkspaceId(id: string): void {
   localStorage.setItem(WORKSPACE_KEY, id);
 }
 
+export function setClickUpToken(token: string, userName?: string): void {
+  localStorage.setItem(STORAGE_KEY, token);
+  if (userName) {
+    localStorage.setItem(USER_KEY, userName);
+  }
+}
+
 export function isClickUpConnected(): boolean {
   return !!getClickUpToken();
 }

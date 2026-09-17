@@ -41,7 +41,8 @@ import {
   BarChart3,
   ShieldCheck
 } from 'lucide-react';
-import { ClickUpApiService } from '../services/clickupService';
+import { ClickUpOAuthModal } from './ClickUpOAuthModal';
+import { isClickUpConnected } from '../services/clickupOAuth';
 import { AGENCY_MASTER_EXAM_BANK, type ExamQuestionType } from '../data/skillExamBank';
 import { getPDFMasterProjects, classifyClientTier } from '../data/pdfMasterProjectsData';
 import { DSRTrackerStudio } from './DSRTrackerStudio';
@@ -357,106 +358,40 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   const [modalStepTab, setModalStepTab] = useState<'core' | 'billing' | 'team' | 'access'>('core');
   const [editModalStepTab, setEditModalStepTab] = useState<'core' | 'billing' | 'team' | 'access'>('core');
 
-  // ClickUp API Integration Modal State
+  // ClickUp Integration Modal State & Live Sync Handler
   const [showClickUpModal, setShowClickUpModal] = useState(false);
-  const [clickUpApiToken, setClickUpApiToken] = useState('');
   const [clickUpSyncStatus, setClickUpSyncStatus] = useState<'idle' | 'syncing' | 'success'>('idle');
-  const [clickUpLastSync, setClickUpLastSync] = useState<string | null>(null);
-  const [clickUpError, setClickUpError] = useState<string | null>(null);
 
-  const handleRunClickUpSync = async () => {
+  const handleSyncTasksIntoProjects = (tasks: any[]) => {
+    if (!tasks || tasks.length === 0) return;
     setClickUpSyncStatus('syncing');
-    setClickUpError(null);
-
-    try {
-      if (clickUpApiToken.trim()) {
-        // Live ClickUp API v2 Sync
-        const service = new ClickUpApiService(clickUpApiToken.trim());
-        const workspaces = await service.getWorkspaces();
-        if (!workspaces || workspaces.length === 0) {
-          throw new Error('No ClickUp workspaces found for this API token.');
-        }
-
-        const spaces = await service.getSpaces(workspaces[0].id);
-        if (!spaces || spaces.length === 0) {
-          throw new Error('No ClickUp spaces found in workspace ' + workspaces[0].name);
-        }
-
-        const lists = await service.getListsInSpace(spaces[0].id);
-        let syncedCount = 0;
-
-        if (lists.length > 0) {
-          const tasks = await service.getTasksInList(lists[0].id);
-          if (tasks && tasks.length > 0) {
-            setProjectsList((prev) =>
-              prev.map((proj, idx) => {
-                const clickUpDeliverables = tasks.slice(idx * 2, idx * 2 + 2).map((t, i) => ({
-                  id: `cu-live-${t.id || i}-${Date.now()}`,
-                  taskType: (i % 2 === 0 ? 'Technical SEO' : 'On-Page SEO') as any,
-                  assigneeId: customMembers[i % customMembers.length].id,
-                  hours: ClickUpApiService.millisecondsToHours(t.time_estimate) || 5
-                }));
-                syncedCount += clickUpDeliverables.length;
-                const updatedBreakdown = [...(proj.taskBreakdown || []), ...clickUpDeliverables];
-                return {
-                  ...proj,
-                  taskBreakdown: updatedBreakdown,
-                  activeHours: updatedBreakdown.reduce((sum, tb) => sum + tb.hours, 0)
-                };
-              })
-            );
-          }
-        }
-        setCopiedToast(`⚡ Synced ${syncedCount || 4} live ClickUp tasks into active projects!`);
-        sonnerToast.success('ClickUp Live Sync Complete', {
-          description: `Synced ${syncedCount || 4} live ClickUp tasks into active projects!`
-        });
-      } else {
-        // Simulated / Live Enrichment Demo Mode across ALL active projects
-        await new Promise((r) => setTimeout(r, 900));
-        setProjectsList((prev) =>
-          prev.map((proj, idx) => {
-            const demoTasks = [
-              {
-                id: `cu-demo-${Date.now()}-${idx}-1`,
-                taskType: 'Technical SEO' as const,
-                assigneeId: customMembers[idx % customMembers.length].id,
-                hours: 6
-              },
-              {
-                id: `cu-demo-${Date.now()}-${idx}-2`,
-                taskType: 'On-Page SEO' as const,
-                assigneeId: customMembers[(idx + 1) % customMembers.length].id,
-                hours: 4
-              }
-            ];
-            const updatedBreakdown = [...(proj.taskBreakdown || []), ...demoTasks];
-            const updatedHours = updatedBreakdown.reduce((sum, tb) => sum + tb.hours, 0);
-            return {
-              ...proj,
-              taskBreakdown: updatedBreakdown,
-              activeHours: updatedHours
-            };
-          })
-        );
-        setCopiedToast('⚡ Synced ClickUp tasks & estimated hours across all projects!');
-        sonnerToast.success('ClickUp Space Synced', {
-          description: 'Synced ClickUp tasks & estimated hours across all active projects.'
-        });
-      }
-
-      setClickUpSyncStatus('success');
-      setClickUpLastSync(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      setTimeout(() => setCopiedToast(null), 4500);
-      setTimeout(() => setClickUpSyncStatus('idle'), 4000);
-    } catch (err: any) {
-      setClickUpError(err.message || 'Failed to sync with ClickUp API.');
-      sonnerToast.error('ClickUp Sync Failed', {
-        description: err.message || 'Failed to sync with ClickUp API.'
-      });
+    setTimeout(() => {
+      setProjectsList((prev) =>
+        prev.map((proj, idx) => {
+          const clickUpDeliverables = tasks.slice(idx * 2, idx * 2 + 2).map((t: any, i: number) => ({
+            id: `cu-live-${t.id || i}-${Date.now()}`,
+            taskType: (i % 2 === 0 ? 'Technical SEO' : 'On-Page SEO') as any,
+            assigneeId: customMembers[i % customMembers.length]?.id || customMembers[0].id,
+            hours: Math.round((t.time_estimate ? t.time_estimate / 3600000 : 5)) || 5
+          }));
+          const updatedBreakdown = [...(proj.taskBreakdown || []), ...clickUpDeliverables];
+          return {
+            ...proj,
+            taskBreakdown: updatedBreakdown,
+            activeHours: updatedBreakdown.reduce((sum, tb) => sum + tb.hours, 0)
+          };
+        })
+      );
       setClickUpSyncStatus('idle');
-    }
+      setCopiedToast(`⚡ Synced ${tasks.length} live ClickUp tasks into active projects!`);
+      sonnerToast.success('ClickUp Live Sync Complete', {
+        description: `Mapped ${tasks.length} live ClickUp tasks into your active board!`
+      });
+    }, 400);
+    setTimeout(() => setCopiedToast(null), 4500);
   };
+
+
 
   // Modal State for Editing Existing Project
   const [editingProject, setEditingProject] = useState<ActiveProjectItem | null>(null);
@@ -1446,9 +1381,15 @@ Due Date: ${proj.paymentDueDate}
               <button
                 type="button"
                 onClick={() => setShowClickUpModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-semibold text-xs transition-all cursor-pointer"
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm ${
+                  isClickUpConnected()
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-400/30 shadow-purple-600/25'
+                }`}
+                title={isClickUpConnected() ? 'ClickUp Connected — click to view tasks or sync' : 'Connect ClickUp Account or API Token'}
               >
-                <span>⚡ ClickUp API Sync</span>
+                <span className={`w-2 h-2 rounded-full ${isClickUpConnected() ? 'bg-emerald-400 animate-pulse' : 'bg-white'}`} />
+                <span>{isClickUpConnected() ? 'ClickUp Connected' : '⚡ Connect & Sync ClickUp'}</span>
               </button>
 
               <button
@@ -7349,133 +7290,13 @@ Due Date: ${proj.paymentDueDate}
       })()}
       </AnimatePresence>
 
-      {/* MODAL 7: ClickUp API v2 Integration & Live Sync Drawer */}
-      <AnimatePresence>
-      {showClickUpModal && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-md"
-            onClick={() => setShowClickUpModal(false)}
-          />
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed inset-y-0 right-0 z-[101] w-full max-w-xl bg-slate-900 border-l border-slate-700 shadow-2xl flex flex-col"
-          >
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/60 sticky top-0 z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center">
-                  <span className="text-lg font-black text-purple-300">⚡</span>
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-white">ClickUp API v2 Integration &amp; Live Sync</h3>
-                  <p className="text-xs text-slate-400">
-                    Connect Workspaces, Lists, Tasks &amp; Estimated Hours bi-directionally with ClickUp
-                  </p>
-                </div>
-              </div>
+      {/* MODAL 7: ClickUp Live OAuth & API Sync Modal */}
+      <ClickUpOAuthModal
+        isOpen={showClickUpModal}
+        onClose={() => setShowClickUpModal(false)}
+        onSyncComplete={handleSyncTasksIntoProjects}
+      />
 
-              <button
-                type="button"
-                onClick={() => setShowClickUpModal(false)}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto flex-1 min-h-0 space-y-6 text-xs">
-              {/* Architecture & Mapping Overview */}
-              <div className="p-4 rounded-2xl bg-purple-950/25 border border-purple-500/30 space-y-2">
-                <h4 className="font-black text-purple-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                  <span>🗺️ ClickUp Entity Mapping Architecture</span>
-                </h4>
-                <div className="grid grid-cols-2 gap-2 text-slate-300 pt-1">
-                  <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-purple-400 font-bold block">ClickUp Workspace &amp; Space</span>
-                    <span className="text-slate-400">Maps to Agency Hub Workspace</span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-cyan-400 font-bold block">ClickUp Lists / Folders</span>
-                    <span className="text-slate-400">Maps to Active Projects</span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-emerald-400 font-bold block">ClickUp Tasks &amp; Time Estimates</span>
-                    <span className="text-slate-400">Maps to Deliverable Tasks &amp; Weekly Hours</span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-pink-400 font-bold block">ClickUp Assignees</span>
-                    <span className="text-slate-400">Maps to Squad Team Members</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* API Token Input Section */}
-              <div className="space-y-2">
-                <label className="font-bold text-slate-300 block">
-                  ClickUp Personal API Token (starts with <code className="text-purple-300">pk_</code>)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={clickUpApiToken}
-                    onChange={(e) => setClickUpApiToken(e.target.value)}
-                    placeholder="pk_12345678_ABCD... (Leave blank to use Simulated Demo Mode)"
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Generate your token in ClickUp Settings → Apps → API Token. Without a token, clicking sync runs Simulated Live Enrichment mode.
-                </p>
-              </div>
-
-              {/* Sync Status / Error Banner */}
-              {clickUpError && (
-                <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 font-bold flex items-center justify-between">
-                  <span>❌ {clickUpError}</span>
-                  <span className="text-[10px] uppercase px-2 py-0.5 rounded bg-rose-500/20">Error</span>
-                </div>
-              )}
-
-              {clickUpLastSync && !clickUpError && (
-                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-bold flex items-center justify-between">
-                  <span>✅ Last Synchronized with ClickUp Workspace at {clickUpLastSync}</span>
-                  <span className="text-[10px] uppercase px-2 py-0.5 rounded bg-emerald-500/20">Synced</span>
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setShowClickUpModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-all cursor-pointer text-xs"
-              >
-                Close
-              </button>
-
-              <button
-                type="button"
-                disabled={clickUpSyncStatus === 'syncing'}
-                onClick={handleRunClickUpSync}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-xs transition-all cursor-pointer shadow-lg shadow-purple-500/25 flex items-center gap-2 disabled:opacity-50"
-              >
-                {clickUpSyncStatus === 'syncing' ? (
-                  <span>Syncing with ClickUp API...</span>
-                ) : (
-                  <span>⚡ Run ClickUp Deliverables &amp; Time Sync</span>
-                )}
-              </button>
-            </div>
-          </motion.div>
-        </>
-      )}
-      </AnimatePresence>
 
       {/* MODAL 8: Quarterly Employee Skill Calibration & Interactive Testing Suite */}
       <AnimatePresence>

@@ -318,8 +318,46 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
+        {/* CLICKUP STATUS & CONNECT CARD (Always visible near top) */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setShowClickUpModal(true)}
+            className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer group text-left ${
+              clickupConnected
+                ? 'bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20'
+                : 'bg-gradient-to-r from-purple-900/40 via-indigo-900/40 to-purple-900/40 border-purple-500/40 hover:border-purple-400/60 shadow-lg shadow-purple-900/20'
+            } ${isCollapsed ? 'justify-center p-2' : ''}`}
+            title={clickupConnected ? `ClickUp Connected (${clickupUser || 'Account'})` : 'Click to connect ClickUp account or API Token'}
+          >
+            <div className={`flex items-center gap-2.5 min-w-0 ${isCollapsed ? 'justify-center' : ''}`}>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs text-white shrink-0 shadow-sm ${
+                clickupConnected ? 'bg-emerald-600' : 'bg-gradient-to-br from-purple-600 to-pink-600'
+              }`}>
+                C
+              </div>
+              {!isCollapsed && (
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs font-extrabold truncate ${clickupConnected ? 'text-emerald-300' : 'text-purple-200'}`}>
+                      {clickupConnected ? 'ClickUp Connected' : 'Connect ClickUp'}
+                    </span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${clickupConnected ? 'bg-emerald-400 animate-pulse' : 'bg-purple-400'}`} />
+                  </div>
+                  <div className="text-[10px] text-slate-400 truncate">
+                    {clickupConnected ? (clickupUser || 'Workspace Synced') : 'OAuth & API Token Sync'}
+                  </div>
+                </div>
+              )}
+            </div>
+            {!isCollapsed && (
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-white transition-transform group-hover:translate-x-0.5 shrink-0" />
+            )}
+          </button>
+        </div>
+
         {/* SECTION 2: NAVIGATION */}
-        <div className="flex-1 min-h-0 mt-4 shrink-0">
+        <div className="flex-1 min-h-0 mt-3 shrink-0">
           <div className="h-full flex flex-col">
             {!isCollapsed && (
               <div className="text-xs font-bold tracking-wider text-slate-300 px-2 mb-2.5 uppercase block">

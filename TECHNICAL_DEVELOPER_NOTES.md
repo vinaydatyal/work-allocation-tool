@@ -44,13 +44,14 @@ To enable secure connection without exposing the ClickUp Client Secret in the br
 > **Note on Vercel "Public Framework Prefix" Warning**:
 > Variables starting with `VITE_` are bundled into the client browser build by Vite. Because a **Client ID** in OAuth is public by design, select the **"Config"** card (not "Secret") in Vercel to dismiss the warning. Only true secrets (like `CLICKUP_CLIENT_SECRET` without the `VITE_` prefix) should use the **"Secret"** type.
 
-### 3.3 ClickUp App Configuration Settings
-When creating the ClickUp OAuth App in ClickUp Settings > Integrations > ClickUp API:
-- **App Name**: Work Allocation Tool
-- **Redirect URL**: `https://work-allocation-tool.vercel.app/api/clickup/callback`
-  - For local development: `http://localhost:5173/api/clickup/callback` (or using Vercel CLI `vercel dev`)
+### 3.4 Dual Authentication Support (OAuth 2.0 & Personal API Token)
+The integration supports two complementary connection methods:
+1. **OAuth 2.0 (1-Click Login)**: Best for team accounts without exposing raw API keys. Uses `/api/clickup/callback` serverless exchange.
+2. **Personal API Token (`pk_...`) Direct Connect**: Direct instant token verification against ClickUp API v2, useful for immediate setup or environments where OAuth callback hasn't yet been authorized. Tokens are verified via `/user` and saved to `localStorage`.
 
----
+### 3.5 UI Entry Points & Visibility
+- **Main Dashboard Header (`VisualAgencyHub.tsx`)**: High-visibility pill button displaying real-time status (`⚡ Connect & Sync ClickUp` or `● ClickUp Connected`) placed directly in the primary executive action bar.
+- **Navigation Sidebar (`Navbar.tsx`)**: Prominent connection card situated directly below the profile/role switcher in Section 1 (always above the fold, regardless of viewport height) with an additional synchronized indicator in the bottom footer.
 
 ## 4. Vercel Routing Configuration (`vercel.json`)
 ```json
