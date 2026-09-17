@@ -233,32 +233,32 @@ The Work Allocation Tool integrates 5 core feature modules connecting directly t
 - **Executive Command Bar Status Pill**:
   - Displays `🟢 Live Sync Active (Synced Xm ago)` with an animated ping indicator.
   - Includes an instant manual refresh icon button (`<RefreshCw />`) for immediate polling.
-### 7.8 Full-App ClickUp Integration Roadmap Across All Tabs
-1. **Tab 1: Active Projects (`projects`)**:
-   - Link projects to ClickUp Lists/Folders (`clickUpListId`, `clickUpFolderId`).
-   - "Import Project from ClickUp List" wizard inside Add Project modal.
-   - "Push Project to ClickUp" creating new Folder/List with deliverable tasks.
-2. **Tab 2: Activity Calendar (`calendar`)**:
-   - Ingest ClickUp task `due_date` timestamps as interactive calendar work items.
-   - Plot ClickUp milestones and support two-way drag-and-drop date rescheduling.
-3. **Tab 3: Employee Hours (`hours`)**:
-   - Ingest `fetchClickUpTimeEntries` to render live Actual Tracked Hours vs Planned Retainer Capacity.
-   - Display active ClickUp task counts on employee cards with quick time-logging modal.
-4. **Tab 4: DSR Tracker & Plan (`dsr`)**:
-   - Auto-fill weekly logged hours (`log`) from ClickUp time entries for W1-W5.
-   - Provide "Push DSR Entry to ClickUp" and automated variance audit.
-5. **Tab 5: Employee Skills (`skills`)**:
-   - Push verified competency scores to ClickUp Custom Fields & User Tags.
-   - Smart qualification checks flagging when high-complexity tasks are assigned to uncalibrated specialists.
-6. **Tab 6: Job Delivery Bot (`bot`)**:
-   - 1-Click "Deploy Deliverables to ClickUp List" button pushing AI-generated scopes directly into ClickUp tasks with assignees, estimates, and priorities.
-7. **Tab 7: Finances & Payments (`finances`)**:
-   - Mirror retainer values, hourly rates, client tiers, and payment due dates into ClickUp Custom Fields.
-8. **Tab 8: Notifications Hub (`notifications`)**:
-   - Stream ClickUp overdue warnings, manager QA requests, and budget alert notifications.
-9. **Tab 9: Advanced Studio (`brief`, `wizard`, `kanban`, `backlog`, `timeline`)**:
-   - Unassigned ClickUp task backlog ingestion with two-way dispatching.
-   - ClickUp Space filter and column-level task creation in Sprint Kanban.
+### 7.8 Implemented Cross-Tab ClickUp Feature Architecture
+
+1. **Tab 1: Active Projects (`projects` view in `VisualAgencyHub.tsx`)**:
+   - **ClickUp List & Space Linking**: `ActiveProjectItem` extended with `clickUpListId`, `clickUpListName`, `clickUpSpaceId`, `clickUpFolderId`.
+   - **ClickUp List Auto-Import Wizard**: In Add Project Modal (Step 1), "⚡ Select ClickUp List" queries `fetchClickUpSpaces` and `fetchClickUpLists`, allowing managers to pick any list. Auto-fills Project Name, Client, and populates all deliverable tasks with matching squad members and hours.
+   - **ClickUp List Deep Link on Cards**: Project cards show an interactive `📁 ClickUp: [ListName ↗]` link opening the list in ClickUp.
+   - **360° Inspection Drawer "🚀 Push to ClickUp"**: Pushes un-synced project deliverables into ClickUp tasks using `createClickUpTask`, returning IDs and URLs.
+
+2. **Tab 2: Activity Calendar (`ActivityCalendar.tsx`)**:
+   - **Due Date Ingestion**: Queries `fetchClickUpTasks(token, wsId)` and transforms tasks with `due_date` into calendar events with `[CU ↗]` deep-link badges.
+   - **Modal Deep Link**: Opening any ClickUp event displays direct "Open in ClickUp [↗]" button in the modal header.
+
+3. **Tab 3: Employee Hours (`VisualAgencyHub.tsx`)**:
+   - **ClickUp Linked Badges**: Specialists linked via `clickUpUserId` display a high-contrast `CU Linked` badge on capacity roster cards and workload stacks.
+
+4. **Tab 4: DSR Tracker & Plan (`DSRTrackerStudio.tsx`)**:
+   - **Live Time Sync**: "⚡ Sync ClickUp DSR Time" button queries `fetchClickUpTimeEntries` for the workspace, aggregates actual tracked durations into hours, maps to matched specialists by ID/email/name, and populates weekly logged hours (`log`) across W1–W5.
+   - **Sync Status**: Displays timestamp of last time sync (`⚡ Synced (HH:MM)`).
+
+5. **Tab 6: Job Delivery Bot (`VisualAgencyHub.tsx`)**:
+   - **1-Click Deploy to ClickUp**: Added "🚀 Deploy Scope to ClickUp" in the Job Delivery Bot dispatch footer, creating all generated deliverables into ClickUp tasks via `createClickUpTask`.
+
+6. **Tab 9: Task Backlog (`TaskBacklog.tsx`)**:
+   - **ClickUp Backlog Ingestion**: "⚡ Import ClickUp Backlog" button fetches unassigned tasks from ClickUp, maps required skills and estimates, and appends them to the backlog.
+   - **Direct Task Deep Links**: Backlog cards render `[CU #task ↗]` badges opening the native ClickUp task URL.
+
 
 
 

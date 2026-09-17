@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Search, Trash2, X, ExternalLink } from 'lucide-react';
+import {
+  isClickUpConnected,
+  getClickUpToken,
+  getClickUpWorkspaceId,
+  fetchClickUpTasks
+} from '../services/clickupOAuth';
 import type { Task, TeamMember } from '../types';
 import './ActivityCalendar.css';
 
@@ -24,7 +30,8 @@ interface CalendarActivity {
   ownerId: string;
   notes: string;
   completed: boolean;
-  source: 'manual' | 'task' | 'project';
+  source: 'manual' | 'task' | 'project' | 'clickup';
+  clickUpUrl?: string;
 }
 
 interface ActivityCalendarProps {
@@ -61,16 +68,49 @@ export function ActivityCalendar({ tasks, members, projects }: ActivityCalendarP
   const [enabledCategories, setEnabledCategories] = useState<ActivityCategory[]>(categories.map((item) => item.id));
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<CalendarActivity | null>(null);
+  const [clickUpActivities, setClickUpActivities] = useState<CalendarActivity[]>([]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(manualActivities));
   }, [manualActivities]);
 
+  useEffect(() => {
+    if (!isClickUpConnected()) return;
+    const token = getClickUpToken();
+    const wsId = getClickUpWorkspaceId();
+    if (!token || !wsId) return;
+
+    fetchClickUpTasks(token, wsId)
+      .then((cuTasks) => {
+        const withDue: CalendarActivity[] = cuTasks
+          .filter((t) => t.due_date)
+          .map((t) => {
+            const dueDateStr = formatDate(new Date(Number(t.due_date)));
+            return {
+              id: `cu-${t.id}`,
+              title: `[CU] ${t.name}`,
+              date: dueDateStr,
+              time: '09:00',
+              category: 'work' as const,
+              client: t.status?.status || 'ClickUp',
+              projectId: '',
+              ownerId: '',
+              notes: `ClickUp task #${t.id} · Status: ${t.status?.status || 'Active'}`,
+              completed: t.status?.status?.toLowerCase() === 'complete',
+              source: 'clickup' as const,
+              clickUpUrl: t.url
+            };
+          });
+        setClickUpActivities(withDue);
+      })
+      .catch((err) => console.warn('ActivityCalendar ClickUp fetch error:', err));
+  }, []);
+
   const generatedActivities = useMemo<CalendarActivity[]>(() => [
     ...tasks.filter((task) => task.dueDate).map((task) => ({
       id: `task-${task.id}`, title: task.title, date: task.dueDate, time: '09:00', category: 'work' as const,
       client: task.clientName, projectId: '', ownerId: task.assignedUserId || '', notes: `${task.estimatedHours}h estimated · ${task.status.replace('_', ' ')}`,
-      completed: task.status === 'completed', source: 'task' as const
+      completed: task.status === 'completed', source: 'task' as const, clickUpUrl: task.clickUpUrl
     })),
     ...projects.filter((project) => /^\d{4}-\d{2}-\d{2}$/.test(project.paymentDueDate || '')).map((project) => ({
       id: `payment-${project.id}`, title: `Payment due · ${project.name}`, date: project.paymentDueDate!, time: '12:00', category: 'payment' as const,
@@ -78,11 +118,11 @@ export function ActivityCalendar({ tasks, members, projects }: ActivityCalendarP
     }))
   ], [tasks, projects]);
 
-  const allActivities = useMemo(() => [...manualActivities, ...generatedActivities].filter((activity) => {
+  const allActivities = useMemo(() => [...manualActivities, ...generatedActivities, ...clickUpActivities].filter((activity) => {
     const matchesCategory = enabledCategories.includes(activity.category);
     const searchable = `${activity.title} ${activity.client} ${activity.notes}`.toLowerCase();
     return matchesCategory && searchable.includes(query.toLowerCase());
-  }), [manualActivities, generatedActivities, enabledCategories, query]);
+  }), [manualActivities, generatedActivities, clickUpActivities, enabledCategories, query]);
 
   const days = useMemo(() => {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -143,14 +183,58 @@ export function ActivityCalendar({ tasks, members, projects }: ActivityCalendarP
           const today = dateKey === formatDate(new Date());
           return <div key={dateKey} className={`calendar-day ${outside ? 'outside' : ''} ${today ? 'today' : ''}`} onDoubleClick={() => openDay(dateKey)}>
             <button className="day-number" onClick={() => openDay(dateKey)}>{date.getDate()}</button>
-            <div className="day-activities">{dateActivities.slice(0, 4).map((activity) => <button key={activity.id} className={`calendar-event ${activity.category} ${activity.completed ? 'completed' : ''}`} onClick={() => editActivity(activity)} title={activity.notes}><span>{activity.time}</span>{activity.title}</button>)}{dateActivities.length > 4 && <span className="more-activities">+{dateActivities.length - 4} more</span>}</div>
+            <div className="day-activities">
+              {dateActivities.slice(0, 4).map((activity) => (
+                <button
+                  key={activity.id}
+                  className={`calendar-event ${activity.category} ${activity.completed ? 'completed' : ''}`}
+                  onClick={() => editActivity(activity)}
+                  title={activity.notes}
+                >
+                  <span>{activity.time}</span>
+                  <span className="truncate">{activity.title}</span>
+                  {activity.clickUpUrl && (
+                    <a
+                      href={activity.clickUpUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Open in ClickUp"
+                      className="ml-auto inline-flex items-center text-[10px] text-purple-300 hover:text-white shrink-0"
+                    >
+                      <ExternalLink size={11} />
+                    </a>
+                  )}
+                </button>
+              ))}
+              {dateActivities.length > 4 && <span className="more-activities">+{dateActivities.length - 4} more</span>}
+            </div>
           </div>;
         })}
       </div>
 
       {editing && <div className="calendar-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}>
         <form className="calendar-modal" onSubmit={(event) => { event.preventDefault(); saveActivity(); }}>
-          <div className="calendar-modal-header"><div><h3>{editing.id ? 'Edit activity' : 'Schedule activity'}</h3><p>Manage operational work from one record.</p></div><button type="button" onClick={() => setEditing(null)}><X size={18} /></button></div>
+          <div className="calendar-modal-header">
+            <div>
+              <h3>{editing.id ? 'Edit activity' : 'Schedule activity'}</h3>
+              <p>Manage operational work from one record.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {editing.clickUpUrl && (
+                <a
+                  href={editing.clickUpUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1 transition-colors"
+                >
+                  <span>ClickUp</span>
+                  <ExternalLink size={12} />
+                </a>
+              )}
+              <button type="button" onClick={() => setEditing(null)}><X size={18} /></button>
+            </div>
+          </div>
           <label>Title<input required autoFocus value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} placeholder="What needs to happen?" /></label>
           <div className="calendar-form-row"><label>Date<input required type="date" value={editing.date} onChange={(event) => setEditing({ ...editing, date: event.target.value })} /></label><label>Time<input type="time" value={editing.time} onChange={(event) => setEditing({ ...editing, time: event.target.value })} /></label></div>
           <div className="calendar-form-row"><label>Category<select value={editing.category} onChange={(event) => setEditing({ ...editing, category: event.target.value as ActivityCategory })}>{categories.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Owner<select value={editing.ownerId} onChange={(event) => setEditing({ ...editing, ownerId: event.target.value })}><option value="">Unassigned</option>{members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label></div>

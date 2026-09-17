@@ -7,8 +7,17 @@ import {
   Filter, 
   Clock, 
   CheckCircle2, 
-  Layers
+  Layers,
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
+import { toast as sonnerToast } from 'sonner';
+import {
+  isClickUpConnected,
+  getClickUpToken,
+  getClickUpWorkspaceId,
+  fetchClickUpTasks
+} from '../services/clickupOAuth';
 
 interface TaskBacklogProps {
   tasks: Task[];
@@ -43,6 +52,69 @@ export const TaskBacklog: React.FC<TaskBacklogProps> = ({
   const [newSkill, setNewSkill] = useState<SkillCategory>('Technical SEO');
   const [newHours, setNewHours] = useState('8');
   const [newPriority] = useState<PriorityLevel>('High');
+  const [importingClickUp, setImportingClickUp] = useState(false);
+
+  const handleImportClickUpBacklog = async () => {
+    if (!isClickUpConnected() || importingClickUp) return;
+    const token = getClickUpToken();
+    const wsId = getClickUpWorkspaceId();
+    if (!token || !wsId) {
+      sonnerToast.error('Please connect ClickUp first');
+      return;
+    }
+
+    try {
+      setImportingClickUp(true);
+      const cuTasks = await fetchClickUpTasks(token, wsId);
+      const unassignedCU = cuTasks.filter((t) => (!t.assignees || t.assignees.length === 0) || t.status?.status?.toLowerCase().includes('to do'));
+
+      let added = 0;
+      unassignedCU.forEach((t, idx) => {
+        if (!tasks.some((existing) => existing.clickUpTaskId === String(t.id))) {
+          const hours = t.time_estimate ? Math.max(1, Math.round(t.time_estimate / 3600000)) : 6;
+          const skill: SkillCategory = (t.name.toLowerCase().includes('content') || t.name.toLowerCase().includes('writing'))
+            ? 'Content Writing'
+            : (t.name.toLowerCase().includes('on-page') || t.name.toLowerCase().includes('meta'))
+            ? 'On-Page Optimization'
+            : (t.name.toLowerCase().includes('link') || t.name.toLowerCase().includes('outreach'))
+            ? 'Link Building'
+            : 'Technical SEO';
+
+          const newTask: Task = {
+            id: `tsk_cu_backlog_${t.id}_${Date.now()}_${idx}`,
+            title: t.name,
+            clientName: t.status?.status || 'ClickUp Workspace',
+            requiredSkill: skill,
+            estimatedHours: hours,
+            actualHoursLogged: 0,
+            assignedUserId: null,
+            priority: 'High',
+            status: 'backlog',
+            dueDate: t.due_date ? new Date(Number(t.due_date)).toISOString().split('T')[0] : '2026-07-25',
+            categoryColor: '#8B5CF6',
+            clickUpTaskId: String(t.id),
+            clickUpUrl: t.url,
+            clickUpStatus: t.status?.status || 'to do'
+          };
+          onAddTask(newTask);
+          added++;
+        }
+      });
+
+      if (added > 0) {
+        sonnerToast.success('⚡ ClickUp Tasks Imported', {
+          description: `Added ${added} unassigned ClickUp tasks into your sprint backlog!`
+        });
+      } else {
+        sonnerToast.info('All ClickUp backlog tasks are already synced.');
+      }
+    } catch (err: any) {
+      console.error('Failed to import ClickUp backlog tasks:', err);
+      sonnerToast.error('ClickUp Backlog Import Failed', { description: err.message });
+    } finally {
+      setImportingClickUp(false);
+    }
+  };
 
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +181,19 @@ export const TaskBacklog: React.FC<TaskBacklogProps> = ({
               ))}
             </select>
           </div>
+
+          {isClickUpConnected() && (
+            <button
+              type="button"
+              onClick={handleImportClickUpBacklog}
+              disabled={importingClickUp}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-900/60 hover:bg-purple-800 text-purple-200 hover:text-white border border-purple-500/50 font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
+              title="Import unassigned tasks from ClickUp into sprint backlog"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${importingClickUp ? 'animate-spin text-purple-300' : 'text-purple-400'}`} />
+              <span>{importingClickUp ? 'Importing…' : '⚡ Import ClickUp Backlog'}</span>
+            </button>
+          )}
 
           <button
             onClick={() => setShowAddForm(!showAddForm)}
@@ -226,6 +311,18 @@ export const TaskBacklog: React.FC<TaskBacklogProps> = ({
                     <Clock className="w-3.5 h-3.5" />
                     <span>Est: {task.estimatedHours} Hrs</span>
                   </span>
+                  {task.clickUpUrl && (
+                    <a
+                      href={task.clickUpUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-200 hover:text-white border border-purple-600/50 text-[10px] font-bold transition-all ml-auto"
+                      title="Open task in ClickUp"
+                    >
+                      <span>CU #{task.clickUpTaskId ? task.clickUpTaskId.slice(-6) : 'task'}</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
                 </div>
               </div>
 

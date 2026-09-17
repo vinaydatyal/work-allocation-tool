@@ -1,4 +1,14 @@
 import React, { useState, useMemo } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { toast as sonnerToast } from 'sonner';
+import {
+  isClickUpConnected,
+  getClickUpToken,
+  getClickUpWorkspaceId,
+  fetchClickUpTimeEntries,
+  fetchClickUpWorkspaces,
+  setClickUpWorkspaceId
+} from '../services/clickupOAuth';
 import type { TeamMember, Task } from '../types';
 import type { ActiveProjectItem } from './VisualAgencyHub';
 
@@ -49,6 +59,95 @@ export const DSRTrackerStudio: React.FC<DSRTrackerStudioProps> = ({
     'usr_akhil': { 'w1': { log: 35, int: 0 }, 'w2': { log: 35, int: 0 }, 'w3': { log: 34, int: 1 }, 'w4': { log: 35, int: 0 }, 'w5': { log: 30, int: 5 } },
     'usr_anshita': { 'w1': { log: 28, int: 4 }, 'w2': { log: 30, int: 2 }, 'w3': { log: 32, int: 0 }, 'w4': { log: 30, int: 2 }, 'w5': { log: 27, int: 3 } }
   });
+
+  const [syncingTime, setSyncingTime] = useState<boolean>(false);
+  const [lastTimeSyncedAt, setLastTimeSyncedAt] = useState<Date | null>(null);
+
+  const handleSyncClickUpTime = async () => {
+    if (!isClickUpConnected() || syncingTime) return;
+    const token = getClickUpToken();
+    if (!token) return;
+
+    try {
+      setSyncingTime(true);
+      let wsId = getClickUpWorkspaceId();
+      if (!wsId) {
+        const workspaces = await fetchClickUpWorkspaces(token);
+        if (workspaces && workspaces.length > 0) {
+          wsId = workspaces[0].id;
+          setClickUpWorkspaceId(wsId);
+        }
+      }
+      if (!wsId) {
+        sonnerToast.error('ClickUp Workspace not found. Please connect via navbar.');
+        return;
+      }
+
+      const endEpoch = Date.now();
+      const startEpoch = endEpoch - (45 * 24 * 60 * 60 * 1000);
+      const entries = await fetchClickUpTimeEntries(token, wsId, startEpoch, endEpoch);
+
+      if (!entries || entries.length === 0) {
+        sonnerToast.info('No recent ClickUp time entries found to sync.');
+        return;
+      }
+
+      let matchedCount = 0;
+      let totalHoursAggregated = 0;
+
+      setCustomLogs((prev) => {
+        const updated = { ...prev };
+
+        entries.forEach((entry) => {
+          const matchedMember = members.find((m) =>
+            (m.clickUpUserId && Number(m.clickUpUserId) === Number(entry.user?.id)) ||
+            (m.clickUpEmail && entry.user?.email && m.clickUpEmail.toLowerCase() === entry.user.email.toLowerCase()) ||
+            (m.name.toLowerCase() === (entry.user?.username || '').toLowerCase())
+          );
+
+          if (matchedMember) {
+            const entryDate = new Date(entry.start);
+            const dayOfMonth = entryDate.getDate();
+            let weekId = 'w1';
+            if (dayOfMonth <= 5) weekId = 'w1';
+            else if (dayOfMonth <= 12) weekId = 'w2';
+            else if (dayOfMonth <= 19) weekId = 'w3';
+            else if (dayOfMonth <= 26) weekId = 'w4';
+            else weekId = 'w5';
+
+            const hrs = Math.round((entry.duration / 3600000) * 10) / 10;
+            totalHoursAggregated += hrs;
+            matchedCount++;
+
+            const mLogs = updated[matchedMember.id] || {};
+            const existingWeek = mLogs[weekId] || { log: 0, int: 0 };
+
+            updated[matchedMember.id] = {
+              ...mLogs,
+              [weekId]: {
+                ...existingWeek,
+                log: Math.round(((existingWeek.log || 0) + hrs) * 10) / 10
+              }
+            };
+          }
+        });
+
+        return updated;
+      });
+
+      setLastTimeSyncedAt(new Date());
+      sonnerToast.success('⚡ ClickUp DSR Time Synchronized', {
+        description: `Imported ${Math.round(totalHoursAggregated)}h across ${matchedCount} entries into weekly DSR tracking!`
+      });
+    } catch (err: any) {
+      console.error('Failed to sync ClickUp time entries:', err);
+      sonnerToast.error('ClickUp Time Sync Failed', {
+        description: err.message || 'Check connection or permissions.'
+      });
+    } finally {
+      setSyncingTime(false);
+    }
+  };
 
   const weeks = DSR_WEEKS;
 
@@ -240,6 +339,24 @@ export const DSRTrackerStudio: React.FC<DSRTrackerStudioProps> = ({
             >
               <span>📋 Copy from previous month</span>
             </button>
+            {isClickUpConnected() && (
+              <button
+                type="button"
+                onClick={handleSyncClickUpTime}
+                disabled={syncingTime}
+                className="px-4 py-2.5 rounded-xl bg-purple-900/60 hover:bg-purple-800 border border-purple-500/50 text-purple-200 hover:text-white text-xs font-bold transition-all flex items-center gap-2 shadow-md hover:scale-105 cursor-pointer disabled:opacity-50"
+                title="Pull real-time tracked time from ClickUp into DSR weekly logs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingTime ? 'animate-spin text-purple-300' : 'text-purple-400'}`} />
+                <span>
+                  {syncingTime
+                    ? 'Syncing ClickUp Time…'
+                    : lastTimeSyncedAt
+                    ? `⚡ Synced (${lastTimeSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
+                    : '⚡ Sync ClickUp DSR Time'}
+                </span>
+              </button>
+            )}
             <button
               onClick={() => setSelectedMonth(prev => prev === 'Jul 2026' ? 'Aug 2026' : 'Jul 2026')}
               className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-extrabold uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/25 hover:scale-105 cursor-pointer"
