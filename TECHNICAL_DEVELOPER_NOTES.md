@@ -94,7 +94,6 @@ git push origin main
 Vercel automatically listens to pushes on `main` and redeploys the production environment.
 
 ### 6.1 Git Author Configuration & Vercel Linking
-- Local Git author email is configured via `git config user.email`.
-- Vercel and GitHub resolve the commit author by matching the commit email against registered emails in the GitHub account.
-- If Vercel warns "GitHub user not found" or "Vercel Account Unavailable", add the commit email (`vinay@rankharvestdigital.com`) to **GitHub Settings > Emails** (or update local git config to your primary GitHub email).
+- Local Git author email is configured via `git config user.email` (set to `datyal.upwork@gmail.com`).
+- Vercel and GitHub resolve the commit author by matching the commit email against registered emails in the GitHub account. All future commits will now automatically link to your GitHub profile and Vercel account.
 
