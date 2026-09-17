@@ -777,7 +777,8 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                 {tasks.map((task) => (
                                   <div
                                     key={task.id}
-                                    className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl clickup-card-surface text-xs hover:border-purple-500/40 transition-colors"
+                                    onClick={() => window.open(task.url, '_blank')}
+                                    className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl clickup-card-surface text-xs hover:border-purple-500/50 hover:bg-[#19223a] transition-all cursor-pointer group"
                                   >
                                     <span
                                       className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
@@ -785,7 +786,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                       title={task.status?.status || 'Open'}
                                     />
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-bold text-white truncate text-xs" style={{ color: '#ffffff' }}>{task.name}</div>
+                                      <div className="font-bold text-white group-hover:text-purple-300 transition-colors truncate text-xs" style={{ color: '#ffffff' }}>{task.name}</div>
                                       <div className="text-[11px] text-slate-400 truncate flex items-center gap-2 mt-0.5" style={{ color: '#94a3b8' }}>
                                         {task.list?.name && (
                                           <span className="px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/80 text-[10px] font-medium">
@@ -801,6 +802,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                       href={task.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
                                       className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-purple-900/60 border border-slate-700/80 hover:border-purple-500/50 text-slate-300 hover:text-purple-200 text-[11px] font-semibold transition-all shrink-0 cursor-pointer"
                                       title="Open in ClickUp"
                                     >
@@ -856,23 +858,38 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                         ) : (
                           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
                             {spaces.map((sp) => (
-                              <button
+                              <div
                                 key={sp.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedSpace(sp.id);
-                                  loadHierarchy(sp.id);
-                                }}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border ${
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 border ${
                                   selectedSpace === sp.id
                                     ? 'bg-purple-600 border-purple-400 text-white shadow-md shadow-purple-600/30'
                                     : 'bg-[#151d30] border-slate-700/80 text-slate-200 hover:text-white hover:bg-[#1c2742]'
                                 }`}
-                                style={{ color: selectedSpace === sp.id ? '#ffffff' : '#f1f5f9' }}
                               >
-                                <FolderKanban className="w-3.5 h-3.5 text-purple-400" />
-                                <span style={{ color: selectedSpace === sp.id ? '#ffffff' : '#f1f5f9' }}>{sp.name}</span>
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedSpace(sp.id);
+                                    loadHierarchy(sp.id);
+                                  }}
+                                  className="flex items-center gap-1.5 cursor-pointer bg-transparent border-0 p-0 text-inherit"
+                                  style={{ color: selectedSpace === sp.id ? '#ffffff' : '#f1f5f9' }}
+                                >
+                                  <FolderKanban className="w-3.5 h-3.5 text-purple-400" />
+                                  <span style={{ color: selectedSpace === sp.id ? '#ffffff' : '#f1f5f9' }}>{sp.name}</span>
+                                </button>
+                                {selectedWs && (
+                                  <a
+                                    href={`https://app.clickup.com/${selectedWs}/v/s/${sp.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={`Open "${sp.name}" Space in ClickUp`}
+                                    className="p-0.5 rounded hover:bg-white/20 text-white/70 hover:text-white transition-colors cursor-pointer ml-1"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                )}
+                              </div>
                             ))}
                           </div>
                         )}
@@ -910,7 +927,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                     <span>Folders &amp; Nested Lists ({folders.length})</span>
                                   </div>
                                   <span className="text-[10px] text-slate-400 font-normal lowercase tracking-normal">
-                                    click to expand / collapse
+                                    click to inspect • ↗ to open in ClickUp
                                   </span>
                                 </div>
 
@@ -924,17 +941,17 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                         className="rounded-xl border border-slate-800 bg-[#0e1526]/90 overflow-hidden transition-colors"
                                       >
                                         {/* Folder Header */}
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setExpandedFolders(prev => ({
-                                              ...prev,
-                                              [folder.id]: !prev[folder.id]
-                                            }));
-                                          }}
-                                          className="w-full flex items-center justify-between px-3.5 py-2.5 bg-[#141d33] hover:bg-[#18233d] transition-all cursor-pointer text-left"
-                                        >
-                                          <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-full flex items-center justify-between px-3.5 py-2.5 bg-[#141d33] hover:bg-[#18233d] transition-all text-left">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setExpandedFolders(prev => ({
+                                                ...prev,
+                                                [folder.id]: !prev[folder.id]
+                                              }));
+                                            }}
+                                            className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer bg-transparent border-0 p-0 text-left"
+                                          >
                                             {isExpanded ? (
                                               <ChevronDown className="w-4 h-4 text-amber-400 shrink-0" />
                                             ) : (
@@ -948,11 +965,25 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                             <span className="font-bold text-white text-xs truncate" style={{ color: '#ffffff' }}>
                                               {folder.name}
                                             </span>
+                                          </button>
+
+                                          <div className="flex items-center gap-2 shrink-0 ml-2">
+                                            <span className="text-[10px] text-amber-300 font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20">
+                                              {folderLists.length} {folderLists.length === 1 ? 'list' : 'lists'}
+                                            </span>
+                                            {selectedWs && (
+                                              <a
+                                                href={`https://app.clickup.com/${selectedWs}/v/f/${folder.id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                title={`Open "${folder.name}" Folder in ClickUp`}
+                                                className="p-1 rounded bg-slate-800/80 hover:bg-amber-500/20 text-slate-400 hover:text-amber-300 border border-slate-700/60 transition-colors cursor-pointer"
+                                              >
+                                                <ExternalLink className="w-3 h-3" />
+                                              </a>
+                                            )}
                                           </div>
-                                          <span className="text-[10px] text-amber-300 font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 shrink-0 ml-2">
-                                            {folderLists.length} {folderLists.length === 1 ? 'list' : 'lists'}
-                                          </span>
-                                        </button>
+                                        </div>
 
                                         {/* Folder Child Lists */}
                                         {isExpanded && (
@@ -964,30 +995,45 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                             ) : (
                                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                 {folderLists.map((ls) => (
-                                                  <button
+                                                  <div
                                                     key={ls.id}
-                                                    type="button"
-                                                    onClick={() => {
-                                                      setSelectedList(ls.id);
-                                                      setSelectedListName(ls.name);
-                                                      loadListTasks(ls.id);
-                                                    }}
-                                                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs border text-left cursor-pointer transition-all ${
+                                                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs border transition-all ${
                                                       selectedList === ls.id
                                                         ? 'bg-purple-600/30 border-purple-500 text-purple-100 ring-1 ring-purple-500/40 shadow-sm'
                                                         : 'bg-[#121929] border-slate-700/70 text-slate-200 hover:border-purple-500/40 hover:bg-[#182238]'
                                                     }`}
                                                   >
-                                                    <div className="flex items-center gap-2 min-w-0">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        setSelectedList(ls.id);
+                                                        setSelectedListName(ls.name);
+                                                        loadListTasks(ls.id);
+                                                      }}
+                                                      className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer bg-transparent border-0 p-0 text-inherit"
+                                                    >
                                                       <ListTodo className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                                                       <span className="font-semibold text-white truncate text-xs" style={{ color: '#ffffff' }}>
                                                         {ls.name}
                                                       </span>
+                                                    </button>
+                                                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                                      <span className="text-[10px] text-slate-400" style={{ color: '#94a3b8' }}>
+                                                        {ls.task_count ?? 0} tasks
+                                                      </span>
+                                                      {selectedWs && (
+                                                        <a
+                                                          href={`https://app.clickup.com/${selectedWs}/v/li/${ls.id}`}
+                                                          target="_blank"
+                                                          rel="noopener noreferrer"
+                                                          title={`Open "${ls.name}" List in ClickUp`}
+                                                          className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer"
+                                                        >
+                                                          <ExternalLink className="w-3 h-3" />
+                                                        </a>
+                                                      )}
                                                     </div>
-                                                    <span className="text-[10px] text-slate-400 shrink-0 ml-2" style={{ color: '#94a3b8' }}>
-                                                      {ls.task_count ?? 0} tasks
-                                                    </span>
-                                                  </button>
+                                                  </div>
                                                 ))}
                                               </div>
                                             )}
@@ -1009,30 +1055,45 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   {folderlessLists.map((ls) => (
-                                    <button
+                                    <div
                                       key={ls.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedList(ls.id);
-                                        setSelectedListName(ls.name);
-                                        loadListTasks(ls.id);
-                                      }}
-                                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs border text-left cursor-pointer transition-all ${
+                                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs border transition-all ${
                                         selectedList === ls.id
                                           ? 'bg-purple-600/30 border-purple-500 text-purple-100 ring-1 ring-purple-500/40 shadow-sm'
                                           : 'bg-[#151d30] border-slate-700/80 text-slate-200 hover:border-slate-600 hover:bg-[#1c2742]'
                                       }`}
                                     >
-                                      <div className="flex items-center gap-2 min-w-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedList(ls.id);
+                                          setSelectedListName(ls.name);
+                                          loadListTasks(ls.id);
+                                        }}
+                                        className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer bg-transparent border-0 p-0 text-inherit"
+                                      >
                                         <ListTodo className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                                         <span className="font-semibold text-white truncate text-xs" style={{ color: '#ffffff' }}>
                                           {ls.name}
                                         </span>
+                                      </button>
+                                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                        <span className="text-[10px] text-slate-400" style={{ color: '#94a3b8' }}>
+                                          {ls.task_count ?? 0} tasks
+                                        </span>
+                                        {selectedWs && (
+                                          <a
+                                            href={`https://app.clickup.com/${selectedWs}/v/li/${ls.id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            title={`Open "${ls.name}" List in ClickUp`}
+                                            className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer"
+                                          >
+                                            <ExternalLink className="w-3 h-3" />
+                                          </a>
+                                        )}
                                       </div>
-                                      <span className="text-[10px] text-slate-400 shrink-0 ml-2" style={{ color: '#94a3b8' }}>
-                                        {ls.task_count ?? 0} tasks
-                                      </span>
-                                    </button>
+                                    </div>
                                   ))}
                                 </div>
                               </div>
@@ -1079,7 +1140,8 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                 {listTasks.map((t) => (
                                   <div
                                     key={t.id}
-                                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl clickup-card-surface text-xs hover:border-purple-500/40 transition-colors"
+                                    onClick={() => window.open(t.url, '_blank')}
+                                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl clickup-card-surface text-xs hover:border-purple-500/50 hover:bg-[#19223a] transition-all cursor-pointer group"
                                   >
                                     <div className="flex items-center gap-2.5 min-w-0">
                                       <span
@@ -1087,7 +1149,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                         style={{ backgroundColor: t.status?.color || '#8b5cf6' }}
                                         title={t.status?.status || 'Open'}
                                       />
-                                      <span className="font-semibold text-white truncate text-xs" style={{ color: '#ffffff' }}>{t.name}</span>
+                                      <span className="font-semibold text-white group-hover:text-purple-300 transition-colors truncate text-xs" style={{ color: '#ffffff' }}>{t.name}</span>
                                     </div>
                                     <div className="flex items-center gap-2.5 shrink-0 ml-2">
                                       <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-200 border border-slate-700 font-medium" style={{ color: '#f1f5f9' }}>
@@ -1097,6 +1159,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                         href={t.url}
                                         target="_blank"
                                         rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
                                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-purple-900/60 border border-slate-700/80 hover:border-purple-500/50 text-slate-200 hover:text-purple-200 text-[11px] font-semibold transition-all shrink-0 cursor-pointer"
                                         title="Open in ClickUp"
                                         style={{ color: '#e2e8f0' }}
