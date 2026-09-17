@@ -354,3 +354,33 @@ Agencies frequently maintain their complete client roster inside a specific Clic
      - **Tab 4 (Job Delivery Bot)**: Added `💬 Ticket Discussion` button in the squad verification and package dispatcher controls.
    - **Data Privacy Guard**:
      - Prominently displays privacy badge confirming that internal financial retainers, milestone calculations, and sensitive client access notes remain local and are never exposed or transmitted when interacting with ClickUp discussions.
+
+9. **Executive Project Health & Churn Radar + Team Workload Heatmap & Reassignment Shield**:
+   - **Multi-Factor Project Health & Churn Radar (`ProjectHealthRadar.tsx`)**:
+     - **Deterministic Risk Scoring Algorithm**: Calculates project health score (0-100) across 5 weighted operational dimensions:
+       1. *Burn Rate & Capacity Utilization*: Checks if allocated weekly deliverable hours exceed contract scope or if zero hours are assigned.
+       2. *Payment & Invoicing Health*: Evaluates payment status (`Paid` = +0, `Pending` with past due date = -35, `Overdue` = -45).
+       3. *Account Access Governance*: Scans GA4, GBP, GSC, GTM, and Backend Login statuses. Flags missing or unverified access credentials (-10 to -20 penalty).
+       4. *Lifecycle & Progress Stagnation*: Evaluates `INITIAL STAGE` or `REVALUATION` duration, missing communication channels, and inactive task breakdowns.
+       5. *Leadership Accountability*: Flags unassigned Team Lead (`projectLeadId`) or Call Lead (`clientCallAssigneeId`) with a -20 risk penalty.
+     - **Dynamic Health Tiers**: Categorizes projects into `🟢 Thriving (85-100)`, `🟡 Attention Needed (70-84)`, `🟠 At Risk (50-69)`, and `🔴 Critical / Churn Hazard (<50)`.
+     - **Quick Radar Capsule Filter Bar (`ProjectHealthRadarFilterBar`)**:
+       - Embedded seamlessly in Tab 1 (Filter & Analytics Studio) right above status pills.
+       - Allows one-click isolation of `Critical (Churn Hazard)`, `At Risk`, `Attention Needed`, or `Thriving` portfolios with live counts.
+     - **Interactive Health Badges & 360° Diagnostic Slideover Modal (`ProjectHealthDiagnosticModal`)**:
+       - Rendered on both Table rows, Grid cards, and the 360° Project Detail modal header.
+       - Clicking any health badge opens a deep diagnostic dossier showing:
+         - Circular SVG health score gauge with animated glow and status indicators.
+         - Active Risk Factor Breakdown with severity tags, point impact, and explanation.
+         - Actionable Resolution Steps with immediate 1-click execution guides.
+         - Instant Slack/WhatsApp Client Alert Generator with 1-click clipboard copying.
+   - **Team Workload Heatmap & Reassignment Shield (`WorkloadHeatmap.tsx`)**:
+     - **Interactive View Switcher**: Tab 2 (Employee Hours & Resource Management) features a toggle between `👥 Member Cards` (classic roster view) and `🔥 Workload Heatmap & Shield`.
+     - **Utilization & Capacity Color Coding**:
+       - `Overloaded (>100% capacity)`: Red/Rose gradient with animated flame pulse.
+       - `Optimal Load (75-100%)`: Emerald/Cyan active efficiency.
+       - `Under-Utilized (<75%)`: Amber/Purple indicator for available bandwidth.
+     - **Interactive Deliverable Reassignment Shield Modal**:
+       - Allows managers to click `Reassign` on any deliverable belonging to an overloaded member.
+       - Displays candidate team members with available hours and real-time preview of their new capacity before confirming.
+       - Updating reallocates the task immediately across all active projects and state stores.

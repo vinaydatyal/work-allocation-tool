@@ -578,3 +578,50 @@ export async function fetchClickUpTaskTimeInStatus(token: string, taskId: string
   }
 }
 
+/**
+ * Check if a status string represents a completed or closed task
+ */
+export function isClickUpTaskClosed(statusName?: string): boolean {
+  if (!statusName) return false;
+  const s = statusName.toLowerCase().trim();
+  return ['done', 'complete', 'completed', 'closed', 'resolved', 'delivered'].includes(s);
+}
+
+/**
+ * Batch fetch multiple ClickUp tasks with concurrency limit
+ */
+export async function batchFetchClickUpTasks(
+  token: string,
+  taskIds: string[],
+  concurrency = 5
+): Promise<Map<string, any>> {
+  const results = new Map<string, any>();
+  if (!taskIds.length) return results;
+
+  const uniqueIds = Array.from(new Set(taskIds.filter(Boolean)));
+  for (let i = 0; i < uniqueIds.length; i += concurrency) {
+    const chunk = uniqueIds.slice(i, i + concurrency);
+    const chunkResults = await Promise.allSettled(
+      chunk.map(async (id) => {
+        const task = await clickupFetch(`/task/${id}`, token);
+        return { id, task };
+      })
+    );
+
+    chunkResults.forEach((res) => {
+      if (res.status === 'fulfilled' && res.value.task && res.value.task.id) {
+        results.set(res.value.id, res.value.task);
+      }
+    });
+  }
+
+  return results;
+}
+
+export interface DeliverableSyncReport {
+  updatedProjectsCount: number;
+  syncedTasksCount: number;
+  newlyCompletedTasksCount: number;
+  changedTasksCount: number;
+}
+

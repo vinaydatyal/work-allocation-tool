@@ -42,7 +42,8 @@ import {
   ShieldCheck,
   ExternalLink,
   RefreshCw,
-  MessageSquare
+  MessageSquare,
+  Flame
 } from 'lucide-react';
 import { ClickUpOAuthModal } from './ClickUpOAuthModal';
 import { ClickUpTaskActivityModal } from './ClickUpTaskActivityModal';
@@ -60,8 +61,18 @@ import {
   createClickUpTask,
   updateClickUpTaskAssignees,
   updateClickUpTaskStatus,
-  type ClickUpTask
+  type ClickUpTask,
+  batchFetchClickUpTasks,
+  isClickUpTaskClosed
 } from '../services/clickupOAuth';
+import {
+  computeProjectHealthScore,
+  ProjectHealthBadge,
+  ProjectHealthRadarFilterBar,
+  ProjectHealthDiagnosticModal,
+  type HealthTier
+} from './ProjectHealthRadar';
+import { WorkloadHeatmap } from './WorkloadHeatmap';
 import { AGENCY_MASTER_EXAM_BANK, type ExamQuestionType } from '../data/skillExamBank';
 import { getPDFMasterProjects, classifyClientTier } from '../data/pdfMasterProjectsData';
 import { DSRTrackerStudio } from './DSRTrackerStudio';
@@ -329,6 +340,10 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   const [selectedHoursFilter, setSelectedHoursFilter] = useState<'ALL' | 'TECH' | 'ONPAGE' | 'OFFPAGE' | 'FREE'>('ALL');
   const [rebalanceOpenFor, setRebalanceOpenFor] = useState<string | null>(null);
   const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
+  const [radarHealthFilter, setRadarHealthFilter] = useState<'all' | HealthTier>('all');
+  const [diagnosingProject, setDiagnosingProject] = useState<any | null>(null);
+  const [isSyncingDeliverables, setIsSyncingDeliverables] = useState(false);
+  const [teamViewMode, setTeamViewMode] = useState<'roster' | 'heatmap'>('roster');
 
   const toggleCardExpansion = (projId: string) => {
     setExpandedCardIds((prev) => ({ ...prev, [projId]: !prev[projId] }));
@@ -1218,8 +1233,125 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     }
   };
 
+  const handleSyncAllDeliverablesWithClickUp = async () => {
+    if (!isClickUpConnected()) {
+      sonnerToast.info('Please connect ClickUp first.');
+      setShowClickUpModal(true);
+      return;
+    }
+    const token = getClickUpToken();
+    if (!token) return;
 
+    // Collect all task IDs from all project deliverables
+    const taskIdsToFetch: string[] = [];
+    projectsList.forEach((p) => {
+      (p.taskBreakdown || []).forEach((tb: any) => {
+        if (tb.clickUpTaskId) taskIdsToFetch.push(tb.clickUpTaskId);
+      });
+      if (p.clickUpTaskId) taskIdsToFetch.push(p.clickUpTaskId);
+      else if (p.id.startsWith('prj_cu_')) taskIdsToFetch.push(p.id.replace('prj_cu_', ''));
+    });
 
+    if (taskIdsToFetch.length === 0) {
+      sonnerToast.info('No linked ClickUp deliverables found to sync. Push projects to ClickUp or import tasks first.');
+      return;
+    }
+
+    try {
+      setIsSyncingDeliverables(true);
+      sonnerToast.loading(`Syncing ${taskIdsToFetch.length} deliverable tasks from ClickUp...`, { id: 'deliv-sync' });
+
+      const fetchedMap = await batchFetchClickUpTasks(token, taskIdsToFetch);
+
+      let updatedTasksCount = 0;
+      let completedTasksCount = 0;
+
+      setProjectsList((prevList) => {
+        return prevList.map((project) => {
+          let projectModified = false;
+          const updatedBreakdown = (project.taskBreakdown || []).map((tb: any) => {
+            if (!tb.clickUpTaskId) return tb;
+            const liveTask = fetchedMap.get(tb.clickUpTaskId);
+            if (!liveTask) return tb;
+
+            const liveStatus = liveTask.status?.status || '';
+            const isClosed = isClickUpTaskClosed(liveStatus);
+
+            const prevStatus = tb.status;
+            const newStatus = isClosed ? 'Completed' : (prevStatus === 'Completed' ? 'Completed' : 'In Progress');
+
+            if (tb.clickUpStatus !== liveStatus || tb.status !== newStatus) {
+              projectModified = true;
+              updatedTasksCount++;
+              if (isClosed && prevStatus !== 'Completed') {
+                completedTasksCount++;
+              }
+              return {
+                ...tb,
+                clickUpStatus: liveStatus,
+                status: newStatus
+              };
+            }
+            return tb;
+          });
+
+          if (projectModified) {
+            const completedMilestones = updatedBreakdown.filter((t: any) => t.status === 'Completed').length;
+            const totalMilestones = Math.max(1, updatedBreakdown.length);
+            const allDone = completedMilestones === totalMilestones && totalMilestones > 0;
+
+            return {
+              ...project,
+              taskBreakdown: updatedBreakdown,
+              milestonesCompleted: completedMilestones,
+              milestonesTotal: totalMilestones,
+              status: allDone ? 'COMPLETED' : project.status
+            };
+          }
+
+          return project;
+        });
+      });
+
+      sonnerToast.dismiss('deliv-sync');
+      sonnerToast.success(`⚡ Deliverables Synchronized!`, {
+        description: `Checked ${fetchedMap.size} ClickUp tasks. Updated ${updatedTasksCount} deliverables (${completedTasksCount} newly completed milestones).`
+      });
+      setLastSyncedTime(new Date());
+    } catch (err: any) {
+      console.error('Error syncing ClickUp deliverables:', err);
+      sonnerToast.dismiss('deliv-sync');
+      sonnerToast.error('Deliverable Sync Failed', { description: err.message });
+    } finally {
+      setIsSyncingDeliverables(false);
+    }
+  };
+
+  const handleReassignDeliverable = (projectId: string, deliverableId: string, newAssigneeId: string) => {
+    setProjectsList((prevList) => {
+      return prevList.map((project) => {
+        if (project.id !== projectId) return project;
+        const updatedBreakdown = (project.taskBreakdown || []).map((tb: any) => {
+          if (tb.id === deliverableId) {
+            return { ...tb, assigneeId: newAssigneeId };
+          }
+          return tb;
+        });
+
+        const newSquadMembers = Array.from(
+          new Set(updatedBreakdown.map((t: any) => t.assigneeId).filter(Boolean))
+        )
+          .map((id) => customMembers.find((m) => m.id === id))
+          .filter(Boolean) as TeamMember[];
+
+        return {
+          ...project,
+          taskBreakdown: updatedBreakdown,
+          members: newSquadMembers.length > 0 ? newSquadMembers : project.members
+        };
+      });
+    });
+  };
 
   // ClickUp Ticket Discussion & Activity Modal State
   const [clickUpActivityModalState, setClickUpActivityModalState] = useState<{
@@ -1698,6 +1830,10 @@ Due Date: ${proj.paymentDueDate}
       } else if (proj.clientCallAssigneeId !== filterCallAssigneeId) {
         return false;
       }
+    }
+    if (radarHealthFilter !== 'all') {
+      const health = computeProjectHealthScore(proj);
+      if (health.tier !== radarHealthFilter) return false;
     }
     if (filterBillingType !== 'ALL' && proj.billingType !== filterBillingType) return false;
     if (selectedServiceFilter !== 'ALL') {
@@ -2354,6 +2490,20 @@ Due Date: ${proj.paymentDueDate}
                 </button>
               )}
 
+              {/* 1-Click Deliverables Live Status & Milestone Sync */}
+              {isClickUpConnected() && (
+                <button
+                  type="button"
+                  onClick={handleSyncAllDeliverablesWithClickUp}
+                  disabled={isSyncingDeliverables}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs transition-all shadow-md shadow-purple-500/20 cursor-pointer disabled:opacity-50"
+                  title="Scan all linked ClickUp deliverable tasks: updates status, auto-completes milestones, and recalculates project health"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDeliverables ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingDeliverables ? 'Syncing Deliverables…' : '⚡ Sync Deliverables'}</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setShowAddMemberModal(true)}
@@ -2647,6 +2797,33 @@ Due Date: ${proj.paymentDueDate}
                   badgeText={`${filteredProjectsList.length} Matching`}
                   badgeColor="indigo"
                 />
+
+                {/* Executive Project Health & Churn Radar Capsule Bar */}
+                <div className="pb-3 border-b border-slate-700/50 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-rose-400 flex items-center gap-1.5 shrink-0">
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Churn Radar:</span>
+                    </span>
+                    <ProjectHealthRadarFilterBar
+                      projects={projectsList}
+                      currentFilter={radarHealthFilter}
+                      onSelectFilter={(f) => {
+                        setRadarHealthFilter(f);
+                        if (f !== 'all') setEverydayQuickFilter('all');
+                      }}
+                    />
+                  </div>
+                  {radarHealthFilter !== 'all' && (
+                    <button
+                      type="button"
+                      onClick={() => setRadarHealthFilter('all')}
+                      className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
+                    >
+                      Reset Radar
+                    </button>
+                  )}
+                </div>
 
                 {/* Status Quick Pills & Charts Toggle */}
                 <div className="flex flex-wrap items-center gap-3">
@@ -3032,6 +3209,7 @@ Due Date: ${proj.paymentDueDate}
                           <td className="py-4 px-5" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <ClientTierBadge tier={proj.clientTier || classifyClientTier(proj)} size="sm" />
+                              <ProjectHealthBadge project={proj} onClick={() => setDiagnosingProject(proj)} size="sm" />
                               <span
                                 className={`px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide border ${
                                   proj.status === 'INITIAL STAGE'
@@ -3223,6 +3401,7 @@ Due Date: ${proj.paymentDueDate}
                       <div className="flex flex-wrap items-center justify-between gap-2 min-w-0 w-full">
                         <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
                           <ClientTierBadge tier={proj.clientTier || classifyClientTier(proj)} size="sm" />
+                          <ProjectHealthBadge project={proj} onClick={() => setDiagnosingProject(proj)} size="sm" />
                           <span
                             className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border shrink-0 ${
                               proj.status === 'INITIAL STAGE'
@@ -4560,7 +4739,33 @@ Due Date: ${proj.paymentDueDate}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3 relative z-10">
+            <div className="flex flex-wrap items-center gap-3 relative z-10">
+              <div className="flex items-center bg-slate-950/90 border border-slate-700/80 rounded-xl p-0.5 shadow-md">
+                <button
+                  type="button"
+                  onClick={() => setTeamViewMode('roster')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    teamViewMode === 'roster'
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  👥 Member Cards
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTeamViewMode('heatmap')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    teamViewMode === 'heatmap'
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Flame className="w-3.5 h-3.5 text-amber-400" />
+                  <span>🔥 Workload Heatmap & Shield</span>
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setShowAddMemberModal(true)}
@@ -4583,10 +4788,18 @@ Due Date: ${proj.paymentDueDate}
             </div>
           </div>
 
-          {/* SECTION 1 HEADING: LEADERSHIP & OPERATIONAL HIERARCHY */}
-          <GraphicSectionHeader
-            icon={<Users className="w-4 h-4" />}
-            title="Leadership & Operational Hierarchy"
+          {teamViewMode === 'heatmap' ? (
+            <WorkloadHeatmap
+              members={customMembers}
+              projects={projectsList}
+              onReassignDeliverable={handleReassignDeliverable}
+            />
+          ) : (
+            <>
+              {/* SECTION 1 HEADING: LEADERSHIP & OPERATIONAL HIERARCHY */}
+              <GraphicSectionHeader
+                icon={<Users className="w-4 h-4" />}
+                title="Leadership & Operational Hierarchy"
             badgeText="Executive CEOs Excluded from Hourly Quotas"
             badgeColor="amber"
           />
@@ -4924,6 +5137,8 @@ Due Date: ${proj.paymentDueDate}
             })}
             </AnimatePresence>
           </motion.div>
+          </>
+          )}
         </div>
       )}
 
@@ -8129,10 +8344,11 @@ Due Date: ${proj.paymentDueDate}
                 {/* Sticky Header with Prominent Close / Cancel Button */}
                 <div className="shrink-0 flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 p-6 pb-4 bg-slate-900/95 backdrop-blur-md sticky top-0 z-10">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-slate-950 text-cyan-400 border border-slate-800">
                       {liveProject.client} • {liveProject.paymentInvoiceId}
                     </span>
+                    <ProjectHealthBadge project={liveProject} onClick={() => setDiagnosingProject(liveProject)} size="md" />
                     <span
                       className={`text-xs font-black px-2.5 py-1 rounded-lg border ${
                         liveProject.paymentStatus === 'Paid'
@@ -9653,6 +9869,14 @@ Due Date: ${proj.paymentDueDate}
           priority={clickUpActivityModalState.priority}
           assignees={clickUpActivityModalState.assignees}
           onClose={() => setClickUpActivityModalState(null)}
+        />
+      )}
+
+      {diagnosingProject && (
+        <ProjectHealthDiagnosticModal
+          isOpen={!!diagnosingProject}
+          project={diagnosingProject}
+          onClose={() => setDiagnosingProject(null)}
         />
       )}
     </div>
