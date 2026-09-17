@@ -122,6 +122,17 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
     }
   }, [isOpen]);
 
+  // Handle ESC key to cancel/close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Load tasks & data when workspace changes
   useEffect(() => {
     if (selectedWs && connected) {
@@ -369,29 +380,27 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop with Guaranteed Blur */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm"
+            className="clickup-modal-backdrop cursor-pointer"
             onClick={onClose}
           />
 
-          {/* Modal Card */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 15 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 15 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-            className="fixed inset-0 z-[121] flex items-center justify-center p-3 sm:p-4 pointer-events-none"
-          >
-            <div
-              className="bg-[#0b0f19] border border-slate-700/90 rounded-2xl shadow-2xl w-full max-w-3xl pointer-events-auto overflow-hidden flex flex-col max-h-[88vh]"
+          {/* Centered Modal Container */}
+          <div className="clickup-modal-container">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              className="clickup-modal-card"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="relative px-6 pt-5 pb-4 border-b border-slate-800 shrink-0 bg-slate-950/70">
+              <div className="clickup-modal-header">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500" />
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -403,30 +412,42 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                         <h2 className="text-base font-extrabold text-white tracking-tight">
                           ClickUp Command &amp; Live Sync Center
                         </h2>
-                        {connected && (
+                        {connected ? (
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                             Connected
                           </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold">
+                            Not Connected
+                          </span>
                         )}
                       </div>
                       <p className="text-xs text-slate-400 mt-0.5">
+                        {connected && connectedUser ? `Synced as ${connectedUser} · ` : ''}
                         Hierarchy, Real-Time Time Tracking, Team Mapping &amp; Deliverables Push
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+
+                  {/* Header Close Button with Esc shortcut indicator */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-sm"
+                      title="Close modal (Esc)"
+                    >
+                      <span className="text-[10px] uppercase tracking-wider bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700">Esc</span>
+                      <X className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Close</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Connected Navigation Tabs */}
                 {connected && (
-                  <div className="flex items-center gap-1.5 mt-4 pt-2 border-t border-slate-800/80 overflow-x-auto no-scrollbar">
+                  <div className="flex items-center gap-1.5 mt-4 pt-2 border-t border-slate-800/80 overflow-x-auto">
                     {[
                       { id: 'overview', label: 'Overview & Sync', icon: Zap },
                       { id: 'hierarchy', label: 'Spaces & Lists', icon: Layers },
@@ -443,8 +464,8 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                           onClick={() => setFeatureTab(tab.id as ActiveFeatureTab)}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
                             isActive
-                              ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
-                              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                              ? 'bg-purple-600 text-white shadow-md shadow-purple-600/40 border border-purple-400/50'
+                              : 'bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800'
                           }`}
                         >
                           <Icon className="w-3.5 h-3.5" />
@@ -456,8 +477,8 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                 )}
               </div>
 
-              {/* Scrollable Body */}
-              <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+              {/* Scrollable Body with Guaranteed Height & Scroll */}
+              <div className="clickup-modal-body space-y-4">
 
                 {/* Toast Notification */}
                 {syncToast && (
@@ -696,37 +717,47 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                             </div>
 
                             {loadingTasks ? (
-                              <div className="flex items-center justify-center gap-2 py-6 rounded-xl bg-slate-900/60 border border-slate-800">
+                              <div className="flex items-center justify-center gap-2 py-6 rounded-xl clickup-card-surface">
                                 <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
                                 <span className="text-xs text-slate-400">Fetching workspace tasks…</span>
                               </div>
                             ) : tasks.length === 0 ? (
-                              <div className="py-4 text-center text-xs text-slate-500 bg-slate-900/40 rounded-xl border border-slate-800">
+                              <div className="py-5 text-center text-xs text-slate-400 clickup-card-surface">
                                 No open tasks found in this workspace.
                               </div>
                             ) : (
-                              <div className="space-y-1.5 max-h-44 overflow-y-auto no-scrollbar">
+                              <div className="space-y-2 clickup-task-scroll">
                                 {tasks.map((task) => (
                                   <div
                                     key={task.id}
-                                    className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-800/90 text-xs"
+                                    className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl clickup-card-surface text-xs hover:border-purple-500/40 transition-colors"
                                   >
                                     <span
-                                      className="w-2 h-2 rounded-full shrink-0"
-                                      style={{ backgroundColor: task.status?.color || '#64748b' }}
+                                      className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                                      style={{ backgroundColor: task.status?.color || '#8b5cf6' }}
+                                      title={task.status?.status || 'Open'}
                                     />
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-semibold text-slate-200 truncate">{task.name}</div>
-                                      <div className="text-[10px] text-slate-500 truncate">
-                                        {task.list?.name} · {task.assignees?.map((a) => a.username).join(', ') || 'Unassigned'}
+                                      <div className="font-bold text-slate-100 truncate">{task.name}</div>
+                                      <div className="text-[11px] text-slate-400 truncate flex items-center gap-2 mt-0.5">
+                                        {task.list?.name && (
+                                          <span className="px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/80 text-[10px] font-medium">
+                                            {task.list.name}
+                                          </span>
+                                        )}
+                                        <span>
+                                          {task.assignees?.map((a) => a.username).join(', ') || 'Unassigned'}
+                                        </span>
                                       </div>
                                     </div>
                                     <a
                                       href={task.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-slate-500 hover:text-purple-400 transition-colors shrink-0"
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-purple-900/60 border border-slate-700/80 hover:border-purple-500/50 text-slate-300 hover:text-purple-200 text-[11px] font-semibold transition-all shrink-0 cursor-pointer"
+                                      title="Open in ClickUp"
                                     >
+                                      <span>Open</span>
                                       <ExternalLink className="w-3 h-3" />
                                     </a>
                                   </div>
@@ -837,29 +868,32 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                 No tasks in this list.
                               </div>
                             ) : (
-                              <div className="space-y-1.5 max-h-40 overflow-y-auto no-scrollbar">
+                              <div className="space-y-2 clickup-list-scroll">
                                 {listTasks.map((t) => (
                                   <div
                                     key={t.id}
-                                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800 text-xs"
+                                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl clickup-card-surface text-xs"
                                   >
-                                    <div className="flex items-center gap-2 min-w-0">
+                                    <div className="flex items-center gap-2.5 min-w-0">
                                       <span
-                                        className="w-2 h-2 rounded-full shrink-0"
-                                        style={{ backgroundColor: t.status?.color || '#64748b' }}
+                                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                                        style={{ backgroundColor: t.status?.color || '#8b5cf6' }}
+                                        title={t.status?.status || 'Open'}
                                       />
-                                      <span className="font-medium text-slate-200 truncate">{t.name}</span>
+                                      <span className="font-semibold text-slate-100 truncate">{t.name}</span>
                                     </div>
-                                    <div className="flex items-center gap-3 shrink-0 ml-2">
-                                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                                    <div className="flex items-center gap-2.5 shrink-0 ml-2">
+                                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700 font-medium">
                                         {t.status?.status || 'Open'}
                                       </span>
                                       <a
                                         href={t.url}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-slate-500 hover:text-purple-400"
+                                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-purple-900/60 border border-slate-700/80 hover:border-purple-500/50 text-slate-300 hover:text-purple-200 text-[11px] font-semibold transition-all shrink-0 cursor-pointer"
+                                        title="Open in ClickUp"
                                       >
+                                        <span>Open</span>
                                         <ExternalLink className="w-3 h-3" />
                                       </a>
                                     </div>
@@ -918,22 +952,22 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                               </div>
                             </div>
 
-                            <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pt-1">
+                            <div className="space-y-2 clickup-task-scroll pt-1">
                               {timeEntries.map((te) => (
                                 <div
                                   key={te.id}
-                                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs"
+                                  className="flex items-center justify-between p-3 rounded-xl clickup-card-surface text-xs"
                                 >
                                   <div className="min-w-0 flex-1">
-                                    <div className="font-bold text-slate-200 truncate">
+                                    <div className="font-bold text-slate-100 truncate">
                                       {te.task?.name || te.description || 'General Task'}
                                     </div>
-                                    <div className="text-[10px] text-slate-500">
-                                      Logged by <strong className="text-slate-400">{te.user.username}</strong>
+                                    <div className="text-[11px] text-slate-400 mt-0.5">
+                                      Logged by <strong className="text-slate-200">{te.user.username}</strong>
                                     </div>
                                   </div>
                                   <div className="text-right shrink-0 ml-3">
-                                    <span className="font-mono font-black text-emerald-400">
+                                    <span className="font-mono font-black text-emerald-400 text-sm">
                                       {(te.duration / 3600000).toFixed(2)} hrs
                                     </span>
                                   </div>
@@ -981,30 +1015,30 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            <div className="space-y-1.5 max-h-52 overflow-y-auto no-scrollbar">
+                            <div className="space-y-2 clickup-task-scroll">
                               {teamMembers.map((m) => (
                                 <div
                                   key={m.id}
-                                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs"
+                                  className="flex items-center justify-between p-3 rounded-xl clickup-card-surface text-xs"
                                 >
                                   <div className="flex items-center gap-3 min-w-0">
                                     {m.profilePicture ? (
                                       <img
                                         src={m.profilePicture}
                                         alt={m.username}
-                                        className="w-7 h-7 rounded-lg object-cover ring-1 ring-slate-700 shrink-0"
+                                        className="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-700 shrink-0"
                                       />
                                     ) : (
-                                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 text-white font-bold flex items-center justify-center shrink-0">
+                                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 text-white font-black flex items-center justify-center shrink-0">
                                         {m.username.charAt(0).toUpperCase()}
                                       </div>
                                     )}
                                     <div className="min-w-0">
-                                      <div className="font-bold text-slate-200 truncate">{m.username}</div>
-                                      <div className="text-[10px] text-slate-500 truncate">{m.email}</div>
+                                      <div className="font-bold text-slate-100 truncate">{m.username}</div>
+                                      <div className="text-[11px] text-slate-400 truncate">{m.email}</div>
                                     </div>
                                   </div>
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-purple-300 border border-slate-700 shrink-0">
+                                  <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800/60 shrink-0">
                                     {m.role}
                                   </span>
                                 </div>
@@ -1137,21 +1171,50 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                 )}
               </div>
 
-              {/* Modal Footer */}
-              <div className="px-6 py-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between shrink-0">
-                <span className="text-[11px] text-slate-500">
-                  {connected ? `Active: ${connectedUser}` : 'OAuth 2.0 & Personal API Token supported'}
-                </span>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  Done
-                </button>
+              {/* Modal Footer with Cancel & Done Controls */}
+              <div className="clickup-modal-footer">
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-sm"
+                  >
+                    <X className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Cancel / Close</span>
+                  </button>
+
+                  {connected && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to disconnect ClickUp from this workspace?')) {
+                          handleDisconnect();
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-300 hover:text-rose-100 text-xs font-bold transition-all cursor-pointer"
+                      title="Disconnect ClickUp account"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Disconnect</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] text-slate-400 hidden sm:inline">
+                    {connected ? `Active: ${connectedUser || 'Workspace'}` : 'Dual OAuth 2.0 & Token Auth'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>

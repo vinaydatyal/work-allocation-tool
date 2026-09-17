@@ -165,7 +165,20 @@ The Work Allocation Tool integrates 5 core feature modules connecting directly t
     "status": "in progress"
   }
   ```
-- **Functionality**:
-  - In `SprintKanban.tsx`, whenever a task card with prefix `cu-` is moved between Kanban columns (`Backlog`, `Assigned`, `In Progress`, `Review`, `Completed`), `handleStatusTransition` triggers an optimistic status update in the UI and automatically syncs the new status to ClickUp via `updateClickUpTaskStatus`.
+### 7.6 Modal UX Architecture, Backdrop Blur, Scrolling & Theme Protection
+- **Guaranteed Backdrop Glassmorphism**:
+  - Class `.clickup-modal-backdrop` uses fixed fullscreen positioning at `z-index: 99998` with `background-color: rgba(2, 6, 23, 0.85)` and `backdrop-filter: blur(16px)` to guarantee deep glassmorphic blur across both Dark and White themes.
+  - Clicking the backdrop triggers `onClose()`.
+- **Keyboard Dismissal**:
+  - `useEffect` listens for the `Escape` key (`e.key === 'Escape'`) while the modal is open, immediately closing the modal.
+- **Scroll Containment & Layout Stability**:
+  - The modal card `.clickup-modal-card` is bounded to `max-height: 90vh` with fixed header `.clickup-modal-header` and fixed footer `.clickup-modal-footer`.
+  - Task and item lists use `.clickup-task-scroll` and `.clickup-list-scroll` with a strict `max-height: 280px` constraint and custom slim webkit scrollbars. This prevents large ClickUp workspaces (with dozens of tasks) from stretching off-screen or pushing the header/footer out of view.
+- **Theme Protection & Contrast**:
+  - In White Theme (`body.theme-white`), the modal preserves its deep command-center styling (`#0b1120` card, `#070b16` header/footer, `#141c2e` item cards) with high-contrast text (`#f8fafc` titles, `#94a3b8` metadata, `#a855f7` purple badges). This prevents the theme-white CSS cascade from overriding items into white-on-white text.
+- **Header & Footer Cancel Controls**:
+  - **Header**: Top-right `[Esc] Close` button with a visible red hover accent and keyboard hint badge.
+  - **Footer**: Dedicated `Cancel / Close` button with clear border and icon, alongside the `Disconnect` button (for connected accounts) and `Done` confirmation button.
+
 
 

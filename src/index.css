@@ -1041,5 +1041,167 @@ body.theme-white .borderless-ui .glass-panel:hover {
   box-shadow: 0 14px 34px rgba(15, 23, 42, 0.11) !important;
 }
 
+/* =========================================================
+   CLICKUP COMMAND & SYNC MODAL
+   Guaranteed Backdrop Blur, Positioning, Scroll & Theme Contrast
+   ========================================================= */
+.clickup-modal-backdrop {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 99998 !important;
+  background-color: rgba(2, 6, 23, 0.85) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+body.theme-white .clickup-modal-backdrop {
+  background-color: rgba(15, 23, 42, 0.82) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+.clickup-modal-container {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 1rem !important;
+  pointer-events: none !important;
+}
+
+.clickup-modal-card {
+  pointer-events: auto !important;
+  position: relative !important;
+  width: 100% !important;
+  max-width: 54rem !important;
+  max-height: 90vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background-color: #0b1120 !important;
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+  border-radius: 1.25rem !important;
+  box-shadow: 0 25px 65px -12px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  overflow: hidden !important;
+  color: #f8fafc !important;
+}
+
+body.theme-white .clickup-modal-card {
+  background-color: #0b1120 !important;
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+  color: #f8fafc !important;
+  box-shadow: 0 25px 65px -12px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+.clickup-modal-header {
+  position: relative !important;
+  padding: 1.25rem 1.5rem 0.875rem 1.5rem !important;
+  background-color: #070b16 !important;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.6) !important;
+  flex-shrink: 0 !important;
+}
+
+body.theme-white .clickup-modal-header {
+  background-color: #070b16 !important;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.6) !important;
+}
+
+.clickup-modal-body {
+  padding: 1.25rem 1.5rem !important;
+  overflow-y: auto !important;
+  flex: 1 1 auto !important;
+  max-height: calc(90vh - 165px) !important;
+  background-color: #0b1120 !important;
+  color: #f8fafc !important;
+}
+
+body.theme-white .clickup-modal-body {
+  background-color: #0b1120 !important;
+  color: #f8fafc !important;
+}
+
+.clickup-modal-footer {
+  padding: 0.875rem 1.5rem !important;
+  background-color: #070b16 !important;
+  border-top: 1px solid rgba(51, 65, 85, 0.6) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 1rem !important;
+  flex-shrink: 0 !important;
+}
+
+body.theme-white .clickup-modal-footer {
+  background-color: #070b16 !important;
+  border-top: 1px solid rgba(51, 65, 85, 0.6) !important;
+}
+
+.clickup-task-scroll {
+  max-height: 280px !important;
+  overflow-y: auto !important;
+  padding-right: 4px !important;
+}
+
+.clickup-list-scroll {
+  max-height: 220px !important;
+  overflow-y: auto !important;
+  padding-right: 4px !important;
+}
+
+.clickup-card-surface {
+  background-color: #141c2e !important;
+  border: 1px solid rgba(71, 85, 105, 0.5) !important;
+  border-radius: 0.75rem !important;
+  color: #f8fafc !important;
+}
+
+.clickup-card-surface:hover {
+  background-color: #1b263e !important;
+  border-color: rgba(168, 85, 247, 0.5) !important;
+}
+
+body.theme-white .clickup-card-surface {
+  background-color: #141c2e !important;
+  border: 1px solid rgba(71, 85, 105, 0.5) !important;
+  color: #f8fafc !important;
+}
+
+body.theme-white .clickup-card-surface:hover {
+  background-color: #1b263e !important;
+  border-color: rgba(168, 85, 247, 0.5) !important;
+}
+
+/* Custom Scrollbars */
+.clickup-modal-body::-webkit-scrollbar,
+.clickup-task-scroll::-webkit-scrollbar,
+.clickup-list-scroll::-webkit-scrollbar {
+  width: 6px !important;
+}
+.clickup-modal-body::-webkit-scrollbar-track,
+.clickup-task-scroll::-webkit-scrollbar-track,
+.clickup-list-scroll::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6) !important;
+  border-radius: 9999px !important;
+}
+.clickup-modal-body::-webkit-scrollbar-thumb,
+.clickup-task-scroll::-webkit-scrollbar-thumb,
+.clickup-list-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35) !important;
+  border-radius: 9999px !important;
+}
+.clickup-modal-body::-webkit-scrollbar-thumb:hover,
+.clickup-task-scroll::-webkit-scrollbar-thumb:hover,
+.clickup-list-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(168, 85, 247, 0.7) !important;
+}
+
+
 
 
