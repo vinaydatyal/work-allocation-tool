@@ -175,7 +175,8 @@ The Work Allocation Tool integrates 5 core feature modules connecting directly t
   - The modal card `.clickup-modal-card` is bounded to `max-height: 90vh` with fixed header `.clickup-modal-header` and fixed footer `.clickup-modal-footer`.
   - Task and item lists use `.clickup-task-scroll` and `.clickup-list-scroll` with a strict `max-height: 280px` constraint and custom slim webkit scrollbars. This prevents large ClickUp workspaces (with dozens of tasks) from stretching off-screen or pushing the header/footer out of view.
 - **Theme Protection & Contrast**:
-  - In White Theme (`body.theme-white`), the modal preserves its deep command-center styling (`#0b1120` card, `#070b16` header/footer, `#141c2e` item cards) with high-contrast text (`#f8fafc` titles, `#94a3b8` metadata, `#a855f7` purple badges). This prevents the theme-white CSS cascade from overriding items into white-on-white text.
+  - In White Theme (`body.theme-white`), the modal preserves its deep command-center styling (`#0b1120` card, `#070b16` header/footer, `#141c2e` item cards) with high-contrast text (`#f8fafc` titles, `#94a3b8` metadata, `#a855f7` purple badges).
+  - **White Typography Override Prevention**: Global `body.theme-white .text-white` and `.text-slate-100` rules in `index.css` previously forced text colors to dark `#0f172a`. Dedicated CSS overrides (`body.theme-white .clickup-modal-card * { color: #ffffff !important; }`) and explicit inline styles (`style={{ color: '#ffffff' }}`) are applied across task titles, headers, spaces, and list cards, guaranteeing bright, crisp white text regardless of the parent theme state.
 - **Header & Footer Cancel Controls**:
   - **Header**: Top-right `[Esc] Close` button with a visible red hover accent and keyboard hint badge.
   - **Footer**: Dedicated `Cancel / Close` button with clear border and icon, alongside the `Disconnect` button (for connected accounts) and `Done` confirmation button.

@@ -409,21 +409,21 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h2 className="text-base font-extrabold text-white tracking-tight">
+                        <h2 className="text-base font-extrabold text-white tracking-tight" style={{ color: '#ffffff' }}>
                           ClickUp Command &amp; Live Sync Center
                         </h2>
                         {connected ? (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1" style={{ color: '#6ee7b7' }}>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                             Connected
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold" style={{ color: '#fcd34d' }}>
                             Not Connected
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-400 mt-0.5" style={{ color: '#94a3b8' }}>
                         {connected && connectedUser ? `Synced as ${connectedUser} · ` : ''}
                         Hierarchy, Real-Time Time Tracking, Team Mapping &amp; Deliverables Push
                       </p>
@@ -435,10 +435,11 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-sm"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#141c2e] hover:bg-slate-800 border border-slate-700/80 text-white hover:text-rose-300 text-xs font-bold transition-all cursor-pointer shadow-sm"
                       title="Close modal (Esc)"
+                      style={{ color: '#ffffff' }}
                     >
-                      <span className="text-[10px] uppercase tracking-wider bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700">Esc</span>
+                      <span className="text-[10px] uppercase tracking-wider bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 border border-slate-700">Esc</span>
                       <X className="w-3.5 h-3.5 text-rose-400" />
                       <span>Close</span>
                     </button>
@@ -465,8 +466,9 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
                             isActive
                               ? 'bg-purple-600 text-white shadow-md shadow-purple-600/40 border border-purple-400/50'
-                              : 'bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800'
+                              : 'bg-[#141c2e] text-slate-200 hover:text-white hover:bg-[#1b263e] border border-slate-700'
                           }`}
+                          style={{ color: isActive ? '#ffffff' : '#f1f5f9' }}
                         >
                           <Icon className="w-3.5 h-3.5" />
                           <span>{tab.label}</span>
@@ -738,8 +740,8 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                       title={task.status?.status || 'Open'}
                                     />
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-bold text-slate-100 truncate">{task.name}</div>
-                                      <div className="text-[11px] text-slate-400 truncate flex items-center gap-2 mt-0.5">
+                                      <div className="font-bold text-white truncate text-xs" style={{ color: '#ffffff' }}>{task.name}</div>
+                                      <div className="text-[11px] text-slate-400 truncate flex items-center gap-2 mt-0.5" style={{ color: '#94a3b8' }}>
                                         {task.list?.name && (
                                           <span className="px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/80 text-[10px] font-medium">
                                             {task.list.name}
@@ -796,7 +798,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
 
                         {/* Spaces Horizontal Picker */}
                         {loadingSpaces ? (
-                          <div className="py-4 text-center text-xs text-slate-500">Loading ClickUp Spaces…</div>
+                          <div className="py-4 text-center text-xs text-slate-400" style={{ color: '#94a3b8' }}>Loading ClickUp Spaces…</div>
                         ) : (
                           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
                             {spaces.map((sp) => (
@@ -809,12 +811,13 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                 }}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border ${
                                   selectedSpace === sp.id
-                                    ? 'bg-purple-600/30 border-purple-500 text-purple-200'
-                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                    ? 'bg-purple-600 border-purple-400 text-white shadow-md shadow-purple-600/30'
+                                    : 'bg-[#151d30] border-slate-700/80 text-slate-200 hover:text-white hover:bg-[#1c2742]'
                                 }`}
+                                style={{ color: selectedSpace === sp.id ? '#ffffff' : '#f1f5f9' }}
                               >
                                 <FolderKanban className="w-3.5 h-3.5 text-purple-400" />
-                                <span>{sp.name}</span>
+                                <span style={{ color: selectedSpace === sp.id ? '#ffffff' : '#f1f5f9' }}>{sp.name}</span>
                               </button>
                             ))}
                           </div>
@@ -823,9 +826,9 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                         {/* Lists in selected space */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {loadingLists ? (
-                            <div className="col-span-2 py-4 text-center text-xs text-slate-500">Loading lists…</div>
+                            <div className="col-span-2 py-4 text-center text-xs text-slate-400" style={{ color: '#94a3b8' }}>Loading lists…</div>
                           ) : lists.length === 0 ? (
-                            <div className="col-span-2 py-4 text-center text-xs text-slate-500 bg-slate-900/40 rounded-xl">
+                            <div className="col-span-2 py-4 text-center text-xs text-slate-400 bg-slate-900/40 rounded-xl" style={{ color: '#94a3b8' }}>
                               No lists found in this space.
                             </div>
                           ) : (
@@ -837,17 +840,17 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                   setSelectedList(ls.id);
                                   loadListTasks(ls.id);
                                 }}
-                                className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs border text-left cursor-pointer transition-all ${
+                                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs border text-left cursor-pointer transition-all ${
                                   selectedList === ls.id
-                                    ? 'bg-purple-500/20 border-purple-500/50 text-purple-200 ring-1 ring-purple-500/30'
-                                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                                    ? 'bg-purple-600/25 border-purple-500 text-purple-200 ring-1 ring-purple-500/30'
+                                    : 'bg-[#151d30] border-slate-700/80 text-slate-200 hover:border-slate-600 hover:bg-[#1c2742]'
                                 }`}
                               >
                                 <div className="flex items-center gap-2 min-w-0">
                                   <Folder className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                                  <span className="font-semibold truncate">{ls.name}</span>
+                                  <span className="font-semibold text-white truncate" style={{ color: '#ffffff' }}>{ls.name}</span>
                                 </div>
-                                <span className="text-[10px] text-slate-500 shrink-0 ml-2">
+                                <span className="text-[10px] text-slate-400 shrink-0 ml-2" style={{ color: '#94a3b8' }}>
                                   {ls.task_count ?? 0} tasks
                                 </span>
                               </button>
@@ -858,13 +861,13 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                         {/* Tasks in selected list */}
                         {selectedList && (
                           <div className="space-y-2 pt-2 border-t border-slate-800">
-                            <div className="text-xs font-bold text-slate-400">
+                            <div className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8' }}>
                               Tasks in Selected List ({listTasks.length})
                             </div>
                             {loadingListTasks ? (
-                              <div className="py-4 text-center text-xs text-slate-500">Loading tasks in list…</div>
+                              <div className="py-4 text-center text-xs text-slate-400" style={{ color: '#94a3b8' }}>Loading tasks in list…</div>
                             ) : listTasks.length === 0 ? (
-                              <div className="py-3 text-center text-xs text-slate-500 bg-slate-900/30 rounded-lg">
+                              <div className="py-3 text-center text-xs text-slate-400 bg-slate-900/40 rounded-lg border border-slate-800" style={{ color: '#94a3b8' }}>
                                 No tasks in this list.
                               </div>
                             ) : (
@@ -880,18 +883,19 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                         style={{ backgroundColor: t.status?.color || '#8b5cf6' }}
                                         title={t.status?.status || 'Open'}
                                       />
-                                      <span className="font-semibold text-slate-100 truncate">{t.name}</span>
+                                      <span className="font-semibold text-white truncate text-xs" style={{ color: '#ffffff' }}>{t.name}</span>
                                     </div>
                                     <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700 font-medium">
+                                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-200 border border-slate-700 font-medium" style={{ color: '#f1f5f9' }}>
                                         {t.status?.status || 'Open'}
                                       </span>
                                       <a
                                         href={t.url}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-purple-900/60 border border-slate-700/80 hover:border-purple-500/50 text-slate-300 hover:text-purple-200 text-[11px] font-semibold transition-all shrink-0 cursor-pointer"
+                                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-purple-900/60 border border-slate-700/80 hover:border-purple-500/50 text-slate-200 hover:text-purple-200 text-[11px] font-semibold transition-all shrink-0 cursor-pointer"
                                         title="Open in ClickUp"
+                                        style={{ color: '#e2e8f0' }}
                                       >
                                         <span>Open</span>
                                         <ExternalLink className="w-3 h-3" />
@@ -1201,8 +1205,14 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-slate-400 hidden sm:inline">
-                    {connected ? `Active: ${connectedUser || 'Workspace'}` : 'Dual OAuth 2.0 & Token Auth'}
+                  <span className="text-xs font-semibold text-white hidden sm:inline" style={{ color: '#ffffff' }}>
+                    {connected ? (
+                      <>
+                        Active Workspace: <strong style={{ color: '#c084fc' }}>{connectedUser || 'ClickUp Workspace'}</strong>
+                      </>
+                    ) : (
+                      'Dual OAuth 2.0 & Token Auth'
+                    )}
                   </span>
                   <button
                     type="button"

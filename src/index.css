@@ -1178,6 +1178,71 @@ body.theme-white .clickup-card-surface:hover {
   border-color: rgba(168, 85, 247, 0.5) !important;
 }
 
+/* =========================================================
+   CLICKUP MODAL TYPOGRAPHY & CONTRAST (Theme-White Protection)
+   Guarantees pure bright white text on all dark modal surfaces
+   ========================================================= */
+.clickup-modal-card h2,
+.clickup-modal-card h3,
+.clickup-modal-card h4,
+.clickup-modal-card .text-white,
+.clickup-modal-card .text-slate-100,
+body.theme-white .clickup-modal-card h2,
+body.theme-white .clickup-modal-card h3,
+body.theme-white .clickup-modal-card h4,
+body.theme-white .clickup-modal-card .text-white,
+body.theme-white .clickup-modal-card .text-slate-100,
+body.theme-white .clickup-modal-card span.font-semibold,
+body.theme-white .clickup-modal-card div.font-semibold,
+body.theme-white .clickup-modal-card div.font-bold,
+body.theme-white .clickup-modal-card span.font-bold {
+  color: #ffffff !important;
+}
+
+.clickup-modal-card .text-slate-200,
+body.theme-white .clickup-modal-card .text-slate-200 {
+  color: #f1f5f9 !important;
+}
+
+.clickup-modal-card .text-slate-300,
+body.theme-white .clickup-modal-card .text-slate-300 {
+  color: #e2e8f0 !important;
+}
+
+.clickup-modal-card .text-slate-400,
+body.theme-white .clickup-modal-card .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+.clickup-modal-card .text-slate-500,
+body.theme-white .clickup-modal-card .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Ensure all buttons and list cards inside clickup modal remain dark with light text */
+body.theme-white .clickup-modal-card .bg-slate-900,
+body.theme-white .clickup-modal-card .bg-slate-900\/60,
+body.theme-white .clickup-modal-card .bg-slate-900\/70,
+body.theme-white .clickup-modal-card .bg-slate-900\/80,
+body.theme-white .clickup-modal-card .bg-slate-900\/90,
+body.theme-white .clickup-modal-card .bg-slate-950,
+body.theme-white .clickup-modal-card .bg-slate-950\/60,
+body.theme-white .clickup-modal-card .bg-slate-950\/70,
+body.theme-white .clickup-modal-card .bg-slate-950\/80 {
+  background-color: #131b2e !important;
+  border-color: rgba(71, 85, 105, 0.6) !important;
+  color: #f8fafc !important;
+}
+
+body.theme-white .clickup-modal-card .bg-slate-800,
+body.theme-white .clickup-modal-card .bg-slate-800\/60,
+body.theme-white .clickup-modal-card .bg-slate-800\/80,
+body.theme-white .clickup-modal-card .bg-slate-800\/90 {
+  background-color: #1e293b !important;
+  border-color: rgba(100, 116, 139, 0.4) !important;
+  color: #f8fafc !important;
+}
+
 /* Custom Scrollbars */
 .clickup-modal-body::-webkit-scrollbar,
 .clickup-task-scroll::-webkit-scrollbar,
