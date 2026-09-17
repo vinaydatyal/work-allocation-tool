@@ -308,8 +308,48 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   // Job Delivery Bot state
   const [deliveredSuccess, setDeliveredSuccess] = useState(false);
 
-  // Active Projects populated from PDF Master Spreadsheet (all 56 projects & 34 fields)
-  const [projectsList, setProjectsList] = useState<ActiveProjectItem[]>(getPDFMasterProjects(initialMembers));
+  // Active Projects populated from PDF Master Spreadsheet with localStorage persistence
+  const [projectsList, setProjectsList] = useState<ActiveProjectItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('vat_projects_list_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load projects from localStorage', e);
+    }
+    return getPDFMasterProjects(initialMembers);
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vat_projects_list_v1', JSON.stringify(projectsList));
+    } catch (e) {
+      console.error('Failed to save projects to localStorage', e);
+    }
+  }, [projectsList]);
+
+  const [deletingProject, setDeletingProject] = useState<ActiveProjectItem | null>(null);
+
+  const handleDeleteProject = (projectId: string) => {
+    const target = projectsList.find((p) => p.id === projectId);
+    const projectName = target?.name || target?.client || 'Project';
+
+    setProjectsList((prev) => prev.filter((p) => p.id !== projectId));
+    if (viewingProjectDetail?.id === projectId) {
+      setViewingProjectDetail(null);
+    }
+    if (editingProject?.id === projectId) {
+      setEditingProject(null);
+    }
+    toast('Project Deleted', {
+      description: `"${projectName}" has been permanently removed.`,
+      type: 'success'
+    });
+  };
 
   const handleAssignProjectToMember = (memberId: string, projectId: string, _weeklyHours: number) => {
     const memberObj = customMembers.find(m => m.id === memberId) || initialMembers.find(m => m.id === memberId);
@@ -1885,41 +1925,63 @@ Due Date: ${proj.paymentDueDate}
     const currentBreakdown = editingProject.taskBreakdown || [];
     const updatedMemberHoursMap: Record<string, number> = {};
     currentBreakdown.forEach((tb) => {
-      updatedMemberHoursMap[tb.assigneeId] = (updatedMemberHoursMap[tb.assigneeId] || 0) + (Number(tb.hours) || 0);
+      if (tb.assigneeId && tb.assigneeId.trim()) {
+        const aId = tb.assigneeId.trim();
+        updatedMemberHoursMap[aId] = (updatedMemberHoursMap[aId] || 0) + (Number(tb.hours) || 0);
+      }
     });
     const totalBreakdownHrs = currentBreakdown.reduce((sum, tb) => sum + (Number(tb.hours) || 0), 0);
-    const resolvedActiveHours = totalBreakdownHrs > 0 ? totalBreakdownHrs : editingProject.activeHours;
+    const resolvedActiveHours = totalBreakdownHrs > 0 ? totalBreakdownHrs : (Number(editingProject.activeHours) || 0);
 
+    const totalHours = Number(editingProject.totalHours) > 0 ? Number(editingProject.totalHours) : (resolvedActiveHours || 1);
     const progress = Math.min(
       100,
-      Math.max(0, Math.round((resolvedActiveHours / (editingProject.totalHours || 1)) * 100))
+      Math.max(0, Math.round((resolvedActiveHours / totalHours) * 100))
     );
-    const parsedAmount = parseInt(editingProject.price.replace(/[^0-9]/g, ''), 10);
+
+    const rawPriceDigits = (editingProject.price || '').replace(/[^0-9]/g, '');
+    const parsedAmount = rawPriceDigits ? parseInt(rawPriceDigits, 10) : 0;
+    const formattedPrice = editingProject.price?.trim() 
+      ? (editingProject.price.includes('$') ? editingProject.price.trim() : `$${editingProject.price.trim()}`)
+      : `$${parsedAmount}`;
+
+    // Reconstruct assigned squad members from breakdown + leads
+    const assignedMemberIds = new Set<string>();
+    if (editingProject.projectLeadId) assignedMemberIds.add(editingProject.projectLeadId);
+    if (editingProject.clientCallAssigneeId) assignedMemberIds.add(editingProject.clientCallAssigneeId);
+    if (editingProject.devTechAssigneeId) assignedMemberIds.add(editingProject.devTechAssigneeId);
+    currentBreakdown.forEach((tb) => {
+      if (tb.assigneeId) assignedMemberIds.add(tb.assigneeId);
+    });
+    const refreshedSquad = customMembers.filter((m) => assignedMemberIds.has(m.id));
+
     const sanitizedProject: ActiveProjectItem = {
       ...editingProject,
       client: editingProject.client.trim(),
       name: editingProject.name.trim(),
+      price: formattedPrice,
+      paymentAmountNumeric: parsedAmount,
       projectLeadId: editingProject.projectLeadId?.trim() ? editingProject.projectLeadId.trim() : undefined,
       clientCallAssigneeId: editingProject.clientCallAssigneeId?.trim() ? editingProject.clientCallAssigneeId.trim() : undefined,
       devTechAssigneeId: editingProject.devTechAssigneeId?.trim() ? editingProject.devTechAssigneeId.trim() : undefined,
       communicationChannel: editingProject.communicationChannel?.trim() ? editingProject.communicationChannel.trim() : undefined,
       reportingPlatform: editingProject.reportingPlatform?.trim() ? editingProject.reportingPlatform.trim() : undefined,
       activeHours: resolvedActiveHours,
+      totalHours,
+      members: refreshedSquad.length > 0 ? refreshedSquad : editingProject.members,
       memberHoursMap: Object.keys(updatedMemberHoursMap).length > 0 ? updatedMemberHoursMap : editingProject.memberHoursMap,
-      progress,
-      paymentAmountNumeric:
-        !isNaN(parsedAmount) && parsedAmount > 0
-          ? parsedAmount
-          : editingProject.paymentAmountNumeric
+      progress
     };
+
     setProjectsList((prev) =>
       prev.map((p) => (p.id === editingProject.id ? sanitizedProject : p))
     );
+
     if (viewingProjectDetail?.id === editingProject.id) {
       setViewingProjectDetail(sanitizedProject);
     }
     toast('Project Updated Successfully', {
-      description: `${editingProject.name} updated and hours recalculated.`,
+      description: `"${sanitizedProject.name}" updated with all recalculated hours and specs.`,
       type: 'success'
     });
     setEditingProject(null);
@@ -3302,6 +3364,14 @@ Due Date: ${proj.paymentDueDate}
                               </button>
                               <button
                                 type="button"
+                                onClick={() => setDeletingProject(proj)}
+                                className="p-1.5 rounded-md bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all cursor-pointer border border-slate-700 hover:border-rose-500/40"
+                                title="Delete Project"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleCopyClientSummary(proj)}
                                 className="p-1.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 transition-all cursor-pointer border border-emerald-500/40"
                                 title="Copy status report"
@@ -3435,6 +3505,14 @@ Due Date: ${proj.paymentDueDate}
                             className="p-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer border border-slate-700"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingProject(proj)}
+                            title="Delete Project"
+                            className="p-1.5 rounded-md bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all cursor-pointer border border-slate-700 hover:border-rose-500/40"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -6122,49 +6200,49 @@ Due Date: ${proj.paymentDueDate}
                   <button
                     type="button"
                     onClick={() => setModalStepTab('core')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
                       modalStepTab === 'core'
-                        ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                        ? 'modal-tab-active'
                         : 'modal-tab-inactive'
                     }`}
                   >
-                    <span>1️⃣ Core & Client Specs</span>
+                    <span>1️⃣ Core &amp; Client Specs</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setModalStepTab('billing')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
                       modalStepTab === 'billing'
-                        ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                        ? 'modal-tab-active'
                         : 'modal-tab-inactive'
                     }`}
                   >
-                    <span>2️⃣ Billing & Comms</span>
+                    <span>2️⃣ Billing &amp; Comms</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setModalStepTab('team')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
                       modalStepTab === 'team'
-                        ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                        ? 'modal-tab-active'
                         : 'modal-tab-inactive'
                     }`}
                   >
-                    <span>3️⃣ Leadership & Hours</span>
-                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${modalStepTab === 'team' ? 'bg-slate-900/20 text-slate-950' : 'bg-emerald-500/20 text-emerald-500'}`}>
+                    <span>3️⃣ Leadership &amp; Hours</span>
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${modalStepTab === 'team' ? 'bg-white/20 text-white' : 'bg-cyan-500/20 text-cyan-400'}`}>
                       {newTaskAllocations.length}
                     </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setModalStepTab('access')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
                       modalStepTab === 'access'
-                        ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                        ? 'modal-tab-active'
                         : 'modal-tab-inactive'
                     }`}
                   >
-                    <span>4️⃣ Access & Health Audit</span>
+                    <span>4️⃣ Access &amp; Health Audit</span>
                   </button>
                 </div>
 
@@ -6934,9 +7012,10 @@ Due Date: ${proj.paymentDueDate}
                     <button
                       type="button"
                       onClick={handleCreateProject}
-                      className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
+                      className="px-5 py-2 rounded-xl modal-save-btn text-xs font-black transition-all cursor-pointer"
                     >
-                      Add Project to Tracker
+                      <Check className="w-4 h-4" />
+                      <span>Add Project to Tracker</span>
                     </button>
                   </div>
                 </div>
@@ -6992,49 +7071,49 @@ Due Date: ${proj.paymentDueDate}
               <button
                 type="button"
                 onClick={() => setEditModalStepTab('core')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
                   editModalStepTab === 'core'
-                    ? 'bg-cyan-500 text-slate-950 font-black shadow-md'
+                    ? 'modal-tab-active'
                     : 'modal-tab-inactive'
                 }`}
               >
-                <span>1️⃣ Core & Client Specs</span>
+                <span>1️⃣ Core &amp; Client Specs</span>
               </button>
               <button
                 type="button"
                 onClick={() => setEditModalStepTab('billing')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
                   editModalStepTab === 'billing'
-                    ? 'bg-cyan-500 text-slate-950 font-black shadow-md'
+                    ? 'modal-tab-active'
                     : 'modal-tab-inactive'
                 }`}
               >
-                <span>2️⃣ Billing & Comms</span>
+                <span>2️⃣ Billing &amp; Comms</span>
               </button>
               <button
                 type="button"
                 onClick={() => setEditModalStepTab('team')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
                   editModalStepTab === 'team'
-                    ? 'bg-cyan-500 text-slate-950 font-black shadow-md'
+                    ? 'modal-tab-active'
                     : 'modal-tab-inactive'
                 }`}
               >
-                <span>3️⃣ Leadership & Hours</span>
-                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${editModalStepTab === 'team' ? 'bg-slate-900/20 text-slate-950' : 'bg-cyan-500/20 text-cyan-500'}`}>
+                <span>3️⃣ Leadership &amp; Hours</span>
+                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${editModalStepTab === 'team' ? 'bg-white/20 text-white' : 'bg-cyan-500/20 text-cyan-400'}`}>
                   {(editingProject.taskBreakdown || []).length}
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => setEditModalStepTab('access')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
                   editModalStepTab === 'access'
-                    ? 'bg-cyan-500 text-slate-950 font-black shadow-md'
+                    ? 'modal-tab-active'
                     : 'modal-tab-inactive'
                 }`}
               >
-                <span>4️⃣ Access & Health Audit</span>
+                <span>4️⃣ Access &amp; Health Audit</span>
               </button>
             </div>
 
@@ -7753,13 +7832,24 @@ Due Date: ${proj.paymentDueDate}
 
             {/* 4. Fixed Footer Action Bar */}
             <div className="px-6 py-4 flex items-center justify-between shrink-0 z-20 modal-footer-bar">
-              <button
-                type="button"
-                onClick={() => setEditingProject(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer modal-cancel-btn"
-              >
-                Cancel
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingProject(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer modal-cancel-btn"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeletingProject(editingProject)}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer modal-delete-btn"
+                  title="Delete this project permanently"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Project</span>
+                </button>
+              </div>
               <div className="flex items-center gap-2">
                 {editModalStepTab !== 'core' && (
                   <button
@@ -7790,9 +7880,10 @@ Due Date: ${proj.paymentDueDate}
                 <button
                   type="button"
                   onClick={handleSaveEditedProject}
-                  className="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition-all cursor-pointer shadow-lg shadow-cyan-500/20"
+                  className="px-5 py-2 rounded-xl modal-save-btn text-xs font-black transition-all cursor-pointer"
                 >
-                  Save Project &amp; Recalculate Hours
+                  <Check className="w-4 h-4" />
+                  <span>Save Project &amp; Recalculate Hours</span>
                 </button>
               </div>
             </div>
@@ -8424,6 +8515,15 @@ Due Date: ${proj.paymentDueDate}
                   </button>
                   <button
                     type="button"
+                    onClick={() => setDeletingProject(liveProject)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl modal-delete-btn text-xs font-bold transition-all cursor-pointer shadow-lg"
+                    title="Delete this project permanently"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Project</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setViewingProjectDetail(null)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 hover:text-rose-300 text-slate-200 border border-slate-700 font-black text-xs transition-all cursor-pointer shadow-lg"
                   >
@@ -8794,6 +8894,16 @@ Due Date: ${proj.paymentDueDate}
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => setDeletingProject(liveProject)}
+                    className="px-3.5 py-2 rounded-xl modal-delete-btn text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                    title="Permanently delete project"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Project</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => {
                       const target = liveProject;
                       setViewingProjectDetail(null);
@@ -8808,7 +8918,7 @@ Due Date: ${proj.paymentDueDate}
                   <button
                     type="button"
                     onClick={() => setViewingProjectDetail(null)}
-                    className="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition-all cursor-pointer shadow-lg shadow-cyan-500/20"
+                    className="px-5 py-2 rounded-xl modal-save-btn text-xs font-black transition-all cursor-pointer"
                   >
                     Close 360° Inspection
                   </button>
@@ -8820,6 +8930,74 @@ Due Date: ${proj.paymentDueDate}
         );
       })()}
       </AnimatePresence>
+
+      {/* MODAL: Delete Project Confirmation Dialog */}
+      {deletingProject && createPortal(
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md cursor-pointer transition-opacity"
+            onClick={() => setDeletingProject(null)}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700/80 shadow-2xl p-6 text-white space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center mx-auto shadow-lg shadow-rose-500/10">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-lg font-black text-white">Delete Project?</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Are you sure you want to permanently delete{' '}
+                <strong className="text-white font-bold">"{deletingProject.name || deletingProject.client}"</strong>?
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs space-y-1.5">
+              <div className="flex justify-between text-slate-400">
+                <span>Client:</span>
+                <span className="text-slate-200 font-bold">{deletingProject.client}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Contract Retainer:</span>
+                <span className="text-emerald-400 font-bold">{deletingProject.price}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Assigned Deliverables:</span>
+                <span className="text-slate-200 font-bold">{(deletingProject.taskBreakdown || []).length} tasks</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Allocated Hours:</span>
+                <span className="text-cyan-400 font-bold">{deletingProject.activeHours} hrs/wk</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-rose-400/90 text-center font-semibold">
+              ⚠️ This action cannot be undone. All assigned deliverables and member hours for this project will be removed.
+            </p>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingProject(null)}
+                className="flex-1 py-2.5 rounded-xl modal-cancel-btn text-xs font-bold transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleDeleteProject(deletingProject.id);
+                  setDeletingProject(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition-all cursor-pointer shadow-lg shadow-rose-600/30 flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Yes, Delete Project</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* MODAL 7: ClickUp Live OAuth & API Sync Modal */}
       <ClickUpOAuthModal

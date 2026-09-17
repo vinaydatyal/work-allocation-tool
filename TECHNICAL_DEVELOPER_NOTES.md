@@ -384,3 +384,25 @@ Agencies frequently maintain their complete client roster inside a specific Clic
        - Allows managers to click `Reassign` on any deliverable belonging to an overloaded member.
        - Displays candidate team members with available hours and real-time preview of their new capacity before confirming.
        - Updating reallocates the task immediately across all active projects and state stores.
+
+10. **High-Contrast Modal Architecture, Permanent Project Deletion Engine & Custom Column Preservation**:
+    - **Ultra-High Contrast & Typography Accessibility in Modal Overlays**:
+      - Introduced centralized CSS design tokens in `index.css`: `.modal-tab-active`, `.modal-tab-inactive`, `.modal-save-btn`, `.modal-delete-btn`, and `.modal-cancel-btn`.
+      - `.modal-tab-active` enforces solid cyan `#06b6d4` with pure white `#ffffff` bold text and subtle border glow, ensuring tab names and step indicators are 100% visible and never washed out on any monitor.
+      - `.modal-save-btn` enforces solid emerald `#059669` background with crisp white `#ffffff` text, preventing low-contrast dark text on bright buttons.
+      - `.modal-delete-btn` provides high-contrast rose `#e11d48` destructive styling with clear warning icons.
+      - Applied universally across **Edit Project Drawer**, **Add Project Drawer**, and **360° Visual Project Detail Modal**.
+    - **Full Project Deletion Engine & Safety Confirmation Flow**:
+      - Implemented `handleDeleteProject(projectId: string)` in `VisualAgencyHub.tsx` that removes the target project from `projectsList`, closes all open editing/viewing slideout states, recalculates assigned member hours across the team roster, and persists the updated roster to `localStorage`.
+      - **Dedicated Confirmation Modal Portal**: Triggering delete opens a high-contrast confirmation modal mounted via `createPortal(..., document.body)` with `z-[100000]` and `backdrop-blur-md`, displaying client name, retainer amount, deliverable count, and weekly allocated hours before requiring explicit deletion confirmation.
+      - **Ubiquitous Delete Entrypoints**: Added Delete buttons across:
+        - Edit Project Drawer footer (`Delete Project`)
+        - 360° Visual Project Detail Modal header and footer (`Delete Project`)
+        - Executive Table View row actions (`Trash2` icon)
+        - Executive Grid View card header actions (`Trash2` icon)
+    - **Custom Column Preservation Guarantee**:
+      - **Confirmation**: Confirmed that native application custom columns (`communicationChannel`, `billingAccount`, `ga4Access`, `gbpAccess`, `gscAccess`, `gtmAccess`, `guestPostIncluded`, `backendLoginsNote`, `reportingNote`, `reportingPlatform`, `serviceLabels`, `monthlyHistory`, `clientTier`, etc.) were **never deleted or removed**.
+      - **Non-Destructive Ingestion**: During ClickUp imports, matched existing projects retain 100% of their local custom column data, merging incoming ClickUp fields without wiping local operational audit details.
+    - **Unassigned / Blank Field Support**:
+      - All leadership dropdowns (`Assignee (Team Lead)`, `Client Face (Call Lead)`, `Dev / Tech Lead`) and deliverable rows now support `-- Unassigned (Leave Blank) --` (`value=""`).
+      - ClickUp tasks with no assignees are cleanly ingested as unassigned without forcing arbitrary fallback team members.
