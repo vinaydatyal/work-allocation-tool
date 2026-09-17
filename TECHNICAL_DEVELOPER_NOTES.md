@@ -309,3 +309,15 @@ Agencies frequently maintain their complete client roster inside a specific Clic
 5. **1-Click Executive Command Bar Shortcut**:
    - Located directly in the top executive action bar beside `Live Sync`:
      - **`⚡ Sync CRM Accounts`**: Automatically scans ClickUp spaces for `Growth > CRM > Accounts/Clients`, fetches tasks, triggers the Scope Selection Dialog, and executes instant roster synchronization and replacement according to the manager's chosen scope.
+
+6. **High-Contrast Portaled Modal Architecture & Deep Backdrop Blur Isolation**:
+   - **Full Viewport Portal Escaping**:
+     - Both `ClickUpOAuthModal.tsx` and `crmImportScopeModal` in `VisualAgencyHub.tsx` are portaled directly to `document.body` via React's `createPortal`.
+     - This escapes the CSS transform stacking context created by `<motion.div key={activeTab}>` inside `<main>`, ensuring the backdrop seamlessly covers the entire screen, including the left `<Navbar>` and top headers.
+   - **Frosted Glass Backdrop & Depth**:
+     - Styled with `.clickup-scope-backdrop`: `z-index: 99998`, `width: 100vw`, `height: 100vh`, `background: rgba(2, 6, 23, 0.88)`, and `backdrop-filter: blur(20px)` (with `-webkit-backdrop-filter`).
+     - In White Theme (`body.theme-white`), the backdrop maintains `rgba(15, 23, 42, 0.88)` with heavy blur, completely shielding the underlying application navigation.
+   - **Solid Theme Isolation & Text Contrast**:
+     - Modal shells `.clickup-scope-card` use 100% solid surface `#0b1120` with multi-layered drop shadows (`box-shadow: 0 30px 70px -10px rgba(0,0,0,0.95)`) and radiant glowing borders (`border: 1px solid rgba(16, 185, 129, 0.45)`).
+     - Radio selection cards use `.clickup-scope-item` with solid `#121a2d` backgrounds, eliminating any translucent bleed-through. Selected states feature gradient accents (`is-selected-tasks`, `is-selected-subtasks`, `is-selected-both`) with matching neon pills.
+     - Pure white headings (`#ffffff`) and slate subtitles (`#cbd5e1`) are protected with `!important` rules, preventing global theme inversions from degrading legibility.

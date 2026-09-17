@@ -8295,50 +8295,64 @@ Due Date: ${proj.paymentDueDate}
       />
 
       {/* MODAL 7.5: ClickUp CRM Ingestion Scope Modal (Tasks vs Subtasks vs Both) */}
-      {crmImportScopeModal?.isOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className="w-full max-w-md rounded-2xl bg-[#0e1628] border border-emerald-500/50 p-6 shadow-2xl space-y-4 text-left">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300">
-                  <Zap className="w-4 h-4 text-emerald-400" />
+      {crmImportScopeModal?.isOpen && createPortal(
+        <div className="clickup-scope-container">
+          {/* Deep Frosted Glass Backdrop */}
+          <div
+            className="clickup-scope-backdrop cursor-pointer"
+            onClick={() => setCrmImportScopeModal(null)}
+          />
+
+          {/* High-Contrast Solid Panel */}
+          <div className="clickup-scope-card p-6 space-y-4 text-left animate-fade-in shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-800/80">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-300 shadow-md shadow-emerald-500/20">
+                  <Zap className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
-                    ⚡ ClickUp CRM Ingestion Scope
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Source: <strong className="text-emerald-300">{crmImportScopeModal.list.name}</strong>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-black text-white tracking-wide" style={{ color: '#ffffff' }}>
+                      ClickUp CRM Ingestion Scope
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                      CRM Sync
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5" style={{ color: '#cbd5e1' }}>
+                    Source List: <strong className="text-emerald-300 font-semibold">{crmImportScopeModal.list.name}</strong>
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setCrmImportScopeModal(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
+                title="Close (Esc)"
               >
                 <X className="w-4 h-4" />
+                <span>Close</span>
               </button>
             </div>
 
+            {/* Scope Explanation */}
             <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-200 uppercase tracking-wider block" style={{ color: '#f1f5f9' }}>
+              <span className="text-xs font-bold text-white uppercase tracking-wider block" style={{ color: '#ffffff' }}>
                 What would you like to import?
               </span>
-              <p className="text-[11px] text-slate-300" style={{ color: '#cbd5e1' }}>
-                Choose whether to import parent client tasks, subtasks, or both:
+              <p className="text-xs text-slate-300" style={{ color: '#cbd5e1' }}>
+                Choose whether to import top-level client accounts, subtasks, or both:
               </p>
             </div>
 
             {/* Scope Radio Cards */}
-            <div className="space-y-2">
-              {/* Option 1: Tasks Only (Parent Tasks) */}
+            <div className="space-y-2.5">
+              {/* Option 1: Tasks Only (Parent Accounts) */}
               <div
                 onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'tasks' } : null)}
-                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                  crmImportScopeModal.selectedScope === 'tasks'
-                    ? 'bg-emerald-900/30 border-emerald-500 ring-1 ring-emerald-500/40 shadow-sm'
-                    : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                className={`clickup-scope-item flex items-start gap-3.5 ${
+                  crmImportScopeModal.selectedScope === 'tasks' ? 'is-selected-tasks' : ''
                 }`}
               >
                 <input
@@ -8346,18 +8360,18 @@ Due Date: ${proj.paymentDueDate}
                   name="crm_scope_selection"
                   checked={crmImportScopeModal.selectedScope === 'tasks'}
                   onChange={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'tasks' } : null)}
-                  className="mt-1 accent-emerald-500 cursor-pointer"
+                  className="mt-1 accent-emerald-500 cursor-pointer w-4 h-4"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
                       📌 Tasks Only (Parent Accounts)
                     </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-500/40">
                       {crmImportScopeModal.tasks.filter(t => !t.parent).length} tasks
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed" style={{ color: '#cbd5e1' }}>
                     Recommended for client rosters. Imports top-level client accounts only, ignoring nested subtasks.
                   </p>
                 </div>
@@ -8366,10 +8380,8 @@ Due Date: ${proj.paymentDueDate}
               {/* Option 2: Subtasks Only */}
               <div
                 onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'subtasks' } : null)}
-                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                  crmImportScopeModal.selectedScope === 'subtasks'
-                    ? 'bg-cyan-900/30 border-cyan-500 ring-1 ring-cyan-500/40 shadow-sm'
-                    : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                className={`clickup-scope-item flex items-start gap-3.5 ${
+                  crmImportScopeModal.selectedScope === 'subtasks' ? 'is-selected-subtasks' : ''
                 }`}
               >
                 <input
@@ -8377,18 +8389,18 @@ Due Date: ${proj.paymentDueDate}
                   name="crm_scope_selection"
                   checked={crmImportScopeModal.selectedScope === 'subtasks'}
                   onChange={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'subtasks' } : null)}
-                  className="mt-1 accent-cyan-500 cursor-pointer"
+                  className="mt-1 accent-cyan-500 cursor-pointer w-4 h-4"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
                       ↳ Subtasks Only
                     </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/25 text-cyan-300 border border-cyan-500/40">
                       {crmImportScopeModal.tasks.filter(t => !!t.parent).length} subtasks
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed" style={{ color: '#cbd5e1' }}>
                     Imports nested subtasks as individual project items. Parent accounts are skipped.
                   </p>
                 </div>
@@ -8397,10 +8409,8 @@ Due Date: ${proj.paymentDueDate}
               {/* Option 3: Both Tasks & Subtasks */}
               <div
                 onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'both' } : null)}
-                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                  crmImportScopeModal.selectedScope === 'both'
-                    ? 'bg-purple-900/30 border-purple-500 ring-1 ring-purple-500/40 shadow-sm'
-                    : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                className={`clickup-scope-item flex items-start gap-3.5 ${
+                  crmImportScopeModal.selectedScope === 'both' ? 'is-selected-both' : ''
                 }`}
               >
                 <input
@@ -8408,18 +8418,18 @@ Due Date: ${proj.paymentDueDate}
                   name="crm_scope_selection"
                   checked={crmImportScopeModal.selectedScope === 'both'}
                   onChange={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'both' } : null)}
-                  className="mt-1 accent-purple-500 cursor-pointer"
+                  className="mt-1 accent-purple-500 cursor-pointer w-4 h-4"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
                       ⚡ Both Tasks &amp; Subtasks
                     </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-purple-500/25 text-purple-300 border border-purple-500/40">
                       {crmImportScopeModal.tasks.length} total
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed" style={{ color: '#cbd5e1' }}>
                     Imports all root client tasks AND all nested subtasks into active projects.
                   </p>
                 </div>
@@ -8427,21 +8437,23 @@ Due Date: ${proj.paymentDueDate}
             </div>
 
             {/* Mode Toggle: Replace vs Append */}
-            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-3">
+            <div className="p-3.5 rounded-xl bg-[#121a2d] border border-slate-700/80 flex items-center justify-between gap-3 shadow-inner">
               <div>
-                <span className="text-xs font-bold text-white block">Roster Action:</span>
-                <span className="text-[11px] text-slate-400">
-                  {crmImportScopeModal.replace ? 'Replace entire Active Projects list' : 'Append to existing Active Projects'}
+                <span className="text-xs font-bold text-white block" style={{ color: '#ffffff' }}>
+                  Roster Action:
+                </span>
+                <span className="text-xs text-slate-300" style={{ color: '#cbd5e1' }}>
+                  {crmImportScopeModal.replace ? 'Replace entire Active Projects roster' : 'Append to existing Active Projects'}
                 </span>
               </div>
-              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+              <div className="flex items-center gap-1 bg-[#090e1a] p-1 rounded-lg border border-slate-700">
                 <button
                   type="button"
                   onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, replace: true } : null)}
-                  className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                     crmImportScopeModal.replace
-                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30'
+                      : 'text-slate-300 hover:text-white'
                   }`}
                 >
                   Replace
@@ -8449,10 +8461,10 @@ Due Date: ${proj.paymentDueDate}
                 <button
                   type="button"
                   onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, replace: false } : null)}
-                  className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                     !crmImportScopeModal.replace
-                      ? 'bg-purple-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                      : 'text-slate-300 hover:text-white'
                   }`}
                 >
                   Append
@@ -8461,11 +8473,11 @@ Due Date: ${proj.paymentDueDate}
             </div>
 
             {/* Dialog Footer Actions */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => setCrmImportScopeModal(null)}
-                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -8491,13 +8503,13 @@ Due Date: ${proj.paymentDueDate}
                   );
                   setCrmImportScopeModal(null);
                 }}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all shadow-md cursor-pointer ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg cursor-pointer ${
                   crmImportScopeModal.replace
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-500/20'
-                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-emerald-500/30'
+                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/40'
                 }`}
               >
-                <Zap className="w-3.5 h-3.5" />
+                <Zap className="w-4 h-4 fill-current" />
                 <span>
                   {crmImportScopeModal.replace ? '⚡ Replace with ' : '➕ Add '}
                   ({crmImportScopeModal.selectedScope === 'tasks'
@@ -8510,7 +8522,8 @@ Due Date: ${proj.paymentDueDate}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
 

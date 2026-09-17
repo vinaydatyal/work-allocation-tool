@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
@@ -469,7 +470,9 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
     }
   }
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -1814,49 +1817,60 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
 
           {/* IMPORT SCOPE CONFIRMATION DIALOG (Tasks vs Subtasks vs Both) */}
           {importScopeDialog && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-              <div className="w-full max-w-md rounded-2xl bg-[#0e1628] border border-purple-500/50 p-6 shadow-2xl space-y-4 text-left">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-cyan-500/20 border border-purple-500/40 flex items-center justify-center text-purple-300">
-                      <Zap className="w-4 h-4 text-emerald-400" />
+            <div className="clickup-scope-container" style={{ zIndex: 100001 }}>
+              {/* Frosted Glass Backdrop */}
+              <div
+                className="clickup-scope-backdrop cursor-pointer"
+                onClick={() => setImportScopeDialog(null)}
+              />
+
+              {/* High-Contrast Solid Panel */}
+              <div className="clickup-scope-card scope-purple p-6 space-y-4 text-left animate-fade-in shadow-2xl">
+                <div className="flex items-center justify-between pb-3.5 border-b border-slate-800/80">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/50 flex items-center justify-center text-purple-300 shadow-md shadow-purple-500/20">
+                      <Zap className="w-5 h-5 text-purple-400" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
-                        {importScopeDialog.replace ? '⚡ Replace Active Projects' : '➕ Add to Active Projects'}
-                      </h3>
-                      <p className="text-[11px] text-slate-400">
-                        Target: <strong className="text-purple-300">{selectedListName || 'Selected List'}</strong>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-black text-white tracking-wide" style={{ color: '#ffffff' }}>
+                          {importScopeDialog.replace ? '⚡ Replace Active Projects' : '➕ Add to Active Projects'}
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-bold">
+                          Import Scope
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 mt-0.5" style={{ color: '#cbd5e1' }}>
+                        Target List: <strong className="text-purple-300 font-semibold">{selectedListName || 'Selected List'}</strong>
                       </p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setImportScopeDialog(null)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
                   >
                     <X className="w-4 h-4" />
+                    <span>Close</span>
                   </button>
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider block" style={{ color: '#f1f5f9' }}>
+                  <span className="text-xs font-bold text-white uppercase tracking-wider block" style={{ color: '#ffffff' }}>
                     What would you like to import?
                   </span>
-                  <p className="text-[11px] text-slate-300" style={{ color: '#cbd5e1' }}>
+                  <p className="text-xs text-slate-300" style={{ color: '#cbd5e1' }}>
                     Choose whether to import parent tasks, subtasks, or both from this list:
                   </p>
                 </div>
 
                 {/* Scope Radio Cards */}
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {/* 1. Tasks Only (Parent Tasks) */}
                   <div
                     onClick={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'tasks' } : null)}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                      importScopeDialog.scope === 'tasks'
-                        ? 'bg-purple-900/30 border-purple-500 ring-1 ring-purple-500/40 shadow-sm'
-                        : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                    className={`clickup-scope-item flex items-start gap-3.5 ${
+                      importScopeDialog.scope === 'tasks' ? 'is-selected-tasks' : ''
                     }`}
                   >
                     <input
@@ -1864,18 +1878,18 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                       name="scope_selection"
                       checked={importScopeDialog.scope === 'tasks'}
                       onChange={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'tasks' } : null)}
-                      className="mt-1 accent-purple-500 cursor-pointer"
+                      className="mt-1 accent-emerald-500 cursor-pointer w-4 h-4"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
                           📌 Tasks Only (Parent Accounts)
                         </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-500/40">
                           {listTasks.filter(t => !t.parent).length} tasks
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed" style={{ color: '#cbd5e1' }}>
                         Recommended for client rosters &amp; retainers. Imports top-level client accounts only, ignoring nested subtasks.
                       </p>
                     </div>
@@ -1884,10 +1898,8 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                   {/* 2. Subtasks Only */}
                   <div
                     onClick={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'subtasks' } : null)}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                      importScopeDialog.scope === 'subtasks'
-                        ? 'bg-cyan-900/30 border-cyan-500 ring-1 ring-cyan-500/40 shadow-sm'
-                        : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                    className={`clickup-scope-item flex items-start gap-3.5 ${
+                      importScopeDialog.scope === 'subtasks' ? 'is-selected-subtasks' : ''
                     }`}
                   >
                     <input
@@ -1895,18 +1907,18 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                       name="scope_selection"
                       checked={importScopeDialog.scope === 'subtasks'}
                       onChange={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'subtasks' } : null)}
-                      className="mt-1 accent-cyan-500 cursor-pointer"
+                      className="mt-1 accent-cyan-500 cursor-pointer w-4 h-4"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
                           ↳ Subtasks Only
                         </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                        <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/25 text-cyan-300 border border-cyan-500/40">
                           {listTasks.filter(t => !!t.parent).length} subtasks
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed" style={{ color: '#cbd5e1' }}>
                         Imports nested subtasks as individual project items. Parent accounts are skipped.
                       </p>
                     </div>
@@ -1915,10 +1927,8 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                   {/* 3. Both Tasks & Subtasks */}
                   <div
                     onClick={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'both' } : null)}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                      importScopeDialog.scope === 'both'
-                        ? 'bg-emerald-900/30 border-emerald-500 ring-1 ring-emerald-500/40 shadow-sm'
-                        : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                    className={`clickup-scope-item flex items-start gap-3.5 ${
+                      importScopeDialog.scope === 'both' ? 'is-selected-both' : ''
                     }`}
                   >
                     <input
@@ -1926,18 +1936,18 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                       name="scope_selection"
                       checked={importScopeDialog.scope === 'both'}
                       onChange={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'both' } : null)}
-                      className="mt-1 accent-emerald-500 cursor-pointer"
+                      className="mt-1 accent-purple-500 cursor-pointer w-4 h-4"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
                           ⚡ Both Tasks &amp; Subtasks
                         </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-purple-500/25 text-purple-300 border border-purple-500/40">
                           {listTasks.length} total
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed" style={{ color: '#cbd5e1' }}>
                         Imports all root client tasks AND all nested subtasks into active projects.
                       </p>
                     </div>
@@ -1946,8 +1956,8 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
 
                 {/* Warning note for Replace */}
                 {importScopeDialog.replace && (
-                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200">
-                    ⚠️ <strong>Replace Roster Notice:</strong> Your current Active Projects list will be replaced with the {
+                  <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200 shadow-sm leading-relaxed">
+                    ⚠️ <strong className="font-bold text-amber-300">Replace Roster Notice:</strong> Your current Active Projects list will be replaced with the {
                       importScopeDialog.scope === 'tasks'
                         ? listTasks.filter(t => !t.parent).length
                         : importScopeDialog.scope === 'subtasks'
@@ -1958,11 +1968,11 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                 )}
 
                 {/* Buttons */}
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
                   <button
                     type="button"
                     onClick={() => setImportScopeDialog(null)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-all cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -1989,13 +1999,13 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                       setImportScopeDialog(null);
                       onClose();
                     }}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all shadow-md cursor-pointer ${
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg cursor-pointer ${
                       importScopeDialog.replace
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-500/20'
-                        : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30'
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-emerald-500/30'
+                        : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/40'
                     }`}
                   >
-                    <Zap className="w-3.5 h-3.5" />
+                    <Zap className="w-4 h-4 fill-current" />
                     <span>
                       {importScopeDialog.replace ? '⚡ Replace Active Projects (' : '➕ Add to Projects ('}
                       {importScopeDialog.scope === 'tasks'
@@ -2012,6 +2022,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
           )}
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
