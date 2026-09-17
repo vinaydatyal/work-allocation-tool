@@ -1825,33 +1825,38 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
               />
 
               {/* High-Contrast Solid Panel */}
-              <div className="clickup-scope-card scope-purple p-6 space-y-4 text-left animate-fade-in shadow-2xl">
-                <div className="flex items-center justify-between pb-3.5 border-b border-slate-800/80">
+              <div
+                className="clickup-scope-card scope-purple p-6 space-y-4 text-left animate-fade-in shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+                style={{ backgroundColor: '#0c1427', color: '#ffffff', zIndex: 100, position: 'relative' }}
+              >
+                <div className="flex items-center justify-between pb-3.5 border-b border-slate-700/80">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/50 flex items-center justify-center text-purple-300 shadow-md shadow-purple-500/20">
-                      <Zap className="w-5 h-5 text-purple-400" />
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/50 flex items-center justify-center text-purple-300 shadow-md shadow-purple-500/20">
+                      <Zap className="w-5 h-5 text-purple-400 fill-purple-400" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-black text-white tracking-wide" style={{ color: '#ffffff' }}>
+                        <h3 className="text-base font-black text-white tracking-wide" style={{ color: '#ffffff' }}>
                           {importScopeDialog.replace ? '⚡ Replace Active Projects' : '➕ Add to Active Projects'}
                         </h3>
-                        <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-bold">
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-bold" style={{ color: '#d8b4fe' }}>
                           Import Scope
                         </span>
                       </div>
                       <p className="text-xs text-slate-300 mt-0.5" style={{ color: '#cbd5e1' }}>
-                        Target List: <strong className="text-purple-300 font-semibold">{selectedListName || 'Selected List'}</strong>
+                        Target List: <strong className="text-purple-300 font-semibold" style={{ color: '#d8b4fe' }}>{selectedListName || 'Selected List'}</strong>
                       </p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setImportScopeDialog(null)}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                    style={{ backgroundColor: '#1e293b', color: '#ffffff' }}
                   >
-                    <X className="w-4 h-4" />
-                    <span>Close</span>
+                    <X className="w-4 h-4 text-rose-400" />
+                    <span style={{ color: '#ffffff' }}>Close</span>
                   </button>
                 </div>
 
@@ -1872,20 +1877,24 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                     className={`clickup-scope-item flex items-start gap-3.5 ${
                       importScopeDialog.scope === 'tasks' ? 'is-selected-tasks' : ''
                     }`}
+                    style={{
+                      backgroundColor: importScopeDialog.scope === 'tasks' ? 'rgba(6, 78, 59, 0.65)' : '#121a2d',
+                      borderColor: importScopeDialog.scope === 'tasks' ? '#10b981' : 'rgba(51, 65, 85, 0.7)'
+                    }}
                   >
                     <input
                       type="radio"
                       name="scope_selection"
                       checked={importScopeDialog.scope === 'tasks'}
                       onChange={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'tasks' } : null)}
-                      className="mt-1 accent-emerald-500 cursor-pointer w-4 h-4"
+                      className="mt-1 accent-emerald-500 cursor-pointer w-4 h-4 shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                        <span className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
                           📌 Tasks Only (Parent Accounts)
                         </span>
-                        <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-500/40">
+                        <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-500/40" style={{ color: '#6ee7b7' }}>
                           {listTasks.filter(t => !t.parent).length} tasks
                         </span>
                       </div>
@@ -1901,20 +1910,24 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                     className={`clickup-scope-item flex items-start gap-3.5 ${
                       importScopeDialog.scope === 'subtasks' ? 'is-selected-subtasks' : ''
                     }`}
+                    style={{
+                      backgroundColor: importScopeDialog.scope === 'subtasks' ? 'rgba(14, 116, 144, 0.65)' : '#121a2d',
+                      borderColor: importScopeDialog.scope === 'subtasks' ? '#06b6d4' : 'rgba(51, 65, 85, 0.7)'
+                    }}
                   >
                     <input
                       type="radio"
                       name="scope_selection"
                       checked={importScopeDialog.scope === 'subtasks'}
                       onChange={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'subtasks' } : null)}
-                      className="mt-1 accent-cyan-500 cursor-pointer w-4 h-4"
+                      className="mt-1 accent-cyan-500 cursor-pointer w-4 h-4 shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                        <span className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
                           ↳ Subtasks Only
                         </span>
-                        <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/25 text-cyan-300 border border-cyan-500/40">
+                        <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/25 text-cyan-300 border border-cyan-500/40" style={{ color: '#67e8f9' }}>
                           {listTasks.filter(t => !!t.parent).length} subtasks
                         </span>
                       </div>
@@ -1930,20 +1943,24 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                     className={`clickup-scope-item flex items-start gap-3.5 ${
                       importScopeDialog.scope === 'both' ? 'is-selected-both' : ''
                     }`}
+                    style={{
+                      backgroundColor: importScopeDialog.scope === 'both' ? 'rgba(88, 28, 135, 0.65)' : '#121a2d',
+                      borderColor: importScopeDialog.scope === 'both' ? '#a855f7' : 'rgba(51, 65, 85, 0.7)'
+                    }}
                   >
                     <input
                       type="radio"
                       name="scope_selection"
                       checked={importScopeDialog.scope === 'both'}
                       onChange={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'both' } : null)}
-                      className="mt-1 accent-purple-500 cursor-pointer w-4 h-4"
+                      className="mt-1 accent-purple-500 cursor-pointer w-4 h-4 shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                        <span className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
                           ⚡ Both Tasks &amp; Subtasks
                         </span>
-                        <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-purple-500/25 text-purple-300 border border-purple-500/40">
+                        <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-purple-500/25 text-purple-300 border border-purple-500/40" style={{ color: '#d8b4fe' }}>
                           {listTasks.length} total
                         </span>
                       </div>
@@ -1956,7 +1973,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
 
                 {/* Warning note for Replace */}
                 {importScopeDialog.replace && (
-                  <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200 shadow-sm leading-relaxed">
+                  <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200 shadow-sm leading-relaxed">
                     ⚠️ <strong className="font-bold text-amber-300">Replace Roster Notice:</strong> Your current Active Projects list will be replaced with the {
                       importScopeDialog.scope === 'tasks'
                         ? listTasks.filter(t => !t.parent).length
@@ -1968,11 +1985,12 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                 )}
 
                 {/* Buttons */}
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-700/80">
                   <button
                     type="button"
                     onClick={() => setImportScopeDialog(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-all cursor-pointer"
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold border border-slate-600 transition-all cursor-pointer hover:bg-slate-700"
+                    style={{ backgroundColor: '#1e293b', color: '#ffffff' }}
                   >
                     Cancel
                   </button>
@@ -1999,11 +2017,14 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                       setImportScopeDialog(null);
                       onClose();
                     }}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg cursor-pointer ${
-                      importScopeDialog.replace
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-emerald-500/30'
-                        : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/40'
-                    }`}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg cursor-pointer hover:opacity-95"
+                    style={{
+                      backgroundColor: importScopeDialog.replace ? '#10b981' : '#9333ea',
+                      color: importScopeDialog.replace ? '#020617' : '#ffffff',
+                      boxShadow: importScopeDialog.replace
+                        ? '0 4px 15px rgba(16, 185, 129, 0.4)'
+                        : '0 4px 15px rgba(147, 51, 234, 0.4)'
+                    }}
                   >
                     <Zap className="w-4 h-4 fill-current" />
                     <span>

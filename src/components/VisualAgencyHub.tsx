@@ -8304,35 +8304,40 @@ Due Date: ${proj.paymentDueDate}
           />
 
           {/* High-Contrast Solid Panel */}
-          <div className="clickup-scope-card p-6 space-y-4 text-left animate-fade-in shadow-2xl">
+          <div
+            className="clickup-scope-card p-6 space-y-4 text-left animate-fade-in shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: '#0c1427', color: '#ffffff', zIndex: 100, position: 'relative' }}
+          >
             {/* Header */}
-            <div className="flex items-center justify-between pb-3.5 border-b border-slate-800/80">
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-700/80">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-300 shadow-md shadow-emerald-500/20">
-                  <Zap className="w-5 h-5 text-emerald-400" />
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-300 shadow-md shadow-emerald-500/20">
+                  <Zap className="w-5 h-5 text-emerald-400 fill-emerald-400" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-black text-white tracking-wide" style={{ color: '#ffffff' }}>
+                    <h3 className="text-base font-black text-white tracking-wide" style={{ color: '#ffffff' }}>
                       ClickUp CRM Ingestion Scope
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold" style={{ color: '#6ee7b7' }}>
                       CRM Sync
                     </span>
                   </div>
                   <p className="text-xs text-slate-300 mt-0.5" style={{ color: '#cbd5e1' }}>
-                    Source List: <strong className="text-emerald-300 font-semibold">{crmImportScopeModal.list.name}</strong>
+                    Source List: <strong className="text-emerald-300 font-semibold" style={{ color: '#6ee7b7' }}>{crmImportScopeModal.list.name}</strong>
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setCrmImportScopeModal(null)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                style={{ backgroundColor: '#1e293b', color: '#ffffff' }}
                 title="Close (Esc)"
               >
-                <X className="w-4 h-4" />
-                <span>Close</span>
+                <X className="w-4 h-4 text-rose-400" />
+                <span style={{ color: '#ffffff' }}>Close</span>
               </button>
             </div>
 
@@ -8354,20 +8359,24 @@ Due Date: ${proj.paymentDueDate}
                 className={`clickup-scope-item flex items-start gap-3.5 ${
                   crmImportScopeModal.selectedScope === 'tasks' ? 'is-selected-tasks' : ''
                 }`}
+                style={{
+                  backgroundColor: crmImportScopeModal.selectedScope === 'tasks' ? 'rgba(6, 78, 59, 0.65)' : '#121a2d',
+                  borderColor: crmImportScopeModal.selectedScope === 'tasks' ? '#10b981' : 'rgba(51, 65, 85, 0.7)'
+                }}
               >
                 <input
                   type="radio"
                   name="crm_scope_selection"
                   checked={crmImportScopeModal.selectedScope === 'tasks'}
                   onChange={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'tasks' } : null)}
-                  className="mt-1 accent-emerald-500 cursor-pointer w-4 h-4"
+                  className="mt-1 accent-emerald-500 cursor-pointer w-4 h-4 shrink-0"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                    <span className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
                       📌 Tasks Only (Parent Accounts)
                     </span>
-                    <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-500/40">
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-500/40" style={{ color: '#6ee7b7' }}>
                       {crmImportScopeModal.tasks.filter(t => !t.parent).length} tasks
                     </span>
                   </div>
@@ -8383,20 +8392,24 @@ Due Date: ${proj.paymentDueDate}
                 className={`clickup-scope-item flex items-start gap-3.5 ${
                   crmImportScopeModal.selectedScope === 'subtasks' ? 'is-selected-subtasks' : ''
                 }`}
+                style={{
+                  backgroundColor: crmImportScopeModal.selectedScope === 'subtasks' ? 'rgba(14, 116, 144, 0.65)' : '#121a2d',
+                  borderColor: crmImportScopeModal.selectedScope === 'subtasks' ? '#06b6d4' : 'rgba(51, 65, 85, 0.7)'
+                }}
               >
                 <input
                   type="radio"
                   name="crm_scope_selection"
                   checked={crmImportScopeModal.selectedScope === 'subtasks'}
                   onChange={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'subtasks' } : null)}
-                  className="mt-1 accent-cyan-500 cursor-pointer w-4 h-4"
+                  className="mt-1 accent-cyan-500 cursor-pointer w-4 h-4 shrink-0"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                    <span className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
                       ↳ Subtasks Only
                     </span>
-                    <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/25 text-cyan-300 border border-cyan-500/40">
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/25 text-cyan-300 border border-cyan-500/40" style={{ color: '#67e8f9' }}>
                       {crmImportScopeModal.tasks.filter(t => !!t.parent).length} subtasks
                     </span>
                   </div>
@@ -8412,20 +8425,24 @@ Due Date: ${proj.paymentDueDate}
                 className={`clickup-scope-item flex items-start gap-3.5 ${
                   crmImportScopeModal.selectedScope === 'both' ? 'is-selected-both' : ''
                 }`}
+                style={{
+                  backgroundColor: crmImportScopeModal.selectedScope === 'both' ? 'rgba(88, 28, 135, 0.65)' : '#121a2d',
+                  borderColor: crmImportScopeModal.selectedScope === 'both' ? '#a855f7' : 'rgba(51, 65, 85, 0.7)'
+                }}
               >
                 <input
                   type="radio"
                   name="crm_scope_selection"
                   checked={crmImportScopeModal.selectedScope === 'both'}
                   onChange={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'both' } : null)}
-                  className="mt-1 accent-purple-500 cursor-pointer w-4 h-4"
+                  className="mt-1 accent-purple-500 cursor-pointer w-4 h-4 shrink-0"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                    <span className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
                       ⚡ Both Tasks &amp; Subtasks
                     </span>
-                    <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-purple-500/25 text-purple-300 border border-purple-500/40">
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-purple-500/25 text-purple-300 border border-purple-500/40" style={{ color: '#d8b4fe' }}>
                       {crmImportScopeModal.tasks.length} total
                     </span>
                   </div>
@@ -8437,7 +8454,10 @@ Due Date: ${proj.paymentDueDate}
             </div>
 
             {/* Mode Toggle: Replace vs Append */}
-            <div className="p-3.5 rounded-xl bg-[#121a2d] border border-slate-700/80 flex items-center justify-between gap-3 shadow-inner">
+            <div
+              className="p-3.5 rounded-xl border border-slate-700 flex items-center justify-between gap-3 shadow-inner"
+              style={{ backgroundColor: '#121a2d', borderColor: 'rgba(51, 65, 85, 0.8)' }}
+            >
               <div>
                 <span className="text-xs font-bold text-white block" style={{ color: '#ffffff' }}>
                   Roster Action:
@@ -8446,26 +8466,28 @@ Due Date: ${proj.paymentDueDate}
                   {crmImportScopeModal.replace ? 'Replace entire Active Projects roster' : 'Append to existing Active Projects'}
                 </span>
               </div>
-              <div className="flex items-center gap-1 bg-[#090e1a] p-1 rounded-lg border border-slate-700">
+              <div className="flex items-center gap-1.5 p-1 rounded-lg border border-slate-700" style={{ backgroundColor: '#070b16' }}>
                 <button
                   type="button"
                   onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, replace: true } : null)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                    crmImportScopeModal.replace
-                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
+                  className="px-3.5 py-1.5 rounded-md text-xs font-black transition-all cursor-pointer"
+                  style={{
+                    backgroundColor: crmImportScopeModal.replace ? '#10b981' : 'transparent',
+                    color: crmImportScopeModal.replace ? '#020617' : '#cbd5e1',
+                    boxShadow: crmImportScopeModal.replace ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'none'
+                  }}
                 >
                   Replace
                 </button>
                 <button
                   type="button"
                   onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, replace: false } : null)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                    !crmImportScopeModal.replace
-                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
+                  className="px-3.5 py-1.5 rounded-md text-xs font-black transition-all cursor-pointer"
+                  style={{
+                    backgroundColor: !crmImportScopeModal.replace ? '#9333ea' : 'transparent',
+                    color: !crmImportScopeModal.replace ? '#ffffff' : '#cbd5e1',
+                    boxShadow: !crmImportScopeModal.replace ? '0 2px 8px rgba(147, 51, 234, 0.4)' : 'none'
+                  }}
                 >
                   Append
                 </button>
@@ -8473,11 +8495,12 @@ Due Date: ${proj.paymentDueDate}
             </div>
 
             {/* Dialog Footer Actions */}
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-700/80">
               <button
                 type="button"
                 onClick={() => setCrmImportScopeModal(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-all cursor-pointer"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold border border-slate-600 transition-all cursor-pointer hover:bg-slate-700"
+                style={{ backgroundColor: '#1e293b', color: '#ffffff' }}
               >
                 Cancel
               </button>
@@ -8503,11 +8526,14 @@ Due Date: ${proj.paymentDueDate}
                   );
                   setCrmImportScopeModal(null);
                 }}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg cursor-pointer ${
-                  crmImportScopeModal.replace
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-emerald-500/30'
-                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/40'
-                }`}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg cursor-pointer hover:opacity-95"
+                style={{
+                  backgroundColor: crmImportScopeModal.replace ? '#10b981' : '#9333ea',
+                  color: crmImportScopeModal.replace ? '#020617' : '#ffffff',
+                  boxShadow: crmImportScopeModal.replace
+                    ? '0 4px 15px rgba(16, 185, 129, 0.4)'
+                    : '0 4px 15px rgba(147, 51, 234, 0.4)'
+                }}
               >
                 <Zap className="w-4 h-4 fill-current" />
                 <span>

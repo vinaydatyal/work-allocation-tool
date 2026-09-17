@@ -1270,26 +1270,6 @@ body.theme-white .clickup-modal-card .bg-slate-800\/90 {
 /* =========================================================
    CLICKUP SCOPE DIALOG & PORTAL STYLING (Guaranteed Solid & High Contrast)
    ========================================================= */
-.clickup-scope-backdrop {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 99998 !important;
-  background: rgba(2, 6, 23, 0.88) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-}
-
-body.theme-white .clickup-scope-backdrop {
-  background: rgba(15, 23, 42, 0.88) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-}
-
 .clickup-scope-container {
   position: fixed !important;
   top: 0 !important;
@@ -1305,23 +1285,45 @@ body.theme-white .clickup-scope-backdrop {
   padding: 1rem !important;
 }
 
+.clickup-scope-backdrop {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 1 !important;
+  background: rgba(2, 6, 23, 0.82) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+body.theme-white .clickup-scope-backdrop {
+  background: rgba(15, 23, 42, 0.82) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
 .clickup-scope-card {
   position: relative !important;
+  z-index: 10 !important;
   width: 100% !important;
   max-width: 34rem !important;
   background-color: #0b1120 !important;
   border: 1px solid rgba(16, 185, 129, 0.45) !important;
   border-radius: 1.25rem !important;
   box-shadow: 0 30px 70px -10px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
-  color: #f8fafc !important;
+  color: #ffffff !important;
   overflow: hidden !important;
+  pointer-events: auto !important;
 }
 
 body.theme-white .clickup-scope-card {
   background-color: #0b1120 !important;
   border: 1px solid rgba(16, 185, 129, 0.45) !important;
   box-shadow: 0 30px 70px -10px rgba(0, 0, 0, 0.98), 0 0 0 1px rgba(255, 255, 255, 0.14) !important;
-  color: #f8fafc !important;
+  color: #ffffff !important;
 }
 
 .clickup-scope-card.scope-purple {
@@ -1332,20 +1334,27 @@ body.theme-white .clickup-scope-card.scope-purple {
   border-color: rgba(168, 85, 247, 0.5) !important;
 }
 
-/* Internal typography protections */
+/* Comprehensive theme-white text isolation: prevent dark text on dark surfaces */
+.clickup-scope-card h2,
 .clickup-scope-card h3,
+.clickup-scope-card h4,
+.clickup-scope-card strong,
 .clickup-scope-card .text-white,
+.clickup-scope-card .text-slate-100,
+body.theme-white .clickup-scope-card h2,
 body.theme-white .clickup-scope-card h3,
-body.theme-white .clickup-scope-card .text-white {
+body.theme-white .clickup-scope-card h4,
+body.theme-white .clickup-scope-card strong,
+body.theme-white .clickup-scope-card .text-white,
+body.theme-white .clickup-scope-card .text-slate-100 {
   color: #ffffff !important;
 }
 
+.clickup-scope-card p,
 .clickup-scope-card .text-slate-200,
-body.theme-white .clickup-scope-card .text-slate-200 {
-  color: #f1f5f9 !important;
-}
-
 .clickup-scope-card .text-slate-300,
+body.theme-white .clickup-scope-card p,
+body.theme-white .clickup-scope-card .text-slate-200,
 body.theme-white .clickup-scope-card .text-slate-300 {
   color: #cbd5e1 !important;
 }
@@ -1355,8 +1364,18 @@ body.theme-white .clickup-scope-card .text-slate-400 {
   color: #94a3b8 !important;
 }
 
+body.theme-white .clickup-scope-card .bg-slate-800,
+body.theme-white .clickup-scope-card .bg-slate-800\/80,
+body.theme-white .clickup-scope-card .bg-slate-900,
+body.theme-white .clickup-scope-card .bg-slate-950 {
+  background-color: #121a2d !important;
+  color: #ffffff !important;
+}
+
 /* Scope Radio items: solid high contrast backgrounds */
 .clickup-scope-item {
+  position: relative !important;
+  z-index: 11 !important;
   background-color: #121a2d !important;
   border: 1px solid rgba(51, 65, 85, 0.65) !important;
   border-radius: 0.875rem !important;
@@ -1382,19 +1401,19 @@ body.theme-white .clickup-scope-item:hover {
 }
 
 .clickup-scope-item.is-selected-tasks {
-  background: linear-gradient(135deg, rgba(6, 78, 59, 0.55) 0%, #111a2d 100%) !important;
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.6) 0%, #111a2d 100%) !important;
   border-color: #10b981 !important;
   box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.4), 0 8px 20px -4px rgba(16, 185, 129, 0.25) !important;
 }
 
 .clickup-scope-item.is-selected-subtasks {
-  background: linear-gradient(135deg, rgba(14, 116, 144, 0.55) 0%, #111a2d 100%) !important;
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.6) 0%, #111a2d 100%) !important;
   border-color: #06b6d4 !important;
   box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.4), 0 8px 20px -4px rgba(6, 182, 212, 0.25) !important;
 }
 
 .clickup-scope-item.is-selected-both {
-  background: linear-gradient(135deg, rgba(88, 28, 135, 0.55) 0%, #111a2d 100%) !important;
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.6) 0%, #111a2d 100%) !important;
   border-color: #a855f7 !important;
   box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.4), 0 8px 20px -4px rgba(168, 85, 247, 0.25) !important;
 }
@@ -1409,6 +1428,7 @@ body.theme-white .clickup-scope-footer {
   background-color: #070b16 !important;
   border-top: 1px solid rgba(51, 65, 85, 0.7) !important;
 }
+
 
 
 

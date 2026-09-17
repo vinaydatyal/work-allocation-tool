@@ -314,10 +314,12 @@ Agencies frequently maintain their complete client roster inside a specific Clic
    - **Full Viewport Portal Escaping**:
      - Both `ClickUpOAuthModal.tsx` and `crmImportScopeModal` in `VisualAgencyHub.tsx` are portaled directly to `document.body` via React's `createPortal`.
      - This escapes the CSS transform stacking context created by `<motion.div key={activeTab}>` inside `<main>`, ensuring the backdrop seamlessly covers the entire screen, including the left `<Navbar>` and top headers.
-   - **Frosted Glass Backdrop & Depth**:
-     - Styled with `.clickup-scope-backdrop`: `z-index: 99998`, `width: 100vw`, `height: 100vh`, `background: rgba(2, 6, 23, 0.88)`, and `backdrop-filter: blur(20px)` (with `-webkit-backdrop-filter`).
-     - In White Theme (`body.theme-white`), the backdrop maintains `rgba(15, 23, 42, 0.88)` with heavy blur, completely shielding the underlying application navigation.
-   - **Solid Theme Isolation & Text Contrast**:
-     - Modal shells `.clickup-scope-card` use 100% solid surface `#0b1120` with multi-layered drop shadows (`box-shadow: 0 30px 70px -10px rgba(0,0,0,0.95)`) and radiant glowing borders (`border: 1px solid rgba(16, 185, 129, 0.45)`).
+   - **Frosted Glass Backdrop & Stacking Fix**:
+     - Container `.clickup-scope-container` is fixed at `z-index: 99999`.
+     - Backdrop `.clickup-scope-backdrop` is set to `z-index: 1`, and `.clickup-scope-card` is explicitly set to `z-index: 10` with `pointer-events: auto` and `onClick={(e) => e.stopPropagation()}`.
+     - **Root Cause & Fix**: Previously, an inner backdrop element with fixed `z-index: 99998` overlapped the modal card (which had `z-index: auto`), causing all pointer events/clicks to be intercepted by the backdrop and rendering an 88% dark blur veil over the modal content. Placing the backdrop behind the card at `z-index: 1` and elevating the card to `z-index: 10` restored full clickability and pristine crisp rendering.
+   - **Solid Theme Isolation & Typography Contrast**:
+     - Modal shells `.clickup-scope-card` use 100% solid surface `#0c1427` with multi-layered drop shadows (`box-shadow: 0 30px 70px -10px rgba(0,0,0,0.95)`) and radiant glowing borders (`border: 1px solid rgba(16, 185, 129, 0.45)`).
      - Radio selection cards use `.clickup-scope-item` with solid `#121a2d` backgrounds, eliminating any translucent bleed-through. Selected states feature gradient accents (`is-selected-tasks`, `is-selected-subtasks`, `is-selected-both`) with matching neon pills.
-     - Pure white headings (`#ffffff`) and slate subtitles (`#cbd5e1`) are protected with `!important` rules, preventing global theme inversions from degrading legibility.
+     - Pure white headings (`#ffffff`) and slate subtitles (`#cbd5e1`) are reinforced both with CSS `!important` rules and explicit inline styles (`style={{ color: '#ffffff' }}`), preventing global `body.theme-white` overrides from inverting text to dark navy/black on dark modal surfaces.
+
