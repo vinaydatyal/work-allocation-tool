@@ -233,10 +233,33 @@ The Work Allocation Tool integrates 5 core feature modules connecting directly t
 - **Executive Command Bar Status Pill**:
   - Displays `🟢 Live Sync Active (Synced Xm ago)` with an animated ping indicator.
   - Includes an instant manual refresh icon button (`<RefreshCw />`) for immediate polling.
-- **Webhook Registration Suite**:
-  - New dedicated tab in `ClickUpOAuthModal.tsx` ("Live Sync & Webhooks").
-  - Registers webhook subscriptions via `registerClickUpWebhook(token, teamId, endpointUrl, events)` to `POST /api/v2/team/{team_id}/webhook`.
-  - Subscribed events: `taskCreated`, `taskUpdated`, `taskStatusUpdated`, `taskAssigneeUpdated`, `taskDeleted`.
+### 7.8 Full-App ClickUp Integration Roadmap Across All Tabs
+1. **Tab 1: Active Projects (`projects`)**:
+   - Link projects to ClickUp Lists/Folders (`clickUpListId`, `clickUpFolderId`).
+   - "Import Project from ClickUp List" wizard inside Add Project modal.
+   - "Push Project to ClickUp" creating new Folder/List with deliverable tasks.
+2. **Tab 2: Activity Calendar (`calendar`)**:
+   - Ingest ClickUp task `due_date` timestamps as interactive calendar work items.
+   - Plot ClickUp milestones and support two-way drag-and-drop date rescheduling.
+3. **Tab 3: Employee Hours (`hours`)**:
+   - Ingest `fetchClickUpTimeEntries` to render live Actual Tracked Hours vs Planned Retainer Capacity.
+   - Display active ClickUp task counts on employee cards with quick time-logging modal.
+4. **Tab 4: DSR Tracker & Plan (`dsr`)**:
+   - Auto-fill weekly logged hours (`log`) from ClickUp time entries for W1-W5.
+   - Provide "Push DSR Entry to ClickUp" and automated variance audit.
+5. **Tab 5: Employee Skills (`skills`)**:
+   - Push verified competency scores to ClickUp Custom Fields & User Tags.
+   - Smart qualification checks flagging when high-complexity tasks are assigned to uncalibrated specialists.
+6. **Tab 6: Job Delivery Bot (`bot`)**:
+   - 1-Click "Deploy Deliverables to ClickUp List" button pushing AI-generated scopes directly into ClickUp tasks with assignees, estimates, and priorities.
+7. **Tab 7: Finances & Payments (`finances`)**:
+   - Mirror retainer values, hourly rates, client tiers, and payment due dates into ClickUp Custom Fields.
+8. **Tab 8: Notifications Hub (`notifications`)**:
+   - Stream ClickUp overdue warnings, manager QA requests, and budget alert notifications.
+9. **Tab 9: Advanced Studio (`brief`, `wizard`, `kanban`, `backlog`, `timeline`)**:
+   - Unassigned ClickUp task backlog ingestion with two-way dispatching.
+   - ClickUp Space filter and column-level task creation in Sprint Kanban.
+
 
 
 
