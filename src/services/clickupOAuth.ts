@@ -149,11 +149,16 @@ export interface ClickUpTask {
   id: string;
   name: string;
   status: { status: string; color: string };
+  priority?: { priority: string; color: string } | null;
   assignees: { id: number; username: string; email: string; profilePicture: string | null }[];
   due_date: string | null;
+  start_date?: string | null;
   time_estimate: number | null;
   list: { id: string; name: string };
   url: string;
+  custom_fields?: Array<{ id: string; name: string; value: any; type?: string }>;
+  description?: string;
+  text_content?: string;
 }
 
 export interface ClickUpSpace {
@@ -273,7 +278,7 @@ export async function fetchClickUpLists(
 }
 
 export async function fetchClickUpListTasks(token: string, listId: string): Promise<ClickUpTask[]> {
-  const data = await clickupFetch(`/list/${listId}/task?subtasks=true`, token);
+  const data = await clickupFetch(`/list/${listId}/task?subtasks=true&include_closed=true`, token);
   return data.tasks || [];
 }
 

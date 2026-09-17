@@ -60,6 +60,11 @@ interface ClickUpOAuthModalProps {
   onSyncComplete?: (tasks: ClickUpTask[]) => void;
   onImportMembers?: (members: ClickUpTeamMember[]) => void;
   onImportTimeEntries?: (entries: ClickUpTimeEntry[]) => void;
+  onImportProjectsFromList?: (
+    list: { id: string; name: string; folderName?: string; spaceName?: string },
+    tasks: ClickUpTask[],
+    replaceExisting: boolean
+  ) => void;
 }
 
 type ActiveFeatureTab = 'overview' | 'hierarchy' | 'time' | 'members' | 'create' | 'webhooks';
@@ -69,7 +74,8 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
   onClose,
   onSyncComplete,
   onImportMembers,
-  onImportTimeEntries
+  onImportTimeEntries,
+  onImportProjectsFromList
 }) => {
   const [connected, setConnected]           = useState(isClickUpConnected());
   const [connectedUser, setConnectedUser]   = useState(getClickUpUser());
@@ -1053,6 +1059,11 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                                       <span className="font-semibold text-white truncate text-xs" style={{ color: '#ffffff' }}>
                                                         {ls.name}
                                                       </span>
+                                                      {(ls.name.toLowerCase().includes('client') || ls.name.toLowerCase().includes('account')) && (
+                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold shrink-0">
+                                                          CRM Roster
+                                                        </span>
+                                                      )}
                                                     </button>
                                                     <div className="flex items-center gap-1.5 shrink-0 ml-2">
                                                       <span className="text-[10px] text-slate-400" style={{ color: '#94a3b8' }}>
@@ -1166,6 +1177,66 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                 Refresh
                               </button>
                             </div>
+
+                            {/* Client Accounts Roster Sync Action Banner */}
+                            {!loadingListTasks && listTasks.length > 0 && onImportProjectsFromList && (
+                              <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/70 via-indigo-950/60 to-purple-950/70 border border-emerald-500/40 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase tracking-wider">
+                                      Active Client Roster Ingestion
+                                    </span>
+                                    <span className="text-xs font-extrabold text-white" style={{ color: '#ffffff' }}>
+                                      {selectedListName} ({listTasks.length} Accounts)
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-300" style={{ color: '#cbd5e1' }}>
+                                    Import and map all {listTasks.length} ClickUp clients directly into your main Active Projects list.
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const confirmed = window.confirm(
+                                        `⚠️ REPLACE ACTIVE PROJECTS?\n\nAre you sure you want to REPLACE your current Active Projects list with the ${listTasks.length} clients from "${selectedListName}"?\n\nEach ClickUp account will become an Active Project with status, assignees, and ClickUp deep links.`
+                                      );
+                                      if (confirmed) {
+                                        onImportProjectsFromList(
+                                          { id: selectedList, name: selectedListName || 'Accounts/Clients' },
+                                          listTasks,
+                                          true
+                                        );
+                                        onClose();
+                                      }
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+                                    title="Replace active projects with these clients"
+                                  >
+                                    <Zap className="w-3.5 h-3.5 fill-slate-950" />
+                                    <span>⚡ Replace Active Projects ({listTasks.length})</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onImportProjectsFromList(
+                                        { id: selectedList, name: selectedListName || 'Accounts/Clients' },
+                                        listTasks,
+                                        false
+                                      );
+                                      onClose();
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-all border border-slate-600 cursor-pointer"
+                                    title="Append these clients to existing active projects without removing existing ones"
+                                    style={{ color: '#ffffff' }}
+                                  >
+                                    <PlusCircle className="w-3.5 h-3.5 text-cyan-400" />
+                                    <span>➕ Add to Projects</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                             {loadingListTasks ? (
                               <div className="py-6 text-center text-xs text-slate-400" style={{ color: '#94a3b8' }}>Loading tasks in list…</div>
                             ) : listTasks.length === 0 ? (

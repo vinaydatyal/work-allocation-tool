@@ -259,8 +259,38 @@ The Work Allocation Tool integrates 5 core feature modules connecting directly t
    - **ClickUp Backlog Ingestion**: "⚡ Import ClickUp Backlog" button fetches unassigned tasks from ClickUp, maps required skills and estimates, and appends them to the backlog.
    - **Direct Task Deep Links**: Backlog cards render `[CU #task ↗]` badges opening the native ClickUp task URL.
 
+### 7.9 ClickUp CRM Accounts/Clients Ingestion & Active Projects Roster Replacement
 
+#### Overview & Problem Addressed
+Agencies frequently maintain their complete client roster inside a specific ClickUp list, e.g., **`Growth > CRM > Accounts/Clients`** (holding 60 client retainer accounts). Previously, the application only synced ClickUp tasks as deliverable line items (`taskBreakdown`) within pre-existing projects. Section 7.9 introduces full **Client Roster Ingestion**, converting each ClickUp account/task into an autonomous `ActiveProjectItem` and allowing managers to completely replace or append to the active projects roster with 1-click.
 
+#### Technical Implementation Details:
+1. **API Enhancements (`src/services/clickupOAuth.ts`)**:
+   - `fetchClickUpListTasks`: Extended with `subtasks=true&include_closed=true` parameter so all accounts (including archived, completed, or multi-status client accounts) are fetched without pagination omissions.
+   - `ClickUpTask` Interface: Expanded with `priority`, `start_date`, `custom_fields`, `description`, and `text_content`.
 
+2. **Modal Roster Sync Action Banner (`src/components/ClickUpOAuthModal.tsx`)**:
+   - In the Spaces & Lists hierarchy viewer (`featureTab === 'hierarchy'`), lists containing client accounts (e.g., `Accounts/Clients`) receive a prominent `CRM Roster` badge.
+   - When inspecting any list with tasks, a dedicated **Active Client Roster Ingestion** banner renders above the task cards:
+     - **`⚡ Replace Active Projects ({N})`**: Prompts confirmation to prevent accidental loss, transforms all `{N}` ClickUp accounts into `ActiveProjectItem` records, and cleanly replaces the existing `projectsList`.
+     - **`➕ Add to Projects ({N})`**: Merges new accounts into active projects avoiding duplicate `id` / `clickUpTaskId`.
 
+3. **Smart Field Mapping Algorithm (`src/components/VisualAgencyHub.tsx` - `handleImportProjectsFromClickUpList`)**:
+   - **ID**: `prj_cu_${task.id}` (persisting ClickUp task identifier).
+   - **Client & Name**: Cleaned of separators (` - `, ` | `, `:`), deriving client name and retainer title.
+   - **Retainer Pricing & Budget**: Dynamically parses ClickUp `custom_fields` (`budget`, `retainer`, `amount`, `fee`, `value`) or regex matches `$[0-9,]+` in task titles. Defaults to `$3,500 / mo` (numeric: 3500) if unspecified.
+   - **Client Tiering**: Processed through `classifyClientTier`, categorizing accounts into `TIER_S_VIP`, `TIER_A_AGENCY`, or `TIER_B_LOCAL`.
+   - **Status Mapping**:
+     - `done` / `complete` / `closed` $\rightarrow$ `'COMPLETED'` (100% progress, 4 milestones).
+     - `pause` / `hold` $\rightarrow$ `'PAUSED'` (25% progress, 1 milestone).
+     - `reval` / `risk` / `issue` $\rightarrow$ `'REVALUATION'` (30% progress, 1 milestone).
+     - `lead` / `new` / `initial` / `onboard` $\rightarrow$ `'INITIAL STAGE'` (20% progress, 1 milestone).
+     - `review` / `qa` / `progress` / `open` $\rightarrow$ `'ON TRACK'` (50–75% progress, 2–3 milestones).
+   - **Priority Mapping**: ClickUp `urgent` $\rightarrow$ `'URGENT'`, `high` $\rightarrow$ `'HIGH'`, `low` $\rightarrow$ `'LOW'`, default $\rightarrow$ `'NORMAL'`.
+   - **Hours**: Derived from `task.time_estimate` (or default 20h total, 15h active).
+   - **Assignee Resolution**: Automatically matches ClickUp task assignees against `customMembers` via `clickUpUserId`, `clickUpEmail`, or username, allocating Lead and Client Call Assignees.
+   - **Deliverables**: Auto-creates 3 default deliverables (Technical SEO, On-Page SEO, Client Communications) equipped with ClickUp deep links (`clickUpTaskId`, `clickUpUrl`, `clickUpStatus`).
 
+4. **1-Click Executive Command Bar Shortcut**:
+   - Located directly in the top executive action bar beside `Live Sync`:
+     - **`⚡ Sync CRM Accounts`**: Automatically scans ClickUp spaces for `Growth > CRM > Accounts/Clients`, fetches all 60 accounts, prompts the manager, and executes instant roster synchronization and replacement without manual navigation.

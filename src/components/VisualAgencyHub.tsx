@@ -52,11 +52,13 @@ import {
   fetchClickUpTasks,
   fetchClickUpWorkspaces,
   fetchClickUpSpaces,
+  fetchClickUpFolders,
   fetchClickUpLists,
   fetchClickUpListTasks,
   createClickUpTask,
   updateClickUpTaskAssignees,
-  updateClickUpTaskStatus
+  updateClickUpTaskStatus,
+  type ClickUpTask
 } from '../services/clickupOAuth';
 import { AGENCY_MASTER_EXAM_BANK, type ExamQuestionType } from '../data/skillExamBank';
 import { getPDFMasterProjects, classifyClientTier } from '../data/pdfMasterProjectsData';
@@ -838,6 +840,327 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
       description: `Mapped ${totalHours} logged hours across active projects.`
     });
     setTimeout(() => setCopiedToast(null), 4500);
+  };
+
+  // ClickUp CRM Active Clients Ingestion & Roster Replacement
+  const [syncingCrmClients, setSyncingCrmClients] = useState(false);
+
+  const handleImportProjectsFromClickUpList = (
+    list: { id: string; name: string; folderName?: string; spaceName?: string },
+    clickUpTasks: ClickUpTask[],
+    replaceExisting: boolean
+  ) => {
+    if (!clickUpTasks || clickUpTasks.length === 0) {
+      sonnerToast.error('No client accounts found to import.');
+      return;
+    }
+
+    const cardGradients = [
+      'from-cyan-500 to-blue-600',
+      'from-purple-500 to-indigo-600',
+      'from-emerald-500 to-teal-600',
+      'from-amber-500 to-orange-600',
+      'from-rose-500 to-pink-600',
+      'from-blue-500 to-indigo-700',
+      'from-teal-500 to-cyan-600',
+      'from-violet-500 to-purple-700'
+    ];
+
+    const mappedProjects: ActiveProjectItem[] = clickUpTasks.map((t, idx) => {
+      const cleanName = t.name.trim();
+      let clientName = cleanName;
+      if (cleanName.includes(' - ')) {
+        clientName = cleanName.split(' - ')[0].trim();
+      } else if (cleanName.includes(' | ')) {
+        clientName = cleanName.split(' | ')[0].trim();
+      } else if (cleanName.includes(':')) {
+        clientName = cleanName.split(':')[0].trim();
+      }
+
+      // Budget / Retainer Price resolution
+      let parsedAmount = 2500;
+      if (t.custom_fields && t.custom_fields.length > 0) {
+        const budgetField = t.custom_fields.find((cf) => 
+          /budget|price|retainer|amount|value|fee/i.test(cf.name)
+        );
+        if (budgetField && budgetField.value) {
+          const num = typeof budgetField.value === 'number'
+            ? budgetField.value
+            : parseFloat(String(budgetField.value).replace(/[^0-9.]/g, ''));
+          if (!isNaN(num) && num > 0) parsedAmount = num;
+        }
+      }
+
+      const namePriceMatch = cleanName.match(/\$([0-9,]+)/);
+      if (namePriceMatch) {
+        const num = parseFloat(namePriceMatch[1].replace(/,/g, ''));
+        if (!isNaN(num) && num > 0) parsedAmount = num;
+      }
+
+      const formattedPrice = `$${parsedAmount.toLocaleString()} / mo`;
+
+      // Status mapping
+      const rawStatus = (t.status?.status || 'Open').toLowerCase();
+      let canonicalStatus: 'INITIAL STAGE' | 'ON TRACK' | 'REVALUATION' | 'PAUSED' | 'COMPLETED' = 'ON TRACK';
+      let milestonesCompleted = 2;
+      let progress = 50;
+
+      if (rawStatus.includes('complete') || rawStatus.includes('done') || rawStatus.includes('closed')) {
+        canonicalStatus = 'COMPLETED';
+        milestonesCompleted = 4;
+        progress = 100;
+      } else if (rawStatus.includes('pause') || rawStatus.includes('hold')) {
+        canonicalStatus = 'PAUSED';
+        milestonesCompleted = 1;
+        progress = 25;
+      } else if (rawStatus.includes('reval') || rawStatus.includes('risk') || rawStatus.includes('issue')) {
+        canonicalStatus = 'REVALUATION';
+        milestonesCompleted = 1;
+        progress = 30;
+      } else if (rawStatus.includes('lead') || rawStatus.includes('new') || rawStatus.includes('initial') || rawStatus.includes('onboard')) {
+        canonicalStatus = 'INITIAL STAGE';
+        milestonesCompleted = 1;
+        progress = 20;
+      } else if (rawStatus.includes('review') || rawStatus.includes('qa')) {
+        canonicalStatus = 'ON TRACK';
+        milestonesCompleted = 3;
+        progress = 75;
+      }
+
+      // Priority mapping
+      const rawPriority = t.priority?.priority?.toLowerCase() || '';
+      let priorityLevel: 'URGENT' | 'HIGH' | 'NORMAL' | 'LOW' = 'NORMAL';
+      if (rawPriority === 'urgent' || rawPriority === '1') priorityLevel = 'URGENT';
+      else if (rawPriority === 'high' || rawPriority === '2') priorityLevel = 'HIGH';
+      else if (rawPriority === 'low' || rawPriority === '4') priorityLevel = 'LOW';
+
+      // Total & Active Hours
+      const totalHours = t.time_estimate ? Math.max(5, Math.round(t.time_estimate / 3600000)) : 20;
+      const activeHours = Math.round(totalHours * 0.75);
+
+      // Dates
+      const startDate = t.start_date
+        ? new Date(Number(t.start_date)).toISOString().split('T')[0]
+        : '2026-07-01';
+      const dueDate = t.due_date
+        ? new Date(Number(t.due_date)).toISOString().split('T')[0]
+        : 'Monthly Renewal: 30th';
+
+      // Team Assignees Matching
+      const matchedMembers: TeamMember[] = [];
+      if (t.assignees && t.assignees.length > 0) {
+        t.assignees.forEach((cuUser) => {
+          const found = customMembers.find((cm) =>
+            (cm.clickUpUserId && String(cm.clickUpUserId) === String(cuUser.id)) ||
+            (cm.clickUpEmail && cuUser.email && cm.clickUpEmail.toLowerCase() === cuUser.email.toLowerCase()) ||
+            (cm.name.toLowerCase() === (cuUser.username || '').toLowerCase())
+          );
+          if (found && !matchedMembers.some((m) => m.id === found.id)) {
+            matchedMembers.push(found);
+          }
+        });
+      }
+
+      const squadMembers = matchedMembers.length > 0
+        ? matchedMembers
+        : [customMembers[idx % customMembers.length], customMembers[(idx + 1) % customMembers.length]].filter(Boolean);
+
+      const leadId = squadMembers[0]?.id || customMembers[0]?.id || initialMembers[0].id;
+      const callAssigneeId = squadMembers[1]?.id || squadMembers[0]?.id || customMembers[0]?.id || initialMembers[0].id;
+
+      // Deliverables / Task Breakdown
+      const deliverables: ProjectTaskAllocation[] = [
+        {
+          id: `tb-cu-${t.id}-1`,
+          taskType: 'Technical SEO',
+          assigneeId: leadId,
+          hours: Math.round(totalHours * 0.4),
+          clickUpTaskId: String(t.id),
+          clickUpUrl: t.url,
+          clickUpStatus: t.status?.status || 'In Progress',
+          status: canonicalStatus === 'COMPLETED' ? 'completed' : 'in_progress'
+        },
+        {
+          id: `tb-cu-${t.id}-2`,
+          taskType: 'On-Page SEO',
+          assigneeId: callAssigneeId,
+          hours: Math.round(totalHours * 0.35),
+          clickUpTaskId: String(t.id),
+          clickUpUrl: t.url,
+          clickUpStatus: t.status?.status || 'In Progress',
+          status: canonicalStatus === 'COMPLETED' ? 'completed' : 'in_progress'
+        },
+        {
+          id: `tb-cu-${t.id}-3`,
+          taskType: 'Client Communications',
+          assigneeId: callAssigneeId,
+          hours: Math.max(2, Math.round(totalHours * 0.25)),
+          clickUpTaskId: String(t.id),
+          clickUpUrl: t.url,
+          clickUpStatus: t.status?.status || 'In Progress',
+          status: canonicalStatus === 'COMPLETED' ? 'completed' : 'assigned'
+        }
+      ];
+
+      const clientTier = classifyClientTier({
+        name: cleanName,
+        client: clientName,
+        paymentAmountNumeric: parsedAmount
+      });
+
+      return {
+        id: `prj_cu_${t.id}`,
+        name: cleanName,
+        client: clientName,
+        clientTier,
+        billingType: 'Monthly Retainer',
+        startDate,
+        dueDateOrRenewal: dueDate,
+        milestonesTotal: 4,
+        milestonesCompleted,
+        price: formattedPrice,
+        totalHours,
+        activeHours,
+        progress,
+        color: cardGradients[idx % cardGradients.length],
+        members: squadMembers,
+        projectLeadId: leadId,
+        clientCallAssigneeId: callAssigneeId,
+        paymentStatus: canonicalStatus === 'COMPLETED' ? 'Paid' : 'Pending',
+        paymentDueDate: dueDate.includes('30th') ? '2026-07-31' : dueDate,
+        paymentAmountNumeric: parsedAmount,
+        paymentInvoiceId: `INV-CU-${t.id.slice(-4).toUpperCase()}`,
+        status: canonicalStatus,
+        priorityLevel,
+        clickUpListId: list.id,
+        clickUpListName: list.name,
+        clientFolderUrl: t.url,
+        taskContent: t.text_content || t.description || `ClickUp Client Account: ${cleanName}`,
+        taskBreakdown: deliverables
+      };
+    });
+
+    if (replaceExisting) {
+      setProjectsList(mappedProjects);
+      setLastSyncedTime(new Date());
+      setCopiedToast(`⚡ Replaced Active Projects with ${mappedProjects.length} Clients from ClickUp!`);
+      sonnerToast.success(`⚡ Active Projects Replaced!`, {
+        description: `Imported and mapped all ${mappedProjects.length} clients from "${list.name}".`
+      });
+    } else {
+      setProjectsList((prev) => {
+        const existingIds = new Set(prev.map((p) => p.id));
+        const nonDuplicates = mappedProjects.filter((np) => !existingIds.has(np.id));
+        return [...prev, ...nonDuplicates];
+      });
+      setLastSyncedTime(new Date());
+      setCopiedToast(`⚡ Added ${mappedProjects.length} Clients to Active Projects!`);
+      sonnerToast.success(`⚡ Added ${mappedProjects.length} Clients!`, {
+        description: `Merged ClickUp accounts from "${list.name}" into Active Projects.`
+      });
+    }
+    setTimeout(() => setCopiedToast(null), 4500);
+  };
+
+  const handleQuickSyncCrmClients = async () => {
+    if (!isClickUpConnected()) {
+      sonnerToast.info('Please connect ClickUp first to sync CRM clients.');
+      setShowClickUpModal(true);
+      return;
+    }
+    const token = getClickUpToken();
+    if (!token) return;
+
+    try {
+      setSyncingCrmClients(true);
+      let wsId = getClickUpWorkspaceId();
+      if (!wsId) {
+        const workspaces = await fetchClickUpWorkspaces(token);
+        if (workspaces && workspaces.length > 0) {
+          wsId = workspaces[0].id;
+          setClickUpWorkspaceId(wsId);
+        }
+      }
+      if (!wsId) {
+        setShowClickUpModal(true);
+        return;
+      }
+
+      sonnerToast.loading('Scanning ClickUp for Growth > CRM > Accounts/Clients...', { id: 'crm-scan' });
+      const spaces = await fetchClickUpSpaces(token, wsId);
+      let targetList: { id: string; name: string } | null = null;
+
+      // 1. Look in space named Growth
+      const growthSpace = spaces.find((s) => s.name.toLowerCase().includes('growth')) || spaces[0];
+      if (growthSpace) {
+        const folders = await fetchClickUpFolders(token, growthSpace.id);
+        const crmFolder = folders.find((f) => f.name.toLowerCase().includes('crm')) || folders[0];
+        if (crmFolder) {
+          const crmLists = await fetchClickUpLists(token, crmFolder.id, true);
+          const accountsList = crmLists.find((l) =>
+            l.name.toLowerCase().includes('accounts') ||
+            l.name.toLowerCase().includes('clients')
+          );
+          if (accountsList) {
+            targetList = accountsList;
+          }
+        }
+      }
+
+      // 2. Global fallback across all spaces
+      if (!targetList) {
+        for (const sp of spaces) {
+          const spFolders = await fetchClickUpFolders(token, sp.id);
+          for (const f of spFolders) {
+            if (f.name.toLowerCase().includes('crm')) {
+              const fLists = await fetchClickUpLists(token, f.id, true);
+              const found = fLists.find((l) =>
+                l.name.toLowerCase().includes('client') ||
+                l.name.toLowerCase().includes('account')
+              );
+              if (found) {
+                targetList = found;
+                break;
+              }
+            }
+          }
+          if (targetList) break;
+        }
+      }
+
+      if (!targetList) {
+        sonnerToast.dismiss('crm-scan');
+        sonnerToast.info('Opening ClickUp Center — select your CRM Clients list directly in Hierarchy.');
+        setShowClickUpModal(true);
+        return;
+      }
+
+      sonnerToast.loading(`Fetching client accounts from "${targetList.name}"...`, { id: 'crm-scan' });
+      const clientTasks = await fetchClickUpListTasks(token, targetList.id);
+      sonnerToast.dismiss('crm-scan');
+
+      if (!clientTasks || clientTasks.length === 0) {
+        sonnerToast.error(`No accounts found in "${targetList.name}".`);
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `⚡ SYNC & REPLACE ACTIVE PROJECTS?\n\nFound ${clientTasks.length} client accounts in "${targetList.name}".\n\nClick OK to REPLACE your active projects with these ${clientTasks.length} clients.\n(Or Cancel to keep your current projects and inspect them in the modal).`
+      );
+
+      if (confirmed) {
+        handleImportProjectsFromClickUpList(targetList, clientTasks, true);
+      } else {
+        setShowClickUpModal(true);
+      }
+    } catch (err: any) {
+      console.error('Error during quick CRM sync:', err);
+      sonnerToast.dismiss('crm-scan');
+      sonnerToast.error('CRM Sync Failed', { description: err.message });
+      setShowClickUpModal(true);
+    } finally {
+      setSyncingCrmClients(false);
+    }
   };
 
 
@@ -1902,6 +2225,20 @@ Due Date: ${proj.paymentDueDate}
                     <RefreshCw className={`w-3 h-3 ${isAutoSyncing ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
+              )}
+
+              {/* 1-Click CRM Active Clients Ingestion Shortcut */}
+              {isClickUpConnected() && (
+                <button
+                  type="button"
+                  onClick={handleQuickSyncCrmClients}
+                  disabled={syncingCrmClients}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs transition-all shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
+                  title="1-Click Sync & Replace complete client accounts from Growth > CRM > Accounts/Clients into Active Projects"
+                >
+                  <Zap className={`w-3.5 h-3.5 fill-slate-950 ${syncingCrmClients ? 'animate-spin' : ''}`} />
+                  <span>{syncingCrmClients ? 'Syncing CRM Clients…' : '⚡ Sync CRM Accounts'}</span>
+                </button>
               )}
 
               <button
@@ -7948,6 +8285,7 @@ Due Date: ${proj.paymentDueDate}
         onSyncComplete={handleSyncTasksIntoProjects}
         onImportMembers={handleImportClickUpMembers}
         onImportTimeEntries={handleImportClickUpTimeEntries}
+        onImportProjectsFromList={handleImportProjectsFromClickUpList}
       />
 
 
