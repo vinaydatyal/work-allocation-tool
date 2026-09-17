@@ -107,3 +107,65 @@ Vercel automatically listens to pushes on `main` and redeploys the production en
 - Local Git author email is configured via `git config user.email` (set to `datyal.upwork@gmail.com`).
 - Vercel and GitHub resolve the commit author by matching the commit email against registered emails in the GitHub account. All future commits will now automatically link to your GitHub profile and Vercel account.
 
+---
+
+## 7. Extended ClickUp Multi-Feature Integration & Synchronization
+
+The Work Allocation Tool integrates 5 core feature modules connecting directly to ClickUp's v2 REST API via the serverless CORS proxy (`/api/clickup/proxy`):
+
+### 7.1 Time Tracking & Timesheet Sync
+- **Service Caller**: `fetchClickUpTimeEntries(teamId, startDate, endDate)`
+- **Endpoint**: `GET /api/v2/team/{team_id}/time_entries`
+- **Functionality**:
+  - Fetches real-time logged hours over customizable date ranges (defaults to the last 7 days).
+  - Displays a dedicated metric banner (Total Hours Logged, Active Loggers, Total Time Entries).
+  - In `VisualAgencyHub.tsx`, `handleImportClickUpTimeEntries` parses durations (milliseconds to hours) and updates active project hours (`activeHours` & `actualHoursLogged`), instantly synchronizing the DSR Tracker and resource utilization analytics.
+- **Manual Log Creation**: `createClickUpTimeEntry(teamId, { taskId, durationMs, description, startTimestamp })` allows pushing logged hours directly from agency tasks to ClickUp time entries.
+
+### 7.2 Team Member & Assignee Roster Sync
+- **Service Caller**: `fetchClickUpTeamMembers(teamId)`
+- **Endpoint**: `GET /api/v2/team`
+- **Functionality**:
+  - Retrieves all active workspace users, emails, roles (Owner, Admin, Member), profile pictures, and custom color accents.
+  - In `VisualAgencyHub.tsx`, `handleImportClickUpMembers` provides a one-click import into the internal squad roster. Members are mapped into `TeamMember` entities with custom color swatches (`colorSwatch`), initial skills, general competency scoring, and capacity tracking.
+
+### 7.3 Spaces, Folders & Lists Hierarchy Browser
+- **Service Callers**:
+  - `fetchClickUpSpaces(teamId)`: `GET /api/v2/team/{team_id}/space`
+  - `fetchClickUpFolders(spaceId)`: `GET /api/v2/space/{space_id}/folder`
+  - `fetchClickUpLists(folderOrSpaceId, isFolder)`: `GET /api/v2/folder/{folder_id}/list` or `GET /api/v2/space/{space_id}/list`
+  - `fetchClickUpListTasks(listId)`: `GET /api/v2/list/{list_id}/task`
+- **Functionality**:
+  - Interactive multi-level browser allowing users to select Spaces, explore client Folders, and inspect individual Lists.
+  - Displays tasks within any selected list along with assignees, status pills, and due dates.
+
+### 7.4 Bi-Directional Task Creation (Deliverables -> ClickUp)
+- **Service Caller**: `createClickUpTask(listId, taskData)`
+- **Endpoint**: `POST /api/v2/list/{list_id}/task`
+- **Payload Schema**:
+  ```json
+  {
+    "name": "Deliverable Title",
+    "description": "Task brief and requirements",
+    "priority": 1, // 1: Urgent, 2: High, 3: Normal, 4: Low
+    "status": "to do",
+    "tags": ["SEO", "Agency-Hub"],
+    "due_date": 1787126400000 // Epoch milliseconds
+  }
+  ```
+- **Functionality**:
+  - Embedded "Create Task" tab inside `ClickUpOAuthModal.tsx` allows agency managers to push new deliverables or project scopes directly to any selected ClickUp list without leaving the Work Allocation Tool.
+
+### 7.5 Sprint Kanban Status Synchronization
+- **Service Caller**: `updateClickUpTaskStatus(taskId, status)`
+- **Endpoint**: `PUT /api/v2/task/{task_id}`
+- **Payload Schema**:
+  ```json
+  {
+    "status": "in progress"
+  }
+  ```
+- **Functionality**:
+  - In `SprintKanban.tsx`, whenever a task card with prefix `cu-` is moved between Kanban columns (`Backlog`, `Assigned`, `In Progress`, `Review`, `Completed`), `handleStatusTransition` triggers an optimistic status update in the UI and automatically syncs the new status to ClickUp via `updateClickUpTaskStatus`.
+
+

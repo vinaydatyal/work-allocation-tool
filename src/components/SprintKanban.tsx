@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Task, TeamMember, TaskStatus, AppUserProfile } from '../types';
 import { ArrowRight, CheckCircle2, Clock, ShieldCheck } from 'lucide-react';
+import { isClickUpConnected, getClickUpToken, updateClickUpTaskStatus } from '../services/clickupOAuth';
 
 interface SprintKanbanProps {
   tasks: Task[];
@@ -24,6 +25,31 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
 }) => {
   const findAssignee = (userId: string | null) => teamMembers.find((m) => m.id === userId);
   const isSEOManager = currentProfile.roleType === 'ADMIN';
+
+  const handleStatusTransition = async (taskId: string, newStatus: TaskStatus) => {
+    onUpdateTaskStatus(taskId, newStatus);
+
+    if (isClickUpConnected()) {
+      const token = getClickUpToken();
+      if (token && taskId.startsWith('cu-')) {
+        const rawClickUpId = taskId.replace(/^cu-(live-)?/, '').split('-')[0];
+        if (rawClickUpId) {
+          try {
+            const clickUpStatusMap: Record<TaskStatus, string> = {
+              backlog: 'to do',
+              assigned: 'to do',
+              in_progress: 'in progress',
+              review: 'in review',
+              completed: 'complete'
+            };
+            await updateClickUpTaskStatus(token, rawClickUpId, clickUpStatusMap[newStatus]);
+          } catch (err) {
+            console.error('Failed to sync status to ClickUp:', err);
+          }
+        }
+      }
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -111,7 +137,7 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
                               <div className="flex items-center gap-1">
                                 {col.key === 'assigned' && (
                                   <button
-                                    onClick={() => onUpdateTaskStatus(task.id, 'in_progress')}
+                                    onClick={() => handleStatusTransition(task.id, 'in_progress')}
                                     className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer"
                                     title="Start execution"
                                   >
@@ -122,7 +148,7 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
 
                                 {col.key === 'in_progress' && (
                                   <button
-                                    onClick={() => onUpdateTaskStatus(task.id, 'review')}
+                                    onClick={() => handleStatusTransition(task.id, 'review')}
                                     className="px-2 py-1 rounded bg-purple-500/20 hover:bg-purple-500 text-purple-300 hover:text-slate-950 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer"
                                     title="Send for SEO Manager QA"
                                   >
@@ -134,7 +160,7 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
                                 {col.key === 'review' && (
                                   isSEOManager ? (
                                     <button
-                                      onClick={() => onUpdateTaskStatus(task.id, 'completed')}
+                                      onClick={() => handleStatusTransition(task.id, 'completed')}
                                       className="px-2.5 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow-md"
                                       title="SEO Manager Final QA Sign-Off"
                                     >

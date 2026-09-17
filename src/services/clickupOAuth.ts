@@ -156,6 +156,48 @@ export interface ClickUpTask {
   url: string;
 }
 
+export interface ClickUpSpace {
+  id: string;
+  name: string;
+  color?: string;
+  private?: boolean;
+}
+
+export interface ClickUpFolder {
+  id: string;
+  name: string;
+  space?: { id: string; name: string };
+  lists?: ClickUpList[];
+}
+
+export interface ClickUpList {
+  id: string;
+  name: string;
+  task_count?: number;
+  folder?: { id: string; name: string };
+  space?: { id: string; name: string };
+}
+
+export interface ClickUpTeamMember {
+  id: number;
+  username: string;
+  email: string;
+  profilePicture: string | null;
+  role: string;
+  color?: string;
+}
+
+export interface ClickUpTimeEntry {
+  id: string;
+  task?: { id: string; name: string };
+  wid: string;
+  user: { id: number; username: string; email: string };
+  start: number;
+  end: number;
+  duration: number; // milliseconds
+  description?: string;
+}
+
 export async function fetchClickUpUser(token: string): Promise<ClickUpUser> {
   const data = await clickupFetch('/user', token);
   return data.user;
@@ -168,6 +210,165 @@ export async function fetchClickUpWorkspaces(token: string): Promise<ClickUpWork
     name: t.name,
     members: t.members?.length || 0,
   }));
+}
+
+export async function fetchClickUpSpaces(token: string, teamId: string): Promise<ClickUpSpace[]> {
+  const data = await clickupFetch(`/team/${teamId}/space`, token);
+  return (data.spaces || []).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    color: s.color,
+    private: s.private,
+  }));
+}
+
+export async function fetchClickUpFolders(token: string, spaceId: string): Promise<ClickUpFolder[]> {
+  const data = await clickupFetch(`/space/${spaceId}/folder`, token);
+  return (data.folders || []).map((f: any) => ({
+    id: f.id,
+    name: f.name,
+    space: f.space,
+    lists: (f.lists || []).map((l: any) => ({
+      id: l.id,
+      name: l.name,
+      task_count: l.task_count,
+    })),
+  }));
+}
+
+export async function fetchClickUpLists(
+  token: string,
+  parentId: string,
+  isFolder = false
+): Promise<ClickUpList[]> {
+  const endpoint = isFolder ? `/folder/${parentId}/list` : `/space/${parentId}/list`;
+  const data = await clickupFetch(endpoint, token);
+  return (data.lists || []).map((l: any) => ({
+    id: l.id,
+    name: l.name,
+    task_count: l.task_count,
+    folder: l.folder,
+    space: l.space,
+  }));
+}
+
+export async function fetchClickUpListTasks(token: string, listId: string): Promise<ClickUpTask[]> {
+  const data = await clickupFetch(`/list/${listId}/task?subtasks=true`, token);
+  return data.tasks || [];
+}
+
+export async function fetchClickUpTeamMembers(token: string, teamId: string): Promise<ClickUpTeamMember[]> {
+  const data = await clickupFetch('/team', token);
+  const team = (data.teams || []).find((t: any) => String(t.id) === String(teamId)) || data.teams?.[0];
+  if (!team || !team.members) return [];
+  return team.members.map((m: any) => {
+    const u = m.user || {};
+    let roleStr = 'Member';
+    if (m.role === 1) roleStr = 'Owner';
+    else if (m.role === 2) roleStr = 'Admin';
+    else if (m.role === 4) roleStr = 'Guest';
+    return {
+      id: u.id,
+      username: u.username || 'ClickUp User',
+      email: u.email || '',
+      profilePicture: u.profilePicture || null,
+      color: u.color,
+      role: roleStr,
+    };
+  });
+}
+
+export async function fetchClickUpTimeEntries(
+  token: string,
+  teamId: string,
+  startDate?: number,
+  endDate?: number
+): Promise<ClickUpTimeEntry[]> {
+  const params = new URLSearchParams();
+  if (startDate) params.set('start_date', String(startDate));
+  if (endDate) params.set('end_date', String(endDate));
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  const data = await clickupFetch(`/team/${teamId}/time_entries${queryString}`, token);
+  return (data.data || []).map((entry: any) => ({
+    id: entry.id,
+    task: entry.task ? { id: entry.task.id, name: entry.task.name } : undefined,
+    wid: entry.wid,
+    user: entry.user || {},
+    start: Number(entry.start),
+    end: Number(entry.end),
+    duration: Number(entry.duration),
+    description: entry.description,
+  }));
+}
+
+export async function createClickUpTimeEntry(
+  token: string,
+  teamId: string,
+  entry: { task_id?: string; duration: number; start: number; description?: string }
+): Promise<any> {
+  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/team/${teamId}/time_entries`)}`;
+  const res = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(entry),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Failed to log time to ClickUp: ${errText}`);
+  }
+  return res.json();
+}
+
+export async function createClickUpTask(
+  token: string,
+  listId: string,
+  taskData: {
+    name: string;
+    description?: string;
+    assignees?: number[];
+    time_estimate?: number; // in milliseconds
+    due_date?: number; // epoch ms
+    priority?: number; // 1: Urgent, 2: High, 3: Normal, 4: Low
+  }
+): Promise<ClickUpTask> {
+  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/list/${listId}/task`)}`;
+  const res = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(taskData),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Failed to create task in ClickUp: ${errText}`);
+  }
+  return res.json();
+}
+
+export async function updateClickUpTaskStatus(
+  token: string,
+  taskId: string,
+  status: string
+): Promise<any> {
+  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/task/${taskId}`)}`;
+  const res = await fetch(proxyUrl, {
+    method: 'PUT',
+    headers: {
+      Authorization: token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Failed to update ClickUp task status: ${errText}`);
+  }
+  return res.json();
 }
 
 export async function fetchClickUpTasks(
@@ -187,3 +388,4 @@ export async function fetchClickUpTasks(
   const data = await clickupFetch(`/team/${teamId}/task?${params}`, token);
   return data.tasks || [];
 }
+

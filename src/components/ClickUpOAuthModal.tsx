@@ -11,7 +11,14 @@ import {
   ExternalLink, 
   Loader2, 
   RefreshCw, 
-  Key
+  Key,
+  Clock,
+  Layers,
+  PlusCircle,
+  Folder,
+  Send,
+  FolderKanban,
+  UserCheck
 } from 'lucide-react';
 import {
   initiateClickUpOAuth,
@@ -25,20 +32,36 @@ import {
   fetchClickUpUser,
   setClickUpWorkspaceId,
   getClickUpWorkspaceId,
+  fetchClickUpSpaces,
+  fetchClickUpLists,
+  fetchClickUpListTasks,
+  fetchClickUpTeamMembers,
+  fetchClickUpTimeEntries,
+  createClickUpTask,
   type ClickUpWorkspace,
   type ClickUpTask,
+  type ClickUpSpace,
+  type ClickUpList,
+  type ClickUpTeamMember,
+  type ClickUpTimeEntry
 } from '../services/clickupOAuth';
 
 interface ClickUpOAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSyncComplete?: (tasks: ClickUpTask[]) => void;
+  onImportMembers?: (members: ClickUpTeamMember[]) => void;
+  onImportTimeEntries?: (entries: ClickUpTimeEntry[]) => void;
 }
+
+type ActiveFeatureTab = 'overview' | 'hierarchy' | 'time' | 'members' | 'create';
 
 export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({ 
   isOpen, 
   onClose,
-  onSyncComplete 
+  onSyncComplete,
+  onImportMembers,
+  onImportTimeEntries
 }) => {
   const [connected, setConnected]           = useState(isClickUpConnected());
   const [connectedUser, setConnectedUser]   = useState(getClickUpUser());
@@ -53,6 +76,35 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
   const [manualToken, setManualToken]       = useState('');
   const [verifyingToken, setVerifyingToken] = useState(false);
   const [syncToast, setSyncToast]           = useState<string | null>(null);
+  
+  // Feature Tab state
+  const [featureTab, setFeatureTab]         = useState<ActiveFeatureTab>('overview');
+
+  // Hierarchy state
+  const [spaces, setSpaces]                 = useState<ClickUpSpace[]>([]);
+  const [loadingSpaces, setLoadingSpaces]   = useState(false);
+  const [selectedSpace, setSelectedSpace]   = useState<string | null>(null);
+  const [lists, setLists]                   = useState<ClickUpList[]>([]);
+  const [loadingLists, setLoadingLists]     = useState(false);
+  const [selectedList, setSelectedList]     = useState<string | null>(null);
+  const [listTasks, setListTasks]           = useState<ClickUpTask[]>([]);
+  const [loadingListTasks, setLoadingListTasks] = useState(false);
+
+  // Team Members state
+  const [teamMembers, setTeamMembers]       = useState<ClickUpTeamMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  // Time Entries state
+  const [timeEntries, setTimeEntries]       = useState<ClickUpTimeEntry[]>([]);
+  const [loadingTime, setLoadingTime]       = useState(false);
+
+  // Create Task form state
+  const [newTaskName, setNewTaskName]       = useState('');
+  const [newTaskDesc, setNewTaskDesc]       = useState('');
+  const [newTaskHours, setNewTaskHours]     = useState('4');
+  const [newTaskAssignee, setNewTaskAssignee] = useState<number | null>(null);
+  const [newTaskPriority, setNewTaskPriority] = useState('3');
+  const [creatingTask, setCreatingTask]     = useState(false);
 
   // Check if env CLIENT_ID is set
   const clientIdConfigured = !!import.meta.env.VITE_CLICKUP_CLIENT_ID;
@@ -70,12 +122,19 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
     }
   }, [isOpen]);
 
-  // Load tasks when workspace selected
+  // Load tasks & data when workspace changes
   useEffect(() => {
     if (selectedWs && connected) {
       loadTasks(selectedWs);
+      if (featureTab === 'hierarchy') loadSpaces(selectedWs);
+      if (featureTab === 'members') loadMembers(selectedWs);
+      if (featureTab === 'time') loadTimeEntries(selectedWs);
+      if (featureTab === 'create') {
+        loadSpaces(selectedWs);
+        loadMembers(selectedWs);
+      }
     }
-  }, [selectedWs]);
+  }, [selectedWs, featureTab]);
 
   async function loadWorkspaces() {
     const token = getClickUpToken();
@@ -114,9 +173,88 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
     }
   }
 
+  async function loadSpaces(wsId: string) {
+    const token = getClickUpToken();
+    if (!token) return;
+    setLoadingSpaces(true);
+    try {
+      const sp = await fetchClickUpSpaces(token, wsId);
+      setSpaces(sp);
+      if (sp.length > 0 && !selectedSpace) {
+        setSelectedSpace(sp[0].id);
+        loadLists(sp[0].id);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingSpaces(false);
+    }
+  }
+
+  async function loadLists(spaceId: string) {
+    const token = getClickUpToken();
+    if (!token) return;
+    setLoadingLists(true);
+    try {
+      const ls = await fetchClickUpLists(token, spaceId);
+      setLists(ls);
+      if (ls.length > 0) {
+        setSelectedList(ls[0].id);
+        loadListTasks(ls[0].id);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingLists(false);
+    }
+  }
+
+  async function loadListTasks(listId: string) {
+    const token = getClickUpToken();
+    if (!token) return;
+    setLoadingListTasks(true);
+    try {
+      const lt = await fetchClickUpListTasks(token, listId);
+      setListTasks(lt);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingListTasks(false);
+    }
+  }
+
+  async function loadMembers(wsId: string) {
+    const token = getClickUpToken();
+    if (!token) return;
+    setLoadingMembers(true);
+    try {
+      const m = await fetchClickUpTeamMembers(token, wsId);
+      setTeamMembers(m);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMembers(false);
+    }
+  }
+
+  async function loadTimeEntries(wsId: string) {
+    const token = getClickUpToken();
+    if (!token) return;
+    setLoadingTime(true);
+    try {
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const entries = await fetchClickUpTimeEntries(token, wsId, sevenDaysAgo, Date.now());
+      setTimeEntries(entries);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingTime(false);
+    }
+  }
+
   function handleConnectOAuth() {
     if (!clientIdConfigured) {
-      setError('VITE_CLICKUP_CLIENT_ID is not configured yet in Vercel. You can use the "API Token" tab below for instant connection!');
+      setError('VITE_CLICKUP_CLIENT_ID is not configured yet. You can use the "API Token" tab below for instant connection!');
       setConnectTab('token');
       return;
     }
@@ -177,6 +315,56 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
     setTimeout(() => setSyncToast(null), 4000);
   }
 
+  function handleImportMembers() {
+    if (onImportMembers && teamMembers.length > 0) {
+      onImportMembers(teamMembers);
+    }
+    setSyncToast(`Imported ${teamMembers.length} members from ClickUp into your squad roster!`);
+    setTimeout(() => setSyncToast(null), 4000);
+  }
+
+  function handleImportTimeEntries() {
+    if (onImportTimeEntries && timeEntries.length > 0) {
+      onImportTimeEntries(timeEntries);
+    }
+    const totalHours = Math.round(timeEntries.reduce((sum, e) => sum + e.duration, 0) / 3600000);
+    setSyncToast(`Imported ${timeEntries.length} time entries (${totalHours}h) into DSR Tracker!`);
+    setTimeout(() => setSyncToast(null), 4000);
+  }
+
+  async function handleCreateTaskSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newTaskName.trim() || !selectedList) {
+      setError('Please provide a task name and target list.');
+      return;
+    }
+    const token = getClickUpToken();
+    if (!token) return;
+
+    setCreatingTask(true);
+    setError(null);
+    try {
+      const estHours = parseFloat(newTaskHours) || 4;
+      const created = await createClickUpTask(token, selectedList, {
+        name: newTaskName.trim(),
+        description: newTaskDesc.trim() || undefined,
+        assignees: newTaskAssignee ? [newTaskAssignee] : undefined,
+        time_estimate: estHours * 3600000,
+        priority: parseInt(newTaskPriority, 10) || 3
+      });
+
+      setSyncToast(`🚀 Task "${created.name}" pushed to ClickUp successfully!`);
+      setNewTaskName('');
+      setNewTaskDesc('');
+      if (selectedList) loadListTasks(selectedList);
+      if (selectedWs) loadTasks(selectedWs);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create task in ClickUp.');
+    } finally {
+      setCreatingTask(false);
+    }
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -186,7 +374,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm"
+            className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm"
             onClick={onClose}
           />
 
@@ -196,10 +384,10 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 15 }}
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-            className="fixed inset-0 z-[121] flex items-center justify-center p-4 pointer-events-none"
+            className="fixed inset-0 z-[121] flex items-center justify-center p-3 sm:p-4 pointer-events-none"
           >
             <div
-              className="bg-[#0b0f19] border border-slate-700/90 rounded-2xl shadow-2xl w-full max-w-xl pointer-events-auto overflow-hidden flex flex-col max-h-[85vh]"
+              className="bg-[#0b0f19] border border-slate-700/90 rounded-2xl shadow-2xl w-full max-w-3xl pointer-events-auto overflow-hidden flex flex-col max-h-[88vh]"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -213,7 +401,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                     <div>
                       <div className="flex items-center gap-2">
                         <h2 className="text-base font-extrabold text-white tracking-tight">
-                          ClickUp Live Integration & Sync
+                          ClickUp Command &amp; Live Sync Center
                         </h2>
                         {connected && (
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1">
@@ -223,7 +411,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                         )}
                       </div>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        Bi-directional synchronization of Workspaces, Lists, Tasks &amp; Capacity
+                        Hierarchy, Real-Time Time Tracking, Team Mapping &amp; Deliverables Push
                       </p>
                     </div>
                   </div>
@@ -235,6 +423,37 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+
+                {/* Connected Navigation Tabs */}
+                {connected && (
+                  <div className="flex items-center gap-1.5 mt-4 pt-2 border-t border-slate-800/80 overflow-x-auto no-scrollbar">
+                    {[
+                      { id: 'overview', label: 'Overview & Sync', icon: Zap },
+                      { id: 'hierarchy', label: 'Spaces & Lists', icon: Layers },
+                      { id: 'time', label: 'Time Tracking', icon: Clock },
+                      { id: 'members', label: 'Team Members', icon: Users },
+                      { id: 'create', label: 'Create Task', icon: PlusCircle },
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      const isActive = featureTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setFeatureTab(tab.id as ActiveFeatureTab)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                            isActive
+                              ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{tab.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Scrollable Body */}
@@ -302,7 +521,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                           {[
                             { icon: ListTodo, label: 'Sync open tasks & time', color: 'text-purple-400' },
                             { icon: Users,    label: 'Map assignees to team', color: 'text-cyan-400' },
-                            { icon: Zap,      label: 'Zero password sharing', color: 'text-amber-400' },
+                            { icon: Clock,    label: 'Real-time time logs', color: 'text-amber-400' },
                             { icon: RefreshCw,label: 'Auto-refresh token', color: 'text-emerald-400' },
                           ].map(({ icon: Icon, label, color }) => (
                             <div
@@ -397,135 +616,523 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                   </div>
                 )}
 
-                {/* CONNECTED STATE */}
+                {/* CONNECTED STATE: FEATURE TABS */}
                 {connected && (
                   <div className="space-y-4">
-                    {/* User profile banner */}
-                    <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white font-black text-xs flex items-center justify-center">
-                          {connectedUser?.charAt(0).toUpperCase() || 'U'}
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                            <span>Connected Account</span>
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+
+                    {/* SUB-TAB 1: OVERVIEW & GENERAL SYNC */}
+                    {featureTab === 'overview' && (
+                      <div className="space-y-4">
+                        {/* User profile banner */}
+                        <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white font-black text-xs flex items-center justify-center">
+                              {connectedUser?.charAt(0).toUpperCase() || 'U'}
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                                <span>Connected Account</span>
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                              </div>
+                              <div className="text-xs font-medium text-slate-300">{connectedUser || 'ClickUp User'}</div>
+                            </div>
                           </div>
-                          <div className="text-xs font-medium text-slate-300">{connectedUser || 'ClickUp User'}</div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleDisconnect}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-700/80 transition-all cursor-pointer"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        Disconnect
-                      </button>
-                    </div>
-
-                    {/* Workspace Selector */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-                        Select Workspace / Team
-                      </label>
-                      {loadingWs ? (
-                        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-900 border border-slate-800">
-                          <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
-                          <span className="text-xs text-slate-400">Loading ClickUp workspaces…</span>
-                        </div>
-                      ) : workspaces.length === 0 ? (
-                        <div className="px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-400">
-                          No workspaces found. Click refresh to retry.
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {workspaces.map((ws) => (
-                            <button
-                              key={ws.id}
-                              type="button"
-                              onClick={() => handleWorkspaceSelect(ws.id)}
-                              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left text-xs transition-all border cursor-pointer ${
-                                selectedWs === ws.id
-                                  ? 'bg-purple-500/20 border-purple-500/50 text-purple-200 ring-1 ring-purple-500/30'
-                                  : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:border-slate-700'
-                              }`}
-                            >
-                              <span className="font-bold truncate">{ws.name}</span>
-                              <span className="text-[10px] text-slate-500 shrink-0 ml-2">{ws.members} members</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Live Task Preview & Sync Trigger */}
-                    {selectedWs && (
-                      <div className="space-y-2.5 pt-1 border-t border-slate-800/80">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <span>Open Tasks ({tasks.length})</span>
-                          </label>
                           <button
                             type="button"
-                            onClick={() => loadTasks(selectedWs)}
-                            className="flex items-center gap-1 text-[11px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer"
+                            onClick={handleDisconnect}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-700/80 transition-all cursor-pointer"
                           >
-                            <RefreshCw className="w-3 h-3" />
-                            Refresh
+                            <LogOut className="w-3.5 h-3.5" />
+                            Disconnect
                           </button>
                         </div>
 
-                        {loadingTasks ? (
-                          <div className="flex items-center justify-center gap-2 py-6 rounded-xl bg-slate-900/60 border border-slate-800">
-                            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
-                            <span className="text-xs text-slate-400">Fetching workspace tasks…</span>
-                          </div>
-                        ) : tasks.length === 0 ? (
-                          <div className="py-4 text-center text-xs text-slate-500 bg-slate-900/40 rounded-xl border border-slate-800">
-                            No open tasks found in this workspace.
-                          </div>
-                        ) : (
-                          <div className="space-y-1.5 max-h-44 overflow-y-auto no-scrollbar">
-                            {tasks.map((task) => (
-                              <div
-                                key={task.id}
-                                className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-800/90 text-xs"
-                              >
-                                <span
-                                  className="w-2 h-2 rounded-full shrink-0"
-                                  style={{ backgroundColor: task.status?.color || '#64748b' }}
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-semibold text-slate-200 truncate">{task.name}</div>
-                                  <div className="text-[10px] text-slate-500 truncate">
-                                    {task.list?.name} · {task.assignees?.map(a => a.username).join(', ') || 'Unassigned'}
-                                  </div>
-                                </div>
-                                <a
-                                  href={task.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-slate-500 hover:text-purple-400 transition-colors shrink-0"
+                        {/* Workspace Selector */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                            Active Workspace
+                          </label>
+                          {loadingWs ? (
+                            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-900 border border-slate-800">
+                              <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                              <span className="text-xs text-slate-400">Loading workspaces…</span>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {workspaces.map((ws) => (
+                                <button
+                                  key={ws.id}
+                                  type="button"
+                                  onClick={() => handleWorkspaceSelect(ws.id)}
+                                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left text-xs transition-all border cursor-pointer ${
+                                    selectedWs === ws.id
+                                      ? 'bg-purple-500/20 border-purple-500/50 text-purple-200 ring-1 ring-purple-500/30'
+                                      : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:border-slate-700'
+                                  }`}
                                 >
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
+                                  <span className="font-bold truncate">{ws.name}</span>
+                                  <span className="text-[10px] text-slate-500 shrink-0 ml-2">{ws.members} members</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Open Tasks List Preview */}
+                        {selectedWs && (
+                          <div className="space-y-2.5 pt-2 border-t border-slate-800/80">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                Workspace Tasks ({tasks.length})
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => loadTasks(selectedWs)}
+                                className="flex items-center gap-1 text-[11px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                Refresh
+                              </button>
+                            </div>
+
+                            {loadingTasks ? (
+                              <div className="flex items-center justify-center gap-2 py-6 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                                <span className="text-xs text-slate-400">Fetching workspace tasks…</span>
                               </div>
+                            ) : tasks.length === 0 ? (
+                              <div className="py-4 text-center text-xs text-slate-500 bg-slate-900/40 rounded-xl border border-slate-800">
+                                No open tasks found in this workspace.
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5 max-h-44 overflow-y-auto no-scrollbar">
+                                {tasks.map((task) => (
+                                  <div
+                                    key={task.id}
+                                    className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-800/90 text-xs"
+                                  >
+                                    <span
+                                      className="w-2 h-2 rounded-full shrink-0"
+                                      style={{ backgroundColor: task.status?.color || '#64748b' }}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-semibold text-slate-200 truncate">{task.name}</div>
+                                      <div className="text-[10px] text-slate-500 truncate">
+                                        {task.list?.name} · {task.assignees?.map((a) => a.username).join(', ') || 'Unassigned'}
+                                      </div>
+                                    </div>
+                                    <a
+                                      href={task.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-slate-500 hover:text-purple-400 transition-colors shrink-0"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={handleTriggerSync}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-emerald-600/25 cursor-pointer mt-2"
+                            >
+                              <Zap className="w-4 h-4" />
+                              <span>⚡ Sync Live ClickUp Tasks with Board</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* SUB-TAB 2: SPACES & LISTS HIERARCHY */}
+                    {featureTab === 'hierarchy' && (
+                      <div className="space-y-4">
+                        <div className="text-xs text-slate-400 flex items-center justify-between">
+                          <span>Browse ClickUp Spaces &amp; Lists to inspect specific deliverable lists:</span>
+                          {selectedWs && (
+                            <button
+                              type="button"
+                              onClick={() => loadSpaces(selectedWs)}
+                              className="text-purple-400 hover:text-purple-300 flex items-center gap-1 font-semibold cursor-pointer"
+                            >
+                              <RefreshCw className="w-3 h-3" /> Refresh
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Spaces Horizontal Picker */}
+                        {loadingSpaces ? (
+                          <div className="py-4 text-center text-xs text-slate-500">Loading ClickUp Spaces…</div>
+                        ) : (
+                          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+                            {spaces.map((sp) => (
+                              <button
+                                key={sp.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedSpace(sp.id);
+                                  loadLists(sp.id);
+                                }}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border ${
+                                  selectedSpace === sp.id
+                                    ? 'bg-purple-600/30 border-purple-500 text-purple-200'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                <FolderKanban className="w-3.5 h-3.5 text-purple-400" />
+                                <span>{sp.name}</span>
+                              </button>
                             ))}
                           </div>
                         )}
 
-                        {/* Action: Run Sync */}
-                        <button
-                          type="button"
-                          onClick={handleTriggerSync}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-emerald-600/25 cursor-pointer mt-2"
-                        >
-                          <Zap className="w-4 h-4" />
-                          <span>⚡ Sync Live ClickUp Tasks with Board</span>
-                        </button>
+                        {/* Lists in selected space */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {loadingLists ? (
+                            <div className="col-span-2 py-4 text-center text-xs text-slate-500">Loading lists…</div>
+                          ) : lists.length === 0 ? (
+                            <div className="col-span-2 py-4 text-center text-xs text-slate-500 bg-slate-900/40 rounded-xl">
+                              No lists found in this space.
+                            </div>
+                          ) : (
+                            lists.map((ls) => (
+                              <button
+                                key={ls.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedList(ls.id);
+                                  loadListTasks(ls.id);
+                                }}
+                                className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs border text-left cursor-pointer transition-all ${
+                                  selectedList === ls.id
+                                    ? 'bg-purple-500/20 border-purple-500/50 text-purple-200 ring-1 ring-purple-500/30'
+                                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Folder className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                                  <span className="font-semibold truncate">{ls.name}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-500 shrink-0 ml-2">
+                                  {ls.task_count ?? 0} tasks
+                                </span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Tasks in selected list */}
+                        {selectedList && (
+                          <div className="space-y-2 pt-2 border-t border-slate-800">
+                            <div className="text-xs font-bold text-slate-400">
+                              Tasks in Selected List ({listTasks.length})
+                            </div>
+                            {loadingListTasks ? (
+                              <div className="py-4 text-center text-xs text-slate-500">Loading tasks in list…</div>
+                            ) : listTasks.length === 0 ? (
+                              <div className="py-3 text-center text-xs text-slate-500 bg-slate-900/30 rounded-lg">
+                                No tasks in this list.
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5 max-h-40 overflow-y-auto no-scrollbar">
+                                {listTasks.map((t) => (
+                                  <div
+                                    key={t.id}
+                                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800 text-xs"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span
+                                        className="w-2 h-2 rounded-full shrink-0"
+                                        style={{ backgroundColor: t.status?.color || '#64748b' }}
+                                      />
+                                      <span className="font-medium text-slate-200 truncate">{t.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 shrink-0 ml-2">
+                                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                                        {t.status?.status || 'Open'}
+                                      </span>
+                                      <a
+                                        href={t.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-slate-500 hover:text-purple-400"
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
+
+                    {/* SUB-TAB 3: TIME TRACKING LOGS */}
+                    {featureTab === 'time' && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>Live time entries logged in ClickUp (Last 7 Days):</span>
+                          {selectedWs && (
+                            <button
+                              type="button"
+                              onClick={() => loadTimeEntries(selectedWs)}
+                              className="text-purple-400 hover:text-purple-300 flex items-center gap-1 font-semibold cursor-pointer"
+                            >
+                              <RefreshCw className="w-3 h-3" /> Refresh Time
+                            </button>
+                          )}
+                        </div>
+
+                        {loadingTime ? (
+                          <div className="py-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                            <span>Pulling time entries from ClickUp…</span>
+                          </div>
+                        ) : timeEntries.length === 0 ? (
+                          <div className="py-6 text-center text-xs text-slate-500 bg-slate-900/40 rounded-xl border border-slate-800">
+                            No time entries found in the last 7 days.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                                <span className="text-slate-500 block text-[10px]">Total Logged</span>
+                                <span className="text-lg font-black text-emerald-400">
+                                  {(timeEntries.reduce((s, e) => s + e.duration, 0) / 3600000).toFixed(1)}h
+                                </span>
+                              </div>
+                              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                                <span className="text-slate-500 block text-[10px]">Entries Count</span>
+                                <span className="text-lg font-black text-cyan-400">{timeEntries.length}</span>
+                              </div>
+                              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                                <span className="text-slate-500 block text-[10px]">Active Trackers</span>
+                                <span className="text-lg font-black text-purple-400">
+                                  {new Set(timeEntries.map((e) => e.user.id)).size}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pt-1">
+                              {timeEntries.map((te) => (
+                                <div
+                                  key={te.id}
+                                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-slate-200 truncate">
+                                      {te.task?.name || te.description || 'General Task'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500">
+                                      Logged by <strong className="text-slate-400">{te.user.username}</strong>
+                                    </div>
+                                  </div>
+                                  <div className="text-right shrink-0 ml-3">
+                                    <span className="font-mono font-black text-emerald-400">
+                                      {(te.duration / 3600000).toFixed(2)} hrs
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleImportTimeEntries}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-amber-600/25 cursor-pointer mt-2"
+                            >
+                              <Clock className="w-4 h-4" />
+                              <span>⚡ Sync ClickUp Time Logs to DSR &amp; Workload</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* SUB-TAB 4: TEAM MEMBERS IMPORT */}
+                    {featureTab === 'members' && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>Workspace members from ClickUp ({teamMembers.length}):</span>
+                          {selectedWs && (
+                            <button
+                              type="button"
+                              onClick={() => loadMembers(selectedWs)}
+                              className="text-purple-400 hover:text-purple-300 flex items-center gap-1 font-semibold cursor-pointer"
+                            >
+                              <RefreshCw className="w-3 h-3" /> Refresh Members
+                            </button>
+                          )}
+                        </div>
+
+                        {loadingMembers ? (
+                          <div className="py-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                            <span>Loading workspace team…</span>
+                          </div>
+                        ) : teamMembers.length === 0 ? (
+                          <div className="py-6 text-center text-xs text-slate-500 bg-slate-900/40 rounded-xl border border-slate-800">
+                            No team members found.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="space-y-1.5 max-h-52 overflow-y-auto no-scrollbar">
+                              {teamMembers.map((m) => (
+                                <div
+                                  key={m.id}
+                                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    {m.profilePicture ? (
+                                      <img
+                                        src={m.profilePicture}
+                                        alt={m.username}
+                                        className="w-7 h-7 rounded-lg object-cover ring-1 ring-slate-700 shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 text-white font-bold flex items-center justify-center shrink-0">
+                                        {m.username.charAt(0).toUpperCase()}
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <div className="font-bold text-slate-200 truncate">{m.username}</div>
+                                      <div className="text-[10px] text-slate-500 truncate">{m.email}</div>
+                                    </div>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-purple-300 border border-slate-700 shrink-0">
+                                    {m.role}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleImportMembers}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-cyan-600/25 cursor-pointer mt-2"
+                            >
+                              <UserCheck className="w-4 h-4" />
+                              <span>⚡ Import All ClickUp Members to Squad Roster</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* SUB-TAB 5: CREATE / PUSH TASK TO CLICKUP */}
+                    {featureTab === 'create' && (
+                      <form onSubmit={handleCreateTaskSubmit} className="space-y-3.5 text-xs">
+                        <div className="text-xs text-slate-400">
+                          Create and push a deliverable task directly into your ClickUp List:
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-300">Deliverable Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={newTaskName}
+                            onChange={(e) => setNewTaskName(e.target.value)}
+                            placeholder="e.g. Technical SEO Audit & Core Web Vitals"
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="font-bold text-slate-300">Target List *</label>
+                            <select
+                              required
+                              value={selectedList || ''}
+                              onChange={(e) => setSelectedList(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                            >
+                              <option value="" disabled>Select Target List</option>
+                              {lists.map((l) => (
+                                <option key={l.id} value={l.id}>
+                                  {l.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="font-bold text-slate-300">Estimated Hours</label>
+                            <input
+                              type="number"
+                              min="0.5"
+                              max="160"
+                              step="0.5"
+                              value={newTaskHours}
+                              onChange={(e) => setNewTaskHours(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-purple-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="font-bold text-slate-300">Assignee</label>
+                            <select
+                              value={newTaskAssignee || ''}
+                              onChange={(e) => setNewTaskAssignee(e.target.value ? parseInt(e.target.value, 10) : null)}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                            >
+                              <option value="">Unassigned</option>
+                              {teamMembers.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.username} ({m.role})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="font-bold text-slate-300">Priority</label>
+                            <select
+                              value={newTaskPriority}
+                              onChange={(e) => setNewTaskPriority(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                            >
+                              <option value="1">🔴 Urgent (Priority 1)</option>
+                              <option value="2">🟡 High (Priority 2)</option>
+                              <option value="3">🔵 Normal (Priority 3)</option>
+                              <option value="4">⚪ Low (Priority 4)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-300">Task Notes / Description</label>
+                          <textarea
+                            rows={2}
+                            value={newTaskDesc}
+                            onChange={(e) => setNewTaskDesc(e.target.value)}
+                            placeholder="Deliverable specifications, client brief notes..."
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={creatingTask || !newTaskName.trim() || !selectedList}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-purple-600/30 disabled:opacity-50 cursor-pointer mt-1"
+                        >
+                          {creatingTask ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Send className="w-4 h-4" />
+                          )}
+                          {creatingTask ? 'Pushing to ClickUp…' : '🚀 Push Task to ClickUp'}
+                        </button>
+                      </form>
+                    )}
+
                   </div>
                 )}
               </div>
@@ -533,7 +1140,7 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
               {/* Modal Footer */}
               <div className="px-6 py-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between shrink-0">
                 <span className="text-[11px] text-slate-500">
-                  {connected ? '● ClickUp Connected' : 'OAuth 2.0 & Personal API Token supported'}
+                  {connected ? `Active: ${connectedUser}` : 'OAuth 2.0 & Personal API Token supported'}
                 </span>
                 <button
                   type="button"
