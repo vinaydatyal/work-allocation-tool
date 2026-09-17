@@ -291,6 +291,21 @@ Agencies frequently maintain their complete client roster inside a specific Clic
    - **Assignee Resolution**: Automatically matches ClickUp task assignees against `customMembers` via `clickUpUserId`, `clickUpEmail`, or username, allocating Lead and Client Call Assignees.
    - **Deliverables**: Auto-creates 3 default deliverables (Technical SEO, On-Page SEO, Client Communications) equipped with ClickUp deep links (`clickUpTaskId`, `clickUpUrl`, `clickUpStatus`).
 
-4. **1-Click Executive Command Bar Shortcut**:
+4. **Interactive Import Scope Selection (Tasks vs. Subtasks vs. Both)**:
+   - **Service Layer (`src/services/clickupOAuth.ts`)**:
+     - `ClickUpTask` model updated with `parent?: string | null`.
+     - `fetchClickUpListTasks`: Accepts `subtaskFilter: 'tasks' | 'subtasks' | 'both'`. When querying ClickUp API, `subtasks=true` fetches both, and client filtering differentiates root accounts (`!t.parent`) from nested subtasks (`!!t.parent`).
+   - **Hierarchy Task Preview Filter Tabs (`ClickUpOAuthModal.tsx`)**:
+     - Live counter tabs for `All ({N})`, `📌 Tasks Only ({N})`, and `↳ Subtasks Only ({N})`.
+     - Visual badge `↳ Subtask` attached to subtask line items.
+   - **Confirmation Scope Dialog (`ClickUpOAuthModal.tsx` & `VisualAgencyHub.tsx`)**:
+     - Triggered on clicking "⚡ Replace Active Projects" or "➕ Add to Projects", or using the executive "⚡ Sync CRM Accounts" shortcut.
+     - Prompts the user with three interactive visual cards:
+       1. **📌 Tasks Only (Parent Accounts)**: Imports only top-level client accounts, skipping subtasks (ideal for client retainers).
+       2. **↳ Subtasks Only**: Imports nested subtasks as individual project items.
+       3. **⚡ Both Tasks & Subtasks**: Imports all parent tasks and all nested subtasks.
+     - Includes dynamic count calculation and selection of "Replace" vs. "Append" modes before execution.
+
+5. **1-Click Executive Command Bar Shortcut**:
    - Located directly in the top executive action bar beside `Live Sync`:
-     - **`⚡ Sync CRM Accounts`**: Automatically scans ClickUp spaces for `Growth > CRM > Accounts/Clients`, fetches all 60 accounts, prompts the manager, and executes instant roster synchronization and replacement without manual navigation.
+     - **`⚡ Sync CRM Accounts`**: Automatically scans ClickUp spaces for `Growth > CRM > Accounts/Clients`, fetches tasks, triggers the Scope Selection Dialog, and executes instant roster synchronization and replacement according to the manager's chosen scope.

@@ -159,6 +159,7 @@ export interface ClickUpTask {
   custom_fields?: Array<{ id: string; name: string; value: any; type?: string }>;
   description?: string;
   text_content?: string;
+  parent?: string | null;
 }
 
 export interface ClickUpSpace {
@@ -277,9 +278,38 @@ export async function fetchClickUpLists(
   }));
 }
 
-export async function fetchClickUpListTasks(token: string, listId: string): Promise<ClickUpTask[]> {
+export type ClickUpSubtaskFilter = 'tasks' | 'subtasks' | 'both';
+
+export async function fetchClickUpListTasks(
+  token: string, 
+  listId: string, 
+  subtaskFilter: ClickUpSubtaskFilter = 'both'
+): Promise<ClickUpTask[]> {
   const data = await clickupFetch(`/list/${listId}/task?subtasks=true&include_closed=true`, token);
-  return data.tasks || [];
+  const tasks: ClickUpTask[] = (data.tasks || []).map((t: any) => ({
+    id: t.id,
+    name: t.name,
+    status: t.status,
+    priority: t.priority,
+    assignees: t.assignees,
+    due_date: t.due_date,
+    start_date: t.start_date,
+    time_estimate: t.time_estimate,
+    list: t.list,
+    url: t.url,
+    custom_fields: t.custom_fields,
+    description: t.description,
+    text_content: t.text_content,
+    parent: t.parent || null
+  }));
+
+  if (subtaskFilter === 'tasks') {
+    return tasks.filter((t) => !t.parent);
+  }
+  if (subtaskFilter === 'subtasks') {
+    return tasks.filter((t) => !!t.parent);
+  }
+  return tasks;
 }
 
 export async function fetchClickUpTeamMembers(token: string, teamId: string): Promise<ClickUpTeamMember[]> {

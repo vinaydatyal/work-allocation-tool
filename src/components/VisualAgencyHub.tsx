@@ -844,6 +844,13 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
 
   // ClickUp CRM Active Clients Ingestion & Roster Replacement
   const [syncingCrmClients, setSyncingCrmClients] = useState(false);
+  const [crmImportScopeModal, setCrmImportScopeModal] = useState<{
+    isOpen: boolean;
+    list: { id: string; name: string };
+    tasks: ClickUpTask[];
+    selectedScope: 'tasks' | 'subtasks' | 'both';
+    replace: boolean;
+  } | null>(null);
 
   const handleImportProjectsFromClickUpList = (
     list: { id: string; name: string; folderName?: string; spaceName?: string },
@@ -1144,15 +1151,14 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         return;
       }
 
-      const confirmed = window.confirm(
-        `⚡ SYNC & REPLACE ACTIVE PROJECTS?\n\nFound ${clientTasks.length} client accounts in "${targetList.name}".\n\nClick OK to REPLACE your active projects with these ${clientTasks.length} clients.\n(Or Cancel to keep your current projects and inspect them in the modal).`
-      );
-
-      if (confirmed) {
-        handleImportProjectsFromClickUpList(targetList, clientTasks, true);
-      } else {
-        setShowClickUpModal(true);
-      }
+      // Open Scope Selection Modal asking user for tasks, subtasks, or both
+      setCrmImportScopeModal({
+        isOpen: true,
+        list: targetList,
+        tasks: clientTasks,
+        selectedScope: 'tasks',
+        replace: true
+      });
     } catch (err: any) {
       console.error('Error during quick CRM sync:', err);
       sonnerToast.dismiss('crm-scan');
@@ -8287,6 +8293,225 @@ Due Date: ${proj.paymentDueDate}
         onImportTimeEntries={handleImportClickUpTimeEntries}
         onImportProjectsFromList={handleImportProjectsFromClickUpList}
       />
+
+      {/* MODAL 7.5: ClickUp CRM Ingestion Scope Modal (Tasks vs Subtasks vs Both) */}
+      {crmImportScopeModal?.isOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-[#0e1628] border border-emerald-500/50 p-6 shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300">
+                  <Zap className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
+                    ⚡ ClickUp CRM Ingestion Scope
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Source: <strong className="text-emerald-300">{crmImportScopeModal.list.name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCrmImportScopeModal(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-200 uppercase tracking-wider block" style={{ color: '#f1f5f9' }}>
+                What would you like to import?
+              </span>
+              <p className="text-[11px] text-slate-300" style={{ color: '#cbd5e1' }}>
+                Choose whether to import parent client tasks, subtasks, or both:
+              </p>
+            </div>
+
+            {/* Scope Radio Cards */}
+            <div className="space-y-2">
+              {/* Option 1: Tasks Only (Parent Tasks) */}
+              <div
+                onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'tasks' } : null)}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                  crmImportScopeModal.selectedScope === 'tasks'
+                    ? 'bg-emerald-900/30 border-emerald-500 ring-1 ring-emerald-500/40 shadow-sm'
+                    : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="crm_scope_selection"
+                  checked={crmImportScopeModal.selectedScope === 'tasks'}
+                  onChange={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'tasks' } : null)}
+                  className="mt-1 accent-emerald-500 cursor-pointer"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                      📌 Tasks Only (Parent Accounts)
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      {crmImportScopeModal.tasks.filter(t => !t.parent).length} tasks
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Recommended for client rosters. Imports top-level client accounts only, ignoring nested subtasks.
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 2: Subtasks Only */}
+              <div
+                onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'subtasks' } : null)}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                  crmImportScopeModal.selectedScope === 'subtasks'
+                    ? 'bg-cyan-900/30 border-cyan-500 ring-1 ring-cyan-500/40 shadow-sm'
+                    : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="crm_scope_selection"
+                  checked={crmImportScopeModal.selectedScope === 'subtasks'}
+                  onChange={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'subtasks' } : null)}
+                  className="mt-1 accent-cyan-500 cursor-pointer"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                      ↳ Subtasks Only
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      {crmImportScopeModal.tasks.filter(t => !!t.parent).length} subtasks
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Imports nested subtasks as individual project items. Parent accounts are skipped.
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 3: Both Tasks & Subtasks */}
+              <div
+                onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'both' } : null)}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                  crmImportScopeModal.selectedScope === 'both'
+                    ? 'bg-purple-900/30 border-purple-500 ring-1 ring-purple-500/40 shadow-sm'
+                    : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="crm_scope_selection"
+                  checked={crmImportScopeModal.selectedScope === 'both'}
+                  onChange={() => setCrmImportScopeModal(prev => prev ? { ...prev, selectedScope: 'both' } : null)}
+                  className="mt-1 accent-purple-500 cursor-pointer"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                      ⚡ Both Tasks &amp; Subtasks
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      {crmImportScopeModal.tasks.length} total
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Imports all root client tasks AND all nested subtasks into active projects.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Mode Toggle: Replace vs Append */}
+            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold text-white block">Roster Action:</span>
+                <span className="text-[11px] text-slate-400">
+                  {crmImportScopeModal.replace ? 'Replace entire Active Projects list' : 'Append to existing Active Projects'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, replace: true } : null)}
+                  className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
+                    crmImportScopeModal.replace
+                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Replace
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCrmImportScopeModal(prev => prev ? { ...prev, replace: false } : null)}
+                  className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
+                    !crmImportScopeModal.replace
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Append
+                </button>
+              </div>
+            </div>
+
+            {/* Dialog Footer Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setCrmImportScopeModal(null)}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const scope = crmImportScopeModal.selectedScope;
+                  const finalTasks = scope === 'tasks'
+                    ? crmImportScopeModal.tasks.filter(t => !t.parent)
+                    : scope === 'subtasks'
+                    ? crmImportScopeModal.tasks.filter(t => !!t.parent)
+                    : crmImportScopeModal.tasks;
+
+                  if (finalTasks.length === 0) {
+                    alert(`No items match "${scope}" in this list.`);
+                    return;
+                  }
+
+                  handleImportProjectsFromClickUpList(
+                    crmImportScopeModal.list,
+                    finalTasks,
+                    crmImportScopeModal.replace
+                  );
+                  setCrmImportScopeModal(null);
+                }}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all shadow-md cursor-pointer ${
+                  crmImportScopeModal.replace
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-500/20'
+                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>
+                  {crmImportScopeModal.replace ? '⚡ Replace with ' : '➕ Add '}
+                  ({crmImportScopeModal.selectedScope === 'tasks'
+                    ? crmImportScopeModal.tasks.filter(t => !t.parent).length
+                    : crmImportScopeModal.selectedScope === 'subtasks'
+                    ? crmImportScopeModal.tasks.filter(t => !!t.parent).length
+                    : crmImportScopeModal.tasks.length}
+                  ) Items
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {/* MODAL 8: Quarterly Employee Skill Calibration & Interactive Testing Suite */}

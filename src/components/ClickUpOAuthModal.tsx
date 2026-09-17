@@ -107,6 +107,12 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
   const [selectedListName, setSelectedListName] = useState<string>('');
   const [listTasks, setListTasks]           = useState<ClickUpTask[]>([]);
   const [loadingListTasks, setLoadingListTasks] = useState(false);
+  const [listSubtaskFilter, setListSubtaskFilter] = useState<'all' | 'tasks' | 'subtasks'>('all');
+  const [importScopeDialog, setImportScopeDialog] = useState<{
+    isOpen: boolean;
+    replace: boolean;
+    scope: 'tasks' | 'subtasks' | 'both';
+  } | null>(null);
 
   // Team Members state
   const [teamMembers, setTeamMembers]       = useState<ClickUpTeamMember[]>([]);
@@ -1191,27 +1197,21 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                     </span>
                                   </div>
                                   <p className="text-[11px] text-slate-300" style={{ color: '#cbd5e1' }}>
-                                    Import and map all {listTasks.length} ClickUp clients directly into your main Active Projects list.
+                                    Import and map ClickUp clients directly into Active Projects. Choose tasks, subtasks, or both.
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0 flex-wrap">
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const confirmed = window.confirm(
-                                        `⚠️ REPLACE ACTIVE PROJECTS?\n\nAre you sure you want to REPLACE your current Active Projects list with the ${listTasks.length} clients from "${selectedListName}"?\n\nEach ClickUp account will become an Active Project with status, assignees, and ClickUp deep links.`
-                                      );
-                                      if (confirmed) {
-                                        onImportProjectsFromList(
-                                          { id: selectedList, name: selectedListName || 'Accounts/Clients' },
-                                          listTasks,
-                                          true
-                                        );
-                                        onClose();
-                                      }
+                                      setImportScopeDialog({
+                                        isOpen: true,
+                                        replace: true,
+                                        scope: 'tasks'
+                                      });
                                     }}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
-                                    title="Replace active projects with these clients"
+                                    title="Choose tasks, subtasks, or both to replace active projects"
                                   >
                                     <Zap className="w-3.5 h-3.5 fill-slate-950" />
                                     <span>⚡ Replace Active Projects ({listTasks.length})</span>
@@ -1220,15 +1220,14 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      onImportProjectsFromList(
-                                        { id: selectedList, name: selectedListName || 'Accounts/Clients' },
-                                        listTasks,
-                                        false
-                                      );
-                                      onClose();
+                                      setImportScopeDialog({
+                                        isOpen: true,
+                                        replace: false,
+                                        scope: 'tasks'
+                                      });
                                     }}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-all border border-slate-600 cursor-pointer"
-                                    title="Append these clients to existing active projects without removing existing ones"
+                                    title="Choose tasks, subtasks, or both to append to active projects"
                                     style={{ color: '#ffffff' }}
                                   >
                                     <PlusCircle className="w-3.5 h-3.5 text-cyan-400" />
@@ -1237,6 +1236,60 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                 </div>
                               </div>
                             )}
+
+                            {/* Subtask / Task Preview Filter Tabs */}
+                            {!loadingListTasks && listTasks.length > 0 && (
+                              <div className="flex items-center justify-between gap-2 pt-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mr-1">
+                                    Display:
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setListSubtaskFilter('all')}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                      listSubtaskFilter === 'all'
+                                        ? 'bg-purple-600 text-white shadow-sm'
+                                        : 'bg-slate-800/80 text-slate-300 hover:text-white'
+                                    }`}
+                                  >
+                                    All ({listTasks.length})
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setListSubtaskFilter('tasks')}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                      listSubtaskFilter === 'tasks'
+                                        ? 'bg-purple-600 text-white shadow-sm'
+                                        : 'bg-slate-800/80 text-slate-300 hover:text-white'
+                                    }`}
+                                  >
+                                    📌 Tasks Only ({listTasks.filter(t => !t.parent).length})
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setListSubtaskFilter('subtasks')}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                      listSubtaskFilter === 'subtasks'
+                                        ? 'bg-purple-600 text-white shadow-sm'
+                                        : 'bg-slate-800/80 text-slate-300 hover:text-white'
+                                    }`}
+                                  >
+                                    ↳ Subtasks Only ({listTasks.filter(t => !!t.parent).length})
+                                  </button>
+                                </div>
+                                <span className="text-[11px] text-slate-400">
+                                  Showing {
+                                    listSubtaskFilter === 'tasks' 
+                                      ? listTasks.filter(t => !t.parent).length 
+                                      : listSubtaskFilter === 'subtasks' 
+                                      ? listTasks.filter(t => !!t.parent).length 
+                                      : listTasks.length
+                                  } tasks
+                                </span>
+                              </div>
+                            )}
+
                             {loadingListTasks ? (
                               <div className="py-6 text-center text-xs text-slate-400" style={{ color: '#94a3b8' }}>Loading tasks in list…</div>
                             ) : listTasks.length === 0 ? (
@@ -1245,7 +1298,13 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                               </div>
                             ) : (
                               <div className="space-y-2 clickup-list-scroll">
-                                {listTasks.map((t) => (
+                                {listTasks
+                                  .filter(t => {
+                                    if (listSubtaskFilter === 'tasks') return !t.parent;
+                                    if (listSubtaskFilter === 'subtasks') return !!t.parent;
+                                    return true;
+                                  })
+                                  .map((t) => (
                                   <div
                                     key={t.id}
                                     onClick={() => window.open(t.url, '_blank')}
@@ -1258,6 +1317,11 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                         title={t.status?.status || 'Open'}
                                       />
                                       <span className="font-semibold text-white group-hover:text-purple-300 transition-colors truncate text-xs" style={{ color: '#ffffff' }}>{t.name}</span>
+                                      {t.parent && (
+                                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shrink-0">
+                                          ↳ Subtask
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="flex items-center gap-2.5 shrink-0 ml-2">
                                       <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-200 border border-slate-700 font-medium" style={{ color: '#f1f5f9' }}>
@@ -1747,6 +1811,205 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
               </div>
             </motion.div>
           </div>
+
+          {/* IMPORT SCOPE CONFIRMATION DIALOG (Tasks vs Subtasks vs Both) */}
+          {importScopeDialog && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+              <div className="w-full max-w-md rounded-2xl bg-[#0e1628] border border-purple-500/50 p-6 shadow-2xl space-y-4 text-left">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-cyan-500/20 border border-purple-500/40 flex items-center justify-center text-purple-300">
+                      <Zap className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-white" style={{ color: '#ffffff' }}>
+                        {importScopeDialog.replace ? '⚡ Replace Active Projects' : '➕ Add to Active Projects'}
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Target: <strong className="text-purple-300">{selectedListName || 'Selected List'}</strong>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setImportScopeDialog(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider block" style={{ color: '#f1f5f9' }}>
+                    What would you like to import?
+                  </span>
+                  <p className="text-[11px] text-slate-300" style={{ color: '#cbd5e1' }}>
+                    Choose whether to import parent tasks, subtasks, or both from this list:
+                  </p>
+                </div>
+
+                {/* Scope Radio Cards */}
+                <div className="space-y-2">
+                  {/* 1. Tasks Only (Parent Tasks) */}
+                  <div
+                    onClick={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'tasks' } : null)}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                      importScopeDialog.scope === 'tasks'
+                        ? 'bg-purple-900/30 border-purple-500 ring-1 ring-purple-500/40 shadow-sm'
+                        : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="scope_selection"
+                      checked={importScopeDialog.scope === 'tasks'}
+                      onChange={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'tasks' } : null)}
+                      className="mt-1 accent-purple-500 cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                          📌 Tasks Only (Parent Accounts)
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          {listTasks.filter(t => !t.parent).length} tasks
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Recommended for client rosters &amp; retainers. Imports top-level client accounts only, ignoring nested subtasks.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 2. Subtasks Only */}
+                  <div
+                    onClick={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'subtasks' } : null)}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                      importScopeDialog.scope === 'subtasks'
+                        ? 'bg-cyan-900/30 border-cyan-500 ring-1 ring-cyan-500/40 shadow-sm'
+                        : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="scope_selection"
+                      checked={importScopeDialog.scope === 'subtasks'}
+                      onChange={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'subtasks' } : null)}
+                      className="mt-1 accent-cyan-500 cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                          ↳ Subtasks Only
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                          {listTasks.filter(t => !!t.parent).length} subtasks
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Imports nested subtasks as individual project items. Parent accounts are skipped.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 3. Both Tasks & Subtasks */}
+                  <div
+                    onClick={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'both' } : null)}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                      importScopeDialog.scope === 'both'
+                        ? 'bg-emerald-900/30 border-emerald-500 ring-1 ring-emerald-500/40 shadow-sm'
+                        : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="scope_selection"
+                      checked={importScopeDialog.scope === 'both'}
+                      onChange={() => setImportScopeDialog(prev => prev ? { ...prev, scope: 'both' } : null)}
+                      className="mt-1 accent-emerald-500 cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-white" style={{ color: '#ffffff' }}>
+                          ⚡ Both Tasks &amp; Subtasks
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          {listTasks.length} total
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Imports all root client tasks AND all nested subtasks into active projects.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Warning note for Replace */}
+                {importScopeDialog.replace && (
+                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200">
+                    ⚠️ <strong>Replace Roster Notice:</strong> Your current Active Projects list will be replaced with the {
+                      importScopeDialog.scope === 'tasks'
+                        ? listTasks.filter(t => !t.parent).length
+                        : importScopeDialog.scope === 'subtasks'
+                        ? listTasks.filter(t => !!t.parent).length
+                        : listTasks.length
+                    } selected items.
+                  </div>
+                )}
+
+                {/* Buttons */}
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setImportScopeDialog(null)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const scope = importScopeDialog.scope;
+                      const finalTasks = scope === 'tasks'
+                        ? listTasks.filter(t => !t.parent)
+                        : scope === 'subtasks'
+                        ? listTasks.filter(t => !!t.parent)
+                        : listTasks;
+
+                      if (finalTasks.length === 0) {
+                        alert(`No items match "${scope}" in this list.`);
+                        return;
+                      }
+
+                      onImportProjectsFromList?.(
+                        { id: selectedList!, name: selectedListName || 'Accounts/Clients' },
+                        finalTasks,
+                        importScopeDialog.replace
+                      );
+                      setImportScopeDialog(null);
+                      onClose();
+                    }}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all shadow-md cursor-pointer ${
+                      importScopeDialog.replace
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-500/20'
+                        : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30'
+                    }`}
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>
+                      {importScopeDialog.replace ? '⚡ Replace Active Projects (' : '➕ Add to Projects ('}
+                      {importScopeDialog.scope === 'tasks'
+                        ? listTasks.filter(t => !t.parent).length
+                        : importScopeDialog.scope === 'subtasks'
+                        ? listTasks.filter(t => !!t.parent).length
+                        : listTasks.length}
+                      )
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </AnimatePresence>
