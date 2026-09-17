@@ -323,3 +323,17 @@ Agencies frequently maintain their complete client roster inside a specific Clic
      - Radio selection cards use `.clickup-scope-item` with solid `#121a2d` backgrounds, eliminating any translucent bleed-through. Selected states feature gradient accents (`is-selected-tasks`, `is-selected-subtasks`, `is-selected-both`) with matching neon pills.
      - Pure white headings (`#ffffff`) and slate subtitles (`#cbd5e1`) are reinforced both with CSS `!important` rules and explicit inline styles (`style={{ color: '#ffffff' }}`), preventing global `body.theme-white` overrides from inverting text to dark navy/black on dark modal surfaces.
 
+7. **Unassigned / Blank Assignee Support & Custom Column Preservation During Ingestion**:
+   - **Blank / Unassigned Support Across All Drawers & Modals**:
+     - Added `-- Unassigned (Leave Blank) --` (`value=""`) option to Leadership dropdowns: `Assignee (Team Lead)` (`projectLeadId`), `Client Face (Call Lead)` (`clientCallAssigneeId`), and `Dev / Tech Lead` (`devTechAssigneeId`) in both Add Project Drawer and Edit Project Drawer.
+     - Added `-- None / Blank --` option to `Communication Channel` and `Reporting Platform` select menus.
+     - Added `-- Unassigned --` option to granular Deliverable Specialist rows in both Drawers and the 360° Project Detail modal.
+     - Removed artificial fallbacks (such as `editingProject.projectLeadId || customMembers[0]?.id`) so empty string values render the blank option cleanly.
+     - Updated `handleCreateProject` and `handleSaveEditedProject` to sanitize empty strings to `undefined` and calculate active hours and member hour maps safely without crashing.
+     - Enhanced table and grid views to render clean placeholder avatars (circular dashed `?` pills) and italicized `"Unassigned"` labels when leadership roles are left blank.
+   - **ClickUp Ingestion Assignee Behavior**:
+     - In `handleImportProjectsFromClickUpList`, eliminated automatic fallback team assignment (`customMembers[idx % customMembers.length]`). Tasks without assignees in ClickUp remain completely unassigned (`projectLeadId: undefined`, `clientCallAssigneeId: undefined`, `squadMembers: []`).
+   - **Custom Column Preservation Architecture**:
+     - **Verification**: Clarified that existing application custom columns in `ActiveProjectItem` (`ga4Access`, `gbpAccess`, `gscAccess`, `gtmAccess`, `backendLoginsNote`, `communicationChannel`, `billingAccount`, `guestPostIncluded`, `reportingNote`, `reportingPlatform`, `serviceLabels`, `monthlyHistory`, `clientTier`, etc.) were **never deleted or removed**.
+     - **Non-Destructive Ingestion Merge**: When ClickUp lists or tasks are imported (in either "Replace" or "Append" mode), the ingestion engine performs an existing project lookup (`projectsList.find(p => p.id === prjId || p.client.toLowerCase() === clientName.toLowerCase())`).
+     - Any matched project retains 100% of its previously configured operational audit credentials, login notes, access statuses, and monthly history, merging incoming ClickUp fields without wiping local custom column data.

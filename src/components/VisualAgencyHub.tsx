@@ -953,7 +953,17 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         ? new Date(Number(t.due_date)).toISOString().split('T')[0]
         : 'Monthly Renewal: 30th';
 
-      // Team Assignees Matching
+      // Preserve existing custom columns & audit logs if project was already in local state
+      const existingPrj = projectsList.find(
+        (p) =>
+          p.id === `prj_cu_${t.id}` ||
+          p.id === t.id ||
+          (p.client && clientName && p.client.toLowerCase() === clientName.toLowerCase()) ||
+          (p.name && cleanName && p.name.toLowerCase() === cleanName.toLowerCase())
+      );
+
+      // Team Assignees Matching:
+      // Match ClickUp task assignees with team members. If task has NO assignees, leave blank/unassigned.
       const matchedMembers: TeamMember[] = [];
       if (t.assignees && t.assignees.length > 0) {
         t.assignees.forEach((cuUser) => {
@@ -968,82 +978,117 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         });
       }
 
-      const squadMembers = matchedMembers.length > 0
-        ? matchedMembers
-        : [customMembers[idx % customMembers.length], customMembers[(idx + 1) % customMembers.length]].filter(Boolean);
+      // If ClickUp has assignees, use them. If not, preserve existing project members if set, or leave empty/unassigned!
+      const squadMembers = matchedMembers.length > 0 ? matchedMembers : (existingPrj?.members || []);
+      const leadId = matchedMembers[0]?.id || existingPrj?.projectLeadId || undefined;
+      const callAssigneeId = matchedMembers[1]?.id || (matchedMembers.length === 1 ? matchedMembers[0]?.id : existingPrj?.clientCallAssigneeId) || undefined;
 
-      const leadId = squadMembers[0]?.id || customMembers[0]?.id || initialMembers[0].id;
-      const callAssigneeId = squadMembers[1]?.id || squadMembers[0]?.id || customMembers[0]?.id || initialMembers[0].id;
+      // Deliverables / Task Breakdown (leave unassigned if no lead)
+      const deliverables: ProjectTaskAllocation[] = existingPrj?.taskBreakdown && existingPrj.taskBreakdown.length > 0
+        ? existingPrj.taskBreakdown
+        : [
+            {
+              id: `tb-cu-${t.id}-1`,
+              taskType: 'Technical SEO',
+              assigneeId: leadId || '',
+              hours: Math.round(totalHours * 0.4),
+              clickUpTaskId: String(t.id),
+              clickUpUrl: t.url,
+              clickUpStatus: t.status?.status || 'In Progress',
+              status: canonicalStatus === 'COMPLETED' ? 'completed' : 'in_progress'
+            },
+            {
+              id: `tb-cu-${t.id}-2`,
+              taskType: 'On-Page SEO',
+              assigneeId: callAssigneeId || leadId || '',
+              hours: Math.round(totalHours * 0.35),
+              clickUpTaskId: String(t.id),
+              clickUpUrl: t.url,
+              clickUpStatus: t.status?.status || 'In Progress',
+              status: canonicalStatus === 'COMPLETED' ? 'completed' : 'in_progress'
+            },
+            {
+              id: `tb-cu-${t.id}-3`,
+              taskType: 'Client Communications',
+              assigneeId: callAssigneeId || leadId || '',
+              hours: Math.max(2, Math.round(totalHours * 0.25)),
+              clickUpTaskId: String(t.id),
+              clickUpUrl: t.url,
+              clickUpStatus: t.status?.status || 'In Progress',
+              status: canonicalStatus === 'COMPLETED' ? 'completed' : 'assigned'
+            }
+          ];
 
-      // Deliverables / Task Breakdown
-      const deliverables: ProjectTaskAllocation[] = [
-        {
-          id: `tb-cu-${t.id}-1`,
-          taskType: 'Technical SEO',
-          assigneeId: leadId,
-          hours: Math.round(totalHours * 0.4),
-          clickUpTaskId: String(t.id),
-          clickUpUrl: t.url,
-          clickUpStatus: t.status?.status || 'In Progress',
-          status: canonicalStatus === 'COMPLETED' ? 'completed' : 'in_progress'
-        },
-        {
-          id: `tb-cu-${t.id}-2`,
-          taskType: 'On-Page SEO',
-          assigneeId: callAssigneeId,
-          hours: Math.round(totalHours * 0.35),
-          clickUpTaskId: String(t.id),
-          clickUpUrl: t.url,
-          clickUpStatus: t.status?.status || 'In Progress',
-          status: canonicalStatus === 'COMPLETED' ? 'completed' : 'in_progress'
-        },
-        {
-          id: `tb-cu-${t.id}-3`,
-          taskType: 'Client Communications',
-          assigneeId: callAssigneeId,
-          hours: Math.max(2, Math.round(totalHours * 0.25)),
-          clickUpTaskId: String(t.id),
-          clickUpUrl: t.url,
-          clickUpStatus: t.status?.status || 'In Progress',
-          status: canonicalStatus === 'COMPLETED' ? 'completed' : 'assigned'
-        }
-      ];
-
-      const clientTier = classifyClientTier({
+      const clientTier = existingPrj?.clientTier || classifyClientTier({
         name: cleanName,
         client: clientName,
         paymentAmountNumeric: parsedAmount
       });
+
+      // Also parse ClickUp custom fields for any auxiliary operational values
+      let cuCommsChannel: string | undefined = undefined;
+      let cuBillingAccount: string | undefined = undefined;
+      let cuBackendLogins: string | undefined = undefined;
+      if (t.custom_fields && t.custom_fields.length > 0) {
+        t.custom_fields.forEach((cf) => {
+          const nm = (cf.name || '').toLowerCase();
+          const val = cf.value != null ? String(cf.value) : '';
+          if (/channel|communication|comms/i.test(nm)) cuCommsChannel = val;
+          else if (/billing|account/i.test(nm)) cuBillingAccount = val;
+          else if (/login|backend|credential/i.test(nm)) cuBackendLogins = val;
+        });
+      }
 
       return {
         id: `prj_cu_${t.id}`,
         name: cleanName,
         client: clientName,
         clientTier,
-        billingType: 'Monthly Retainer',
-        startDate,
+        billingType: existingPrj?.billingType || 'Monthly Retainer',
+        startDate: existingPrj?.startDate || startDate,
         dueDateOrRenewal: dueDate,
-        milestonesTotal: 4,
-        milestonesCompleted,
+        milestonesTotal: existingPrj?.milestonesTotal || 4,
+        milestonesCompleted: existingPrj?.milestonesCompleted || milestonesCompleted,
         price: formattedPrice,
         totalHours,
-        activeHours,
+        activeHours: existingPrj?.activeHours || activeHours,
         progress,
-        color: cardGradients[idx % cardGradients.length],
+        color: existingPrj?.color || cardGradients[idx % cardGradients.length],
         members: squadMembers,
         projectLeadId: leadId,
         clientCallAssigneeId: callAssigneeId,
-        paymentStatus: canonicalStatus === 'COMPLETED' ? 'Paid' : 'Pending',
-        paymentDueDate: dueDate.includes('30th') ? '2026-07-31' : dueDate,
+        paymentStatus: canonicalStatus === 'COMPLETED' ? 'Paid' : (existingPrj?.paymentStatus || 'Pending'),
+        paymentDueDate: dueDate.includes('30th') ? '2026-07-31' : (existingPrj?.paymentDueDate || dueDate),
         paymentAmountNumeric: parsedAmount,
-        paymentInvoiceId: `INV-CU-${t.id.slice(-4).toUpperCase()}`,
+        paymentInvoiceId: existingPrj?.paymentInvoiceId || `INV-CU-${t.id.slice(-4).toUpperCase()}`,
         status: canonicalStatus,
         priorityLevel,
         clickUpListId: list.id,
         clickUpListName: list.name,
         clientFolderUrl: t.url,
-        taskContent: t.text_content || t.description || `ClickUp Client Account: ${cleanName}`,
-        taskBreakdown: deliverables
+        taskContent: t.text_content || t.description || existingPrj?.taskContent || `ClickUp Client Account: ${cleanName}`,
+        taskBreakdown: deliverables,
+        // PRESERVED CUSTOM COLUMNS:
+        communicationChannel: existingPrj?.communicationChannel || cuCommsChannel || undefined,
+        billingAccount: existingPrj?.billingAccount || cuBillingAccount || undefined,
+        ga4Access: existingPrj?.ga4Access || undefined,
+        gbpAccess: existingPrj?.gbpAccess || undefined,
+        gscAccess: existingPrj?.gscAccess || undefined,
+        gtmAccess: existingPrj?.gtmAccess || undefined,
+        guestPostIncluded: existingPrj?.guestPostIncluded || undefined,
+        backendLoginsNote: existingPrj?.backendLoginsNote || cuBackendLogins || undefined,
+        reportingNote: existingPrj?.reportingNote || undefined,
+        reportingPlatform: existingPrj?.reportingPlatform || undefined,
+        serviceLabels: existingPrj?.serviceLabels || undefined,
+        monthlyHistory: existingPrj?.monthlyHistory || undefined,
+        weeklyHoursOffPage: existingPrj?.weeklyHoursOffPage || undefined,
+        weeklyHoursOnPage: existingPrj?.weeklyHoursOnPage || undefined,
+        weeklyHoursTech: existingPrj?.weeklyHoursTech || undefined,
+        contractStartDate: existingPrj?.contractStartDate || undefined,
+        devTechAssigneeId: existingPrj?.devTechAssigneeId || undefined,
+        offPageAssigneeId: existingPrj?.offPageAssigneeId || undefined,
+        onPageAssigneeId: existingPrj?.onPageAssigneeId || undefined,
+        projectHealthEmoji: existingPrj?.projectHealthEmoji || undefined
       };
     });
 
@@ -1424,7 +1469,7 @@ Due Date: ${proj.paymentDueDate}
         newClientCallAssigneeId,
         ...newSelectedMemberIds
       ])
-    );
+    ).filter(Boolean);
     const assignedSquad = customMembers.filter((m) => uniqueMemberIds.includes(m.id));
 
     const item: ActiveProjectItem = {
@@ -1441,9 +1486,9 @@ Due Date: ${proj.paymentDueDate}
       activeHours: totalAllocatedHours > 0 ? totalAllocatedHours : Math.round(newTotalHours * 0.8),
       progress: 80,
       color: 'from-emerald-500 to-teal-600',
-      members: assignedSquad.length > 0 ? assignedSquad : customMembers.slice(0, 1),
-      projectLeadId: newProjectLeadId,
-      clientCallAssigneeId: newClientCallAssigneeId,
+      members: assignedSquad,
+      projectLeadId: newProjectLeadId || undefined,
+      clientCallAssigneeId: newClientCallAssigneeId || undefined,
       memberHoursMap: newMemberHoursMap,
       taskBreakdown: newTaskAllocations,
       paymentStatus: 'Pending',
@@ -1455,9 +1500,9 @@ Due Date: ${proj.paymentDueDate}
       taskContent: newTaskContent,
       clientEmail: newClientEmail,
       clientFolderUrl: newClientFolderUrl,
-      communicationChannel: newCommunicationChannel,
+      communicationChannel: newCommunicationChannel || undefined,
       contractStartDate: newContractStartDate,
-      devTechAssigneeId: newDevTechAssigneeId,
+      devTechAssigneeId: newDevTechAssigneeId || undefined,
       backendLoginsNote: newBackendLoginsNote,
       billingAccount: newBillingAccount,
       ga4Access: newGa4Access,
@@ -1595,8 +1640,20 @@ Due Date: ${proj.paymentDueDate}
       if (yieldRate < 70) return false;
     }
 
-    if (filterLeadId !== 'ALL' && proj.projectLeadId !== filterLeadId) return false;
-    if (filterCallAssigneeId !== 'ALL' && proj.clientCallAssigneeId !== filterCallAssigneeId) return false;
+    if (filterLeadId !== 'ALL') {
+      if (filterLeadId === 'UNASSIGNED') {
+        if (proj.projectLeadId) return false;
+      } else if (proj.projectLeadId !== filterLeadId) {
+        return false;
+      }
+    }
+    if (filterCallAssigneeId !== 'ALL') {
+      if (filterCallAssigneeId === 'UNASSIGNED') {
+        if (proj.clientCallAssigneeId) return false;
+      } else if (proj.clientCallAssigneeId !== filterCallAssigneeId) {
+        return false;
+      }
+    }
     if (filterBillingType !== 'ALL' && proj.billingType !== filterBillingType) return false;
     if (selectedServiceFilter !== 'ALL') {
       const s = selectedServiceFilter.toLowerCase();
@@ -1657,24 +1714,29 @@ Due Date: ${proj.paymentDueDate}
       Math.max(0, Math.round((resolvedActiveHours / (editingProject.totalHours || 1)) * 100))
     );
     const parsedAmount = parseInt(editingProject.price.replace(/[^0-9]/g, ''), 10);
+    const sanitizedProject: ActiveProjectItem = {
+      ...editingProject,
+      client: editingProject.client.trim(),
+      name: editingProject.name.trim(),
+      projectLeadId: editingProject.projectLeadId?.trim() ? editingProject.projectLeadId.trim() : undefined,
+      clientCallAssigneeId: editingProject.clientCallAssigneeId?.trim() ? editingProject.clientCallAssigneeId.trim() : undefined,
+      devTechAssigneeId: editingProject.devTechAssigneeId?.trim() ? editingProject.devTechAssigneeId.trim() : undefined,
+      communicationChannel: editingProject.communicationChannel?.trim() ? editingProject.communicationChannel.trim() : undefined,
+      reportingPlatform: editingProject.reportingPlatform?.trim() ? editingProject.reportingPlatform.trim() : undefined,
+      activeHours: resolvedActiveHours,
+      memberHoursMap: Object.keys(updatedMemberHoursMap).length > 0 ? updatedMemberHoursMap : editingProject.memberHoursMap,
+      progress,
+      paymentAmountNumeric:
+        !isNaN(parsedAmount) && parsedAmount > 0
+          ? parsedAmount
+          : editingProject.paymentAmountNumeric
+    };
     setProjectsList((prev) =>
-      prev.map((p) =>
-        p.id === editingProject.id
-          ? {
-              ...editingProject,
-              client: editingProject.client.trim(),
-              name: editingProject.name.trim(),
-              activeHours: resolvedActiveHours,
-              memberHoursMap: Object.keys(updatedMemberHoursMap).length > 0 ? updatedMemberHoursMap : editingProject.memberHoursMap,
-              progress,
-              paymentAmountNumeric:
-                !isNaN(parsedAmount) && parsedAmount > 0
-                  ? parsedAmount
-                  : editingProject.paymentAmountNumeric
-            }
-          : p
-      )
+      prev.map((p) => (p.id === editingProject.id ? sanitizedProject : p))
     );
+    if (viewingProjectDetail?.id === editingProject.id) {
+      setViewingProjectDetail(sanitizedProject);
+    }
     toast('Project Updated Successfully', {
       description: `${editingProject.name} updated and hours recalculated.`,
       type: 'success'
@@ -2744,6 +2806,7 @@ Due Date: ${proj.paymentDueDate}
                     className="bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-sm"
                   >
                     <option value="ALL" className="bg-slate-900 text-slate-200">👥 All Project Leads</option>
+                    <option value="UNASSIGNED" className="bg-slate-900 text-slate-200">⚪ Unassigned Leads (Blank)</option>
                     {customMembers.map((m) => (
                       <option key={m.id} value={m.id} className="bg-slate-900 text-slate-200">
                         Lead: {m.name}
@@ -2757,6 +2820,7 @@ Due Date: ${proj.paymentDueDate}
                     className="bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-sm"
                   >
                     <option value="ALL" className="bg-slate-900 text-slate-200">📞 All Call Assignees</option>
+                    <option value="UNASSIGNED" className="bg-slate-900 text-slate-200">⚪ Unassigned Calls (Blank)</option>
                     {customMembers.map((m) => (
                       <option key={m.id} value={m.id} className="bg-slate-900 text-slate-200">
                         Calls: {m.name}
@@ -2901,9 +2965,8 @@ Due Date: ${proj.paymentDueDate}
                   </thead>
                   <tbody className="divide-y divide-slate-700/40 text-xs">
                     {paginatedProjects.map((proj, idx) => {
-                      const leadMember = customMembers.find((m) => m.id === proj.projectLeadId) || customMembers[0];
-                      const callMember =
-                        customMembers.find((m) => m.id === proj.clientCallAssigneeId) || leadMember || customMembers[0];
+                      const leadMember = proj.projectLeadId ? customMembers.find((m) => m.id === proj.projectLeadId) : undefined;
+                      const callMember = proj.clientCallAssigneeId ? customMembers.find((m) => m.id === proj.clientCallAssigneeId) : undefined;
 
                       const hoursRatio = proj.totalHours > 0 ? proj.activeHours / proj.totalHours : 0;
                       const { marginPercent: marginNum } = calculateProjectProfitability(proj);
@@ -2965,25 +3028,33 @@ Due Date: ${proj.paymentDueDate}
                           </td>
                           <td className="py-4 px-5" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1" title={`Lead: ${leadMember.name}`}>
-                                <img
-                                  src={leadMember.avatar}
-                                  alt=""
-                                  style={{ width: '20px', height: '20px' }}
-                                  className="rounded-full object-cover ring-1 ring-cyan-500/50"
-                                />
-                                <span className="font-bold text-white">{leadMember.name.split(' ')[0]}</span>
-                              </div>
+                              {leadMember ? (
+                                <div className="flex items-center gap-1" title={`Lead: ${leadMember.name}`}>
+                                  <img
+                                    src={leadMember.avatar}
+                                    alt=""
+                                    style={{ width: '20px', height: '20px' }}
+                                    className="rounded-full object-cover ring-1 ring-cyan-500/50"
+                                  />
+                                  <span className="font-bold text-white">{leadMember.name.split(' ')[0]}</span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 italic text-[11px]">Unassigned</span>
+                              )}
                               <span className="text-slate-500 font-bold">•</span>
-                              <div className="flex items-center gap-1" title={`Call Lead: ${callMember.name}`}>
-                                <img
-                                  src={callMember.avatar}
-                                  alt=""
-                                  style={{ width: '20px', height: '20px' }}
-                                  className="rounded-full object-cover ring-1 ring-purple-500/50"
-                                />
-                                <span className="font-semibold text-slate-300">{callMember.name.split(' ')[0]}</span>
-                              </div>
+                              {callMember ? (
+                                <div className="flex items-center gap-1" title={`Call Lead: ${callMember.name}`}>
+                                  <img
+                                    src={callMember.avatar}
+                                    alt=""
+                                    style={{ width: '20px', height: '20px' }}
+                                    className="rounded-full object-cover ring-1 ring-purple-500/50"
+                                  />
+                                  <span className="font-semibold text-slate-300">{callMember.name.split(' ')[0]}</span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 italic text-[11px]">Unassigned</span>
+                              )}
                             </div>
                           </td>
                           <td className="py-4 px-5 text-[11px] text-slate-300 font-semibold">
@@ -3052,9 +3123,8 @@ Due Date: ${proj.paymentDueDate}
                 ))
               ) : (
               paginatedProjects.map((proj) => {
-                const leadMember = customMembers.find((m) => m.id === proj.projectLeadId) || customMembers[0];
-                const callMember =
-                  customMembers.find((m) => m.id === proj.clientCallAssigneeId) || leadMember || customMembers[0];
+                const leadMember = proj.projectLeadId ? customMembers.find((m) => m.id === proj.projectLeadId) : undefined;
+                const callMember = proj.clientCallAssigneeId ? customMembers.find((m) => m.id === proj.clientCallAssigneeId) : undefined;
                 const prof = calculateProjectProfitability(proj);
 
                 const isExpanded = !!expandedCardIds[proj.id];
@@ -3168,24 +3238,44 @@ Due Date: ${proj.paymentDueDate}
                       {/* Compact Key Preview Bar (Always Visible Snapshot) */}
                       <div className="flex flex-wrap items-center justify-between gap-3 pt-3 pb-3 text-xs border-b border-slate-700/30 min-w-0 w-full">
                         <div className="flex items-center gap-2 min-w-0 flex-1 max-w-full">
-                          <div className="flex -space-x-1.5 overflow-hidden shrink-0" title={`Lead: ${leadMember.name} • Calls: ${callMember.name}`}>
-                            <img
-                              src={leadMember.avatar}
-                              alt={leadMember.name}
-                              style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
-                              className="rounded-full object-cover ring-1 ring-cyan-500 block"
-                            />
-                            <img
-                              src={callMember.avatar}
-                              alt={callMember.name}
-                              style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
-                              className="rounded-full object-cover ring-1 ring-purple-500 block"
-                            />
+                          <div className="flex -space-x-1.5 overflow-hidden shrink-0" title={`Lead: ${leadMember ? leadMember.name : 'Unassigned'} • Calls: ${callMember ? callMember.name : 'Unassigned'}`}>
+                            {leadMember ? (
+                              <img
+                                src={leadMember.avatar}
+                                alt={leadMember.name}
+                                style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
+                                className="rounded-full object-cover ring-1 ring-cyan-500 block"
+                              />
+                            ) : (
+                              <div
+                                style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
+                                className="rounded-full bg-slate-800/90 border border-dashed border-cyan-500/50 flex items-center justify-center text-[10px] text-cyan-400 font-bold"
+                                title="Lead: Unassigned"
+                              >
+                                ?
+                              </div>
+                            )}
+                            {callMember ? (
+                              <img
+                                src={callMember.avatar}
+                                alt={callMember.name}
+                                style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
+                                className="rounded-full object-cover ring-1 ring-purple-500 block"
+                              />
+                            ) : (
+                              <div
+                                style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
+                                className="rounded-full bg-slate-800/90 border border-dashed border-purple-500/50 flex items-center justify-center text-[10px] text-purple-400 font-bold"
+                                title="Calls: Unassigned"
+                              >
+                                ?
+                              </div>
+                            )}
                           </div>
                           <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-300 min-w-0">
-                            <span className="truncate">Lead: <strong className="text-white font-bold ml-1">{leadMember.name.split(' ')[0]}</strong></span>
+                            <span className="truncate">Lead: <strong className={leadMember ? "text-white font-bold ml-1" : "text-slate-400 italic ml-1"}>{leadMember ? leadMember.name.split(' ')[0] : 'Unassigned'}</strong></span>
                             <span className="w-px h-4 bg-slate-700" aria-hidden="true" />
-                            <span className="truncate">Calls: <strong className="text-white font-bold ml-1">{callMember.name.split(' ')[0]}</strong></span>
+                            <span className="truncate">Calls: <strong className={callMember ? "text-white font-bold ml-1" : "text-slate-400 italic ml-1"}>{callMember ? callMember.name.split(' ')[0] : 'Unassigned'}</strong></span>
                           </div>
                         </div>
                         <div className="flex flex-col items-end shrink-0 ml-auto">
@@ -3245,40 +3335,58 @@ Due Date: ${proj.paymentDueDate}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0 w-full">
                             <div
                               className="bg-slate-900 rounded-lg p-2 border border-slate-700 flex items-center gap-2 overflow-hidden min-w-0 max-w-full"
-                              title={`Project Lead: ${leadMember.name}`}
+                              title={leadMember ? `Project Lead: ${leadMember.name}` : 'Project Lead: Unassigned'}
                             >
-                              <img
-                                src={leadMember.avatar}
-                                alt={leadMember.name}
-                                style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px', maxWidth: '26px', maxHeight: '26px' }}
-                                className="rounded-full object-cover ring-1 ring-cyan-500/50 shrink-0 block"
-                              />
+                              {leadMember ? (
+                                <img
+                                  src={leadMember.avatar}
+                                  alt={leadMember.name}
+                                  style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px', maxWidth: '26px', maxHeight: '26px' }}
+                                  className="rounded-full object-cover ring-1 ring-cyan-500/50 shrink-0 block"
+                                />
+                              ) : (
+                                <div
+                                  style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px' }}
+                                  className="rounded-full bg-slate-800 border border-dashed border-cyan-500/50 flex items-center justify-center text-[10px] text-cyan-400 font-bold shrink-0"
+                                >
+                                  ?
+                                </div>
+                              )}
                               <div className="flex flex-col min-w-0 w-full">
                                 <span className="text-[9px] uppercase tracking-wider text-cyan-400 font-bold leading-tight truncate block">
                                   Squad Lead
                                 </span>
-                                <span className="text-xs text-white font-bold truncate block">
-                                  {leadMember.name.split(' ')[0]}
+                                <span className={`text-xs font-bold truncate block ${leadMember ? 'text-white' : 'text-slate-400 italic'}`}>
+                                  {leadMember ? leadMember.name.split(' ')[0] : 'Unassigned'}
                                 </span>
                               </div>
                             </div>
 
                             <div
                               className="bg-slate-900 rounded-lg p-2 border border-slate-700 flex items-center gap-2 overflow-hidden min-w-0 max-w-full"
-                              title={`Client Call Lead: ${callMember.name}`}
+                              title={callMember ? `Client Call Lead: ${callMember.name}` : 'Client Call Lead: Unassigned'}
                             >
-                              <img
-                                src={callMember.avatar}
-                                alt={callMember.name}
-                                style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px', maxWidth: '26px', maxHeight: '26px' }}
-                                className="rounded-full object-cover ring-1 ring-purple-500/50 shrink-0 block"
-                              />
+                              {callMember ? (
+                                <img
+                                  src={callMember.avatar}
+                                  alt={callMember.name}
+                                  style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px', maxWidth: '26px', maxHeight: '26px' }}
+                                  className="rounded-full object-cover ring-1 ring-purple-500/50 shrink-0 block"
+                                />
+                              ) : (
+                                <div
+                                  style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px' }}
+                                  className="rounded-full bg-slate-800 border border-dashed border-purple-500/50 flex items-center justify-center text-[10px] text-purple-400 font-bold shrink-0"
+                                >
+                                  ?
+                                </div>
+                              )}
                               <div className="flex flex-col min-w-0 w-full">
                                 <span className="text-[9px] uppercase tracking-wider text-purple-400 font-bold leading-tight truncate block">
                                   Client Calls
                                 </span>
-                                <span className="text-xs text-white font-bold truncate block">
-                                  {callMember.name.split(' ')[0]}
+                                <span className={`text-xs font-bold truncate block ${callMember ? 'text-white' : 'text-slate-400 italic'}`}>
+                                  {callMember ? callMember.name.split(' ')[0] : 'Unassigned'}
                                 </span>
                               </div>
                             </div>
@@ -6029,6 +6137,7 @@ Due Date: ${proj.paymentDueDate}
                             onChange={(e) => setNewCommunicationChannel(e.target.value)}
                             className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                           >
+                            <option value="">-- None / Blank --</option>
                             <option value="UW - Agam">UW - Agam</option>
                             <option value="UW - Manpreet">UW - Manpreet</option>
                             <option value="Slack">Slack</option>
@@ -6047,6 +6156,7 @@ Due Date: ${proj.paymentDueDate}
                             onChange={(e) => setNewReportingPlatform(e.target.value)}
                             className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                           >
+                            <option value="">-- None / Blank --</option>
                             <option value="UW - Agam">UW - Agam</option>
                             <option value="WhatsApp">WhatsApp</option>
                             <option value="Trello 1428">Trello 1428</option>
@@ -6100,6 +6210,7 @@ Due Date: ${proj.paymentDueDate}
                               onChange={(e) => setNewProjectLeadId(e.target.value)}
                               className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
                             >
+                              <option value="">-- Unassigned (Leave Blank) --</option>
                               {customMembers.map((m) => (
                                 <option key={m.id} value={m.id}>
                                   {m.name} ({m.role})
@@ -6115,6 +6226,7 @@ Due Date: ${proj.paymentDueDate}
                               onChange={(e) => setNewClientCallAssigneeId(e.target.value)}
                               className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
                             >
+                              <option value="">-- Unassigned (Leave Blank) --</option>
                               {customMembers.map((m) => (
                                 <option key={m.id} value={m.id}>
                                   {m.name} ({m.role})
@@ -6130,6 +6242,7 @@ Due Date: ${proj.paymentDueDate}
                               onChange={(e) => setNewDevTechAssigneeId(e.target.value)}
                               className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
                             >
+                              <option value="">-- Unassigned (Leave Blank) --</option>
                               {customMembers.map((m) => (
                                 <option key={m.id} value={m.id}>
                                   {m.name} ({m.role})
@@ -6194,6 +6307,7 @@ Due Date: ${proj.paymentDueDate}
                                 }}
                                 className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg px-2 py-1.5 text-xs text-slate-200"
                               >
+                                <option value="">-- Unassigned --</option>
                                 {customMembers.map((m) => (
                                   <option key={m.id} value={m.id}>
                                     {m.name} ({m.role})
@@ -6854,10 +6968,11 @@ Due Date: ${proj.paymentDueDate}
                     <div>
                       <label className="text-[11px] font-bold text-slate-400 block mb-1">Communication Channel</label>
                       <select
-                        value={editingProject.communicationChannel || 'UW - Agam'}
+                        value={editingProject.communicationChannel || ''}
                         onChange={(e) => setEditingProject({ ...editingProject, communicationChannel: e.target.value })}
                         className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
                       >
+                        <option value="">-- None / Blank --</option>
                         <option value="UW - Agam">UW - Agam</option>
                         <option value="UW - Manpreet">UW - Manpreet</option>
                         <option value="Slack">Slack</option>
@@ -6872,10 +6987,11 @@ Due Date: ${proj.paymentDueDate}
                     <div>
                       <label className="text-[11px] font-bold text-slate-400 block mb-1">Reporting Platform</label>
                       <select
-                        value={editingProject.reportingPlatform || 'UW - Agam'}
+                        value={editingProject.reportingPlatform || ''}
                         onChange={(e) => setEditingProject({ ...editingProject, reportingPlatform: e.target.value })}
                         className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
                       >
+                        <option value="">-- None / Blank --</option>
                         <option value="UW - Agam">UW - Agam</option>
                         <option value="WhatsApp">WhatsApp</option>
                         <option value="Trello 1428">Trello 1428</option>
@@ -6925,10 +7041,11 @@ Due Date: ${proj.paymentDueDate}
                       <div>
                         <label className="text-[11px] font-bold text-slate-400 block mb-1">Assignee (Team Lead)</label>
                         <select
-                          value={editingProject.projectLeadId || customMembers[0]?.id}
+                          value={editingProject.projectLeadId || ''}
                           onChange={(e) => setEditingProject({ ...editingProject, projectLeadId: e.target.value })}
                           className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
                         >
+                          <option value="">-- Unassigned (Leave Blank) --</option>
                           {customMembers.map((m) => (
                             <option key={m.id} value={m.id}>
                               {m.name} ({m.role})
@@ -6940,12 +7057,13 @@ Due Date: ${proj.paymentDueDate}
                       <div>
                         <label className="text-[11px] font-bold text-slate-400 block mb-1">Client Face (Call Lead)</label>
                         <select
-                          value={editingProject.clientCallAssigneeId || customMembers[0]?.id}
+                          value={editingProject.clientCallAssigneeId || ''}
                           onChange={(e) =>
                             setEditingProject({ ...editingProject, clientCallAssigneeId: e.target.value })
                           }
                           className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
                         >
+                          <option value="">-- Unassigned (Leave Blank) --</option>
                           {customMembers.map((m) => (
                             <option key={m.id} value={m.id}>
                               {m.name} ({m.role})
@@ -6957,12 +7075,13 @@ Due Date: ${proj.paymentDueDate}
                       <div>
                         <label className="text-[11px] font-bold text-slate-400 block mb-1">Dev / Tech Lead</label>
                         <select
-                          value={editingProject.devTechAssigneeId || customMembers[0]?.id}
+                          value={editingProject.devTechAssigneeId || ''}
                           onChange={(e) =>
                             setEditingProject({ ...editingProject, devTechAssigneeId: e.target.value })
                           }
                           className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
                         >
+                          <option value="">-- Unassigned (Leave Blank) --</option>
                           {customMembers.map((m) => (
                             <option key={m.id} value={m.id}>
                               {m.name} ({m.role})
@@ -7025,7 +7144,7 @@ Due Date: ${proj.paymentDueDate}
 
                         <div className="col-span-4">
                           <select
-                            value={tb.assigneeId}
+                            value={tb.assigneeId || ''}
                             onChange={(e) => {
                               const val = e.target.value;
                               const updated = (editingProject.taskBreakdown || []).map((i) =>
@@ -7035,6 +7154,7 @@ Due Date: ${proj.paymentDueDate}
                             }}
                             className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg px-2 py-1.5 text-xs text-slate-200"
                           >
+                            <option value="">-- Unassigned --</option>
                             {customMembers.map((m) => (
                               <option key={m.id} value={m.id}>
                                 {m.name} ({m.role})
@@ -7842,9 +7962,8 @@ Due Date: ${proj.paymentDueDate}
       <AnimatePresence>
       {viewingProjectDetail && (() => {
         const liveProject = projectsList.find((p) => p.id === viewingProjectDetail.id) || viewingProjectDetail;
-        const lead = customMembers.find((m) => m.id === liveProject.projectLeadId) || liveProject.members[0];
-        const callAssignee =
-          customMembers.find((m) => m.id === liveProject.clientCallAssigneeId) || lead;
+        const lead = liveProject.projectLeadId ? customMembers.find((m) => m.id === liveProject.projectLeadId) : undefined;
+        const callAssignee = liveProject.clientCallAssigneeId ? customMembers.find((m) => m.id === liveProject.clientCallAssigneeId) : undefined;
 
         return (
           <div key="detail-project-modal-container" className="fixed inset-0 z-[99999] flex justify-end">
@@ -8017,39 +8136,51 @@ Due Date: ${proj.paymentDueDate}
                   </h4>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {lead && (
-                      <div className="p-3 rounded-2xl bg-slate-950 border border-purple-500/30 flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-slate-950 border border-purple-500/30 flex items-center gap-3">
+                      {lead ? (
                         <img
                           src={lead.avatar}
                           alt={lead.name}
                           className="w-10 h-10 min-w-[2.5rem] max-w-[2.5rem] min-h-[2.5rem] max-h-[2.5rem] aspect-square rounded-xl object-cover shrink-0 overflow-hidden shadow-md"
                         />
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[10px] font-black text-purple-400 uppercase tracking-wider block">
-                            👑 Project Lead
-                          </span>
-                          <span className="text-xs font-bold text-white truncate block">{lead.name}</span>
-                          <span className="text-[10px] text-slate-400 truncate block">{lead.role}</span>
+                      ) : (
+                        <div className="w-10 h-10 min-w-[2.5rem] max-w-[2.5rem] min-h-[2.5rem] max-h-[2.5rem] rounded-xl bg-slate-900 border border-dashed border-purple-500/40 flex items-center justify-center text-purple-400 font-bold text-sm shrink-0">
+                          ?
                         </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[10px] font-black text-purple-400 uppercase tracking-wider block">
+                          👑 Project Lead
+                        </span>
+                        <span className={`text-xs font-bold truncate block ${lead ? 'text-white' : 'text-slate-400 italic'}`}>
+                          {lead ? lead.name : 'Unassigned'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 truncate block">{lead ? lead.role : 'No lead designated'}</span>
                       </div>
-                    )}
+                    </div>
 
-                    {callAssignee && (
-                      <div className="p-3 rounded-2xl bg-slate-950 border border-cyan-500/30 flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-slate-950 border border-cyan-500/30 flex items-center gap-3">
+                      {callAssignee ? (
                         <img
                           src={callAssignee.avatar}
                           alt={callAssignee.name}
                           className="w-10 h-10 min-w-[2.5rem] max-w-[2.5rem] min-h-[2.5rem] max-h-[2.5rem] aspect-square rounded-xl object-cover shrink-0 overflow-hidden shadow-md"
                         />
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[10px] font-black text-cyan-400 uppercase tracking-wider block">
-                            📞 Client Call Assignee
-                          </span>
-                          <span className="text-xs font-bold text-white truncate block">{callAssignee.name}</span>
-                          <span className="text-[10px] text-slate-400 truncate block">{callAssignee.role}</span>
+                      ) : (
+                        <div className="w-10 h-10 min-w-[2.5rem] max-w-[2.5rem] min-h-[2.5rem] max-h-[2.5rem] rounded-xl bg-slate-900 border border-dashed border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold text-sm shrink-0">
+                          ?
                         </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[10px] font-black text-cyan-400 uppercase tracking-wider block">
+                          📞 Client Call Assignee
+                        </span>
+                        <span className={`text-xs font-bold truncate block ${callAssignee ? 'text-white' : 'text-slate-400 italic'}`}>
+                          {callAssignee ? callAssignee.name : 'Unassigned'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 truncate block">{callAssignee ? callAssignee.role : 'No client face designated'}</span>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   {/* Squad Members Chip List */}
@@ -8142,12 +8273,13 @@ Due Date: ${proj.paymentDueDate}
                         <div className="md:col-span-5 flex flex-col gap-1">
                           <span className="text-[10px] font-bold text-slate-400">Assigned Member</span>
                           <select
-                            value={tb.assigneeId}
+                            value={tb.assigneeId || ''}
                             onChange={(e) =>
                               handleUpdateTaskAllocation(liveProject.id, tb.id, 'assigneeId', e.target.value)
                             }
                             className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-purple-500 cursor-pointer"
                           >
+                            <option value="">-- Unassigned --</option>
                             {customMembers.map((m) => (
                               <option key={m.id} value={m.id}>
                                 {m.name} ({m.role})
