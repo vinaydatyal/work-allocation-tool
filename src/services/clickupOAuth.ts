@@ -109,19 +109,35 @@ export function handleClickUpCallback(): ClickUpCallbackResult {
 
 // ─── ClickUp API Helpers ───────────────────────────────────────────────────────
 
-async function clickupFetch(path: string, token: string) {
-  // Use our serverless proxy route to bypass browser CORS restrictions
+export async function clickupRequest(path: string, token: string, options: RequestInit = {}) {
   const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(path)}`;
-  
+
   let res: Response;
   try {
     res = await fetch(proxyUrl, {
-      headers: { Authorization: token },
+      ...options,
+      headers: {
+        Authorization: token,
+        ...(options.headers || {}),
+      },
     });
-  } catch (netErr) {
-    // If running in pure local dev where serverless functions aren't active, try Vite proxy
+    // In local dev without serverless proxy, fallback to Vite proxy if 404
+    if (!res.ok && res.status === 404) {
+      res = await fetch(`/api/clickup${path}`, {
+        ...options,
+        headers: {
+          Authorization: token,
+          ...(options.headers || {}),
+        },
+      });
+    }
+  } catch {
     res = await fetch(`/api/clickup${path}`, {
-      headers: { Authorization: token },
+      ...options,
+      headers: {
+        Authorization: token,
+        ...(options.headers || {}),
+      },
     });
   }
 
@@ -130,6 +146,39 @@ async function clickupFetch(path: string, token: string) {
     throw new Error(`ClickUp API error ${res.status}: ${errText}`);
   }
   return res.json();
+}
+
+async function clickupFetch(path: string, token: string) {
+  return clickupRequest(path, token, { method: 'GET' });
+}
+
+export interface ClickUpCommentUser {
+  id: number;
+  username: string;
+  email?: string;
+  profilePicture?: string | null;
+  color?: string;
+  initials?: string;
+}
+
+export interface ClickUpCommentItem {
+  id: string;
+  comment_text?: string;
+  comment?: Array<{ text?: string; type?: string; [key: string]: any }>;
+  user?: ClickUpCommentUser;
+  date: string | number;
+  resolved?: boolean;
+  assignee?: ClickUpCommentUser | null;
+  assigned_by?: ClickUpCommentUser | null;
+  reactions?: Array<{ reaction: string; date: number; user: ClickUpCommentUser }>;
+}
+
+export function getCommentPlainText(c: ClickUpCommentItem): string {
+  if (c.comment_text && typeof c.comment_text === 'string') return c.comment_text;
+  if (Array.isArray(c.comment)) {
+    return c.comment.map((part) => part.text || '').join('');
+  }
+  return '';
 }
 
 export interface ClickUpUser {
@@ -361,20 +410,11 @@ export async function createClickUpTimeEntry(
   teamId: string,
   entry: { task_id?: string; duration: number; start: number; description?: string }
 ): Promise<any> {
-  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/team/${teamId}/time_entries`)}`;
-  const res = await fetch(proxyUrl, {
+  return clickupRequest(`/team/${teamId}/time_entries`, token, {
     method: 'POST',
-    headers: {
-      Authorization: token,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(entry),
   });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Failed to log time to ClickUp: ${errText}`);
-  }
-  return res.json();
 }
 
 export async function createClickUpTask(
@@ -389,20 +429,11 @@ export async function createClickUpTask(
     priority?: number; // 1: Urgent, 2: High, 3: Normal, 4: Low
   }
 ): Promise<ClickUpTask> {
-  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/list/${listId}/task`)}`;
-  const res = await fetch(proxyUrl, {
+  return clickupRequest(`/list/${listId}/task`, token, {
     method: 'POST',
-    headers: {
-      Authorization: token,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(taskData),
   });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Failed to create task in ClickUp: ${errText}`);
-  }
-  return res.json();
 }
 
 export function mapTaskStatusToClickUp(status: string): string {
@@ -437,20 +468,11 @@ export async function updateClickUpTaskStatus(
   status: string
 ): Promise<any> {
   const normalizedStatus = mapTaskStatusToClickUp(status);
-  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/task/${taskId}`)}`;
-  const res = await fetch(proxyUrl, {
+  return clickupRequest(`/task/${taskId}`, token, {
     method: 'PUT',
-    headers: {
-      Authorization: token,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: normalizedStatus }),
   });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Failed to update ClickUp task status: ${errText}`);
-  }
-  return res.json();
 }
 
 export async function updateClickUpTaskAssignees(
@@ -459,13 +481,9 @@ export async function updateClickUpTaskAssignees(
   addAssigneeIds: number[] = [],
   remAssigneeIds: number[] = []
 ): Promise<any> {
-  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/task/${taskId}`)}`;
-  const res = await fetch(proxyUrl, {
+  return clickupRequest(`/task/${taskId}`, token, {
     method: 'PUT',
-    headers: {
-      Authorization: token,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       assignees: {
         add: addAssigneeIds,
@@ -473,11 +491,6 @@ export async function updateClickUpTaskAssignees(
       },
     }),
   });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Failed to update ClickUp task assignees: ${errText}`);
-  }
-  return res.json();
 }
 
 export async function registerClickUpWebhook(
@@ -486,23 +499,14 @@ export async function registerClickUpWebhook(
   endpointUrl: string,
   events: string[] = ['taskCreated', 'taskUpdated', 'taskStatusUpdated']
 ): Promise<any> {
-  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(`/team/${teamId}/webhook`)}`;
-  const res = await fetch(proxyUrl, {
+  return clickupRequest(`/team/${teamId}/webhook`, token, {
     method: 'POST',
-    headers: {
-      Authorization: token,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       endpoint: endpointUrl,
       events,
     }),
   });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Failed to register ClickUp webhook: ${errText}`);
-  }
-  return res.json();
 }
 
 export async function fetchClickUpTasks(
@@ -521,5 +525,56 @@ export async function fetchClickUpTasks(
 
   const data = await clickupFetch(`/team/${teamId}/task?${params}`, token);
   return data.tasks || [];
+}
+
+/**
+ * Fetch a single ClickUp task with full details (watchers, checklists, description, etc.)
+ */
+export async function fetchClickUpTask(token: string, taskId: string): Promise<any> {
+  return clickupFetch(`/task/${taskId}`, token);
+}
+
+/**
+ * Fetch comments for a ClickUp task
+ */
+export async function fetchClickUpTaskComments(token: string, taskId: string): Promise<ClickUpCommentItem[]> {
+  try {
+    const data = await clickupFetch(`/task/${taskId}/comment`, token);
+    return data.comments || [];
+  } catch (err) {
+    console.warn(`Error fetching comments for task ${taskId}:`, err);
+    return [];
+  }
+}
+
+/**
+ * Post a new comment to a ClickUp task
+ */
+export async function createClickUpTaskComment(
+  token: string,
+  taskId: string,
+  commentText: string,
+  notifyAll: boolean = false
+): Promise<ClickUpCommentItem> {
+  return clickupRequest(`/task/${taskId}/comment`, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      comment_text: commentText,
+      notify_all: notifyAll,
+    }),
+  });
+}
+
+/**
+ * Fetch time in status breakdown for a ClickUp task
+ */
+export async function fetchClickUpTaskTimeInStatus(token: string, taskId: string): Promise<any> {
+  try {
+    return await clickupFetch(`/task/${taskId}/time_in_status`, token);
+  } catch (err) {
+    console.warn(`Time in status not available for task ${taskId}:`, err);
+    return null;
+  }
 }
 

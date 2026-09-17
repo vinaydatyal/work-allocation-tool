@@ -41,9 +41,11 @@ import {
   BarChart3,
   ShieldCheck,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  MessageSquare
 } from 'lucide-react';
 import { ClickUpOAuthModal } from './ClickUpOAuthModal';
+import { ClickUpTaskActivityModal } from './ClickUpTaskActivityModal';
 import {
   isClickUpConnected,
   getClickUpToken,
@@ -154,6 +156,7 @@ export interface ActiveProjectItem {
   clickUpFolderId?: string;
   clickUpListId?: string;
   clickUpListName?: string;
+  clickUpTaskId?: string;
   taskContent?: string; // Full brief / scope note
   clientEmail?: string;
   clientFolderUrl?: string; // ClickUp / Drive link
@@ -1041,6 +1044,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
 
       return {
         id: `prj_cu_${t.id}`,
+        clickUpTaskId: t.id,
         name: cleanName,
         client: clientName,
         clientTier,
@@ -1049,7 +1053,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         dueDateOrRenewal: dueDate,
         milestonesTotal: existingPrj?.milestonesTotal || 4,
         milestonesCompleted: existingPrj?.milestonesCompleted || milestonesCompleted,
-        price: formattedPrice,
+        price: existingPrj?.price || formattedPrice,
         totalHours,
         activeHours: existingPrj?.activeHours || activeHours,
         progress,
@@ -1059,7 +1063,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         clientCallAssigneeId: callAssigneeId,
         paymentStatus: canonicalStatus === 'COMPLETED' ? 'Paid' : (existingPrj?.paymentStatus || 'Pending'),
         paymentDueDate: dueDate.includes('30th') ? '2026-07-31' : (existingPrj?.paymentDueDate || dueDate),
-        paymentAmountNumeric: parsedAmount,
+        paymentAmountNumeric: existingPrj?.paymentAmountNumeric || parsedAmount,
         paymentInvoiceId: existingPrj?.paymentInvoiceId || `INV-CU-${t.id.slice(-4).toUpperCase()}`,
         status: canonicalStatus,
         priorityLevel,
@@ -1216,6 +1220,47 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
 
 
 
+
+  // ClickUp Ticket Discussion & Activity Modal State
+  const [clickUpActivityModalState, setClickUpActivityModalState] = useState<{
+    isOpen: boolean;
+    taskId: string;
+    taskName: string;
+    taskUrl?: string;
+    projectName?: string;
+    clientName?: string;
+    status?: string;
+    priority?: string;
+    assignees?: Array<{ name: string; avatar?: string }>;
+  } | null>(null);
+
+  const handleOpenClickUpTicketModal = (
+    taskId: string,
+    taskName: string,
+    opts?: {
+      taskUrl?: string;
+      projectName?: string;
+      clientName?: string;
+      status?: string;
+      priority?: string;
+    }
+  ) => {
+    if (!isClickUpConnected()) {
+      sonnerToast.info('Please connect ClickUp first in the top bar to view ticket discussion & activity.');
+      setShowClickUpModal(true);
+      return;
+    }
+    setClickUpActivityModalState({
+      isOpen: true,
+      taskId,
+      taskName,
+      taskUrl: opts?.taskUrl,
+      projectName: opts?.projectName,
+      clientName: opts?.clientName,
+      status: opts?.status,
+      priority: opts?.priority
+    });
+  };
 
   // Modal State for Editing Existing Project
   const [editingProject, setEditingProject] = useState<ActiveProjectItem | null>(null);
@@ -3085,6 +3130,30 @@ Due Date: ${proj.paymentDueDate}
                               >
                                 <Copy className="w-3.5 h-3.5" />
                               </button>
+                              {(proj.clickUpTaskId || proj.id.startsWith('prj_cu_') || proj.taskBreakdown?.some(tb => tb.clickUpTaskId)) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const targetTaskId =
+                                      proj.clickUpTaskId ||
+                                      (proj.id.startsWith('prj_cu_') ? proj.id.replace('prj_cu_', '') : undefined) ||
+                                      proj.taskBreakdown?.find(tb => tb.clickUpTaskId)?.clickUpTaskId;
+                                    if (targetTaskId) {
+                                      handleOpenClickUpTicketModal(targetTaskId, proj.name, {
+                                        taskUrl: proj.clientFolderUrl,
+                                        projectName: proj.name,
+                                        clientName: proj.client,
+                                        status: proj.status,
+                                        priority: proj.priorityLevel
+                                      });
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-md bg-purple-500/20 hover:bg-purple-500/35 text-purple-300 hover:text-white transition-all cursor-pointer border border-purple-500/40"
+                                  title="💬 ClickUp Ticket Discussion & Comments"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -3211,6 +3280,32 @@ Due Date: ${proj.paymentDueDate}
                             <span>📁 ClickUp</span>
                             <ExternalLink className="w-2.5 h-2.5" />
                           </a>
+                        )}
+                        {(proj.clickUpTaskId || proj.id.startsWith('prj_cu_') || proj.taskBreakdown?.some(tb => tb.clickUpTaskId)) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const targetTaskId =
+                                proj.clickUpTaskId ||
+                                (proj.id.startsWith('prj_cu_') ? proj.id.replace('prj_cu_', '') : undefined) ||
+                                proj.taskBreakdown?.find(tb => tb.clickUpTaskId)?.clickUpTaskId;
+                              if (targetTaskId) {
+                                handleOpenClickUpTicketModal(targetTaskId, proj.name, {
+                                  taskUrl: proj.clientFolderUrl,
+                                  projectName: proj.name,
+                                  clientName: proj.client,
+                                  status: proj.status,
+                                  priority: proj.priorityLevel
+                                });
+                              }
+                            }}
+                            title="💬 View ClickUp ticket discussion & post comments"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/80 hover:bg-purple-900 text-purple-200 hover:text-white border border-purple-600/50 text-[10px] font-bold transition-all shrink-0 cursor-pointer shadow-sm"
+                          >
+                            <MessageSquare className="w-2.5 h-2.5" />
+                            <span>Discussion</span>
+                          </button>
                         )}
                       </div>
 
@@ -3419,6 +3514,28 @@ Due Date: ${proj.paymentDueDate}
                                           <span>CU</span>
                                           <ExternalLink className="w-2 h-2" />
                                         </a>
+                                      )}
+                                      {tb.clickUpTaskId && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenClickUpTicketModal(
+                                              tb.clickUpTaskId!,
+                                              `[${proj.name}] ${tb.taskType}`,
+                                              {
+                                                taskUrl: tb.clickUpUrl,
+                                                projectName: proj.name,
+                                                clientName: proj.client,
+                                                status: tb.clickUpStatus || tb.status
+                                              }
+                                            );
+                                          }}
+                                          title={`💬 Discussion on ${tb.taskType}`}
+                                          className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-white border border-purple-700/60 text-[9px] font-extrabold transition-colors cursor-pointer shrink-0"
+                                        >
+                                          <MessageSquare className="w-2 h-2" />
+                                        </button>
                                       )}
                                       {assignee && (
                                         <img
@@ -5168,6 +5285,31 @@ Due Date: ${proj.paymentDueDate}
                 </div>
 
                 <div className="flex items-center gap-3">
+                  {(activeDelivProj.clickUpTaskId || activeDelivProj.id.startsWith('prj_cu_') || activeDelivProj.taskBreakdown?.some(tb => tb.clickUpTaskId)) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetTaskId =
+                          activeDelivProj.clickUpTaskId ||
+                          (activeDelivProj.id.startsWith('prj_cu_') ? activeDelivProj.id.replace('prj_cu_', '') : undefined) ||
+                          activeDelivProj.taskBreakdown?.find(tb => tb.clickUpTaskId)?.clickUpTaskId;
+                        if (targetTaskId) {
+                          handleOpenClickUpTicketModal(targetTaskId, activeDelivProj.name, {
+                            taskUrl: activeDelivProj.clientFolderUrl,
+                            projectName: activeDelivProj.name,
+                            clientName: activeDelivProj.client,
+                            status: activeDelivProj.status,
+                            priority: activeDelivProj.priorityLevel
+                          });
+                        }
+                      }}
+                      className="flex items-center gap-2 px-5 py-3.5 rounded-xl bg-purple-900/40 hover:bg-purple-800/60 text-purple-200 border border-purple-500/50 font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg"
+                      title="View ClickUp comments and post live from dashboard"
+                    >
+                      <MessageSquare className="w-4 h-4 text-purple-400" />
+                      <span>💬 Ticket Discussion</span>
+                    </button>
+                  )}
                   {isClickUpConnected() && (
                     <button
                       type="button"
@@ -8015,6 +8157,31 @@ Due Date: ${proj.paymentDueDate}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                  {(liveProject.clickUpTaskId || liveProject.id.startsWith('prj_cu_') || liveProject.taskBreakdown?.some(tb => tb.clickUpTaskId)) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetTaskId =
+                          liveProject.clickUpTaskId ||
+                          (liveProject.id.startsWith('prj_cu_') ? liveProject.id.replace('prj_cu_', '') : undefined) ||
+                          liveProject.taskBreakdown?.find(tb => tb.clickUpTaskId)?.clickUpTaskId;
+                        if (targetTaskId) {
+                          handleOpenClickUpTicketModal(targetTaskId, liveProject.name, {
+                            taskUrl: liveProject.clientFolderUrl,
+                            projectName: liveProject.name,
+                            clientName: liveProject.client,
+                            status: liveProject.status,
+                            priority: liveProject.priorityLevel
+                          });
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 text-purple-200 border border-purple-500/50 font-bold text-xs transition-all cursor-pointer shadow-lg"
+                      title="View ClickUp comments and post live from dashboard"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
+                      <span>💬 Ticket Discussion</span>
+                    </button>
+                  )}
                   {isClickUpConnected() && (
                     <button
                       type="button"
@@ -8310,6 +8477,28 @@ Due Date: ${proj.paymentDueDate}
                               <span className="text-slate-400 text-xs font-bold">hrs/wk</span>
                             </div>
                           </div>
+
+                          {tb.clickUpTaskId && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleOpenClickUpTicketModal(
+                                  tb.clickUpTaskId!,
+                                  `[${liveProject.name}] ${tb.taskType}`,
+                                  {
+                                    taskUrl: tb.clickUpUrl,
+                                    projectName: liveProject.name,
+                                    clientName: liveProject.client,
+                                    status: tb.clickUpStatus || tb.status
+                                  }
+                                )
+                              }
+                              title="💬 View ClickUp comments & activities / post update"
+                              className="p-2 rounded-xl bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 hover:text-white border border-purple-500/40 transition-all cursor-pointer shrink-0"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                            </button>
+                          )}
 
                           <button
                             type="button"
@@ -9450,6 +9639,21 @@ Due Date: ${proj.paymentDueDate}
       </AnimatePresence>
         </>,
         document.body
+      )}
+
+      {clickUpActivityModalState?.isOpen && (
+        <ClickUpTaskActivityModal
+          isOpen={clickUpActivityModalState.isOpen}
+          taskId={clickUpActivityModalState.taskId}
+          taskName={clickUpActivityModalState.taskName}
+          taskUrl={clickUpActivityModalState.taskUrl}
+          projectName={clickUpActivityModalState.projectName}
+          clientName={clickUpActivityModalState.clientName}
+          status={clickUpActivityModalState.status}
+          priority={clickUpActivityModalState.priority}
+          assignees={clickUpActivityModalState.assignees}
+          onClose={() => setClickUpActivityModalState(null)}
+        />
       )}
     </div>
   );

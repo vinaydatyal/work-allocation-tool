@@ -337,3 +337,20 @@ Agencies frequently maintain their complete client roster inside a specific Clic
      - **Verification**: Clarified that existing application custom columns in `ActiveProjectItem` (`ga4Access`, `gbpAccess`, `gscAccess`, `gtmAccess`, `backendLoginsNote`, `communicationChannel`, `billingAccount`, `guestPostIncluded`, `reportingNote`, `reportingPlatform`, `serviceLabels`, `monthlyHistory`, `clientTier`, etc.) were **never deleted or removed**.
      - **Non-Destructive Ingestion Merge**: When ClickUp lists or tasks are imported (in either "Replace" or "Append" mode), the ingestion engine performs an existing project lookup (`projectsList.find(p => p.id === prjId || p.client.toLowerCase() === clientName.toLowerCase())`).
      - Any matched project retains 100% of its previously configured operational audit credentials, login notes, access statuses, and monthly history, merging incoming ClickUp fields without wiping local custom column data.
+
+8. **Live ClickUp Ticket Discussion, Commenting & Activity Audit Modal (`ClickUpTaskActivityModal.tsx`)**:
+   - **Full Bi-Directional Discussion Engine**:
+     - Allows managers and specialists to view live conversation threads, client ticket updates, and internal discussions directly from the Work Allocation dashboard without switching browser tabs.
+     - **Post Comments**: Users can type updates or client responses directly in the modal. Includes hotkey support (`Ctrl+Enter` / `Cmd+Enter`), real-time posting state indicators, and instant thread refresh.
+     - **Comment Formatting & User Attributions**: Automatically parses ClickUp comment text and rich-text blocks (`getCommentPlainText`), displaying commenter avatars, user initials, exact formatted timestamps (`formatCommentDate`), and quick 1-click clipboard copying.
+   - **Task Lifecycle Audit & Time in Status**:
+     - Tabbed navigation allows switching between **💬 Comments & Discussion** and **⏱️ Activity & Time in Status**.
+     - Integrates with ClickUp API (`fetchClickUpTaskTimeInStatus`) to display total time spent in each workflow status stage (e.g., In Progress, Review, Completed) with visual distribution progress bars.
+     - Displays comprehensive task metadata: Status, Priority, Assignees, Due Date, Estimated vs. Tracked Hours, and parent project context.
+   - **Dashboard-Wide Deep Integration Points**:
+     - **360° Visual Project Detail Modal**: Added `💬 Ticket Discussion` button in the header and inline `MessageSquare` conversation icons on each deliverable task row.
+     - **Table View**: Added `MessageSquare` discussion trigger button in the row action controls for all ClickUp-linked projects.
+     - **Executive Grid Cards**: Added `Discussion` badge in the project card header and inline discussion buttons on each deliverable task pill.
+     - **Tab 4 (Job Delivery Bot)**: Added `💬 Ticket Discussion` button in the squad verification and package dispatcher controls.
+   - **Data Privacy Guard**:
+     - Prominently displays privacy badge confirming that internal financial retainers, milestone calculations, and sensitive client access notes remain local and are never exposed or transmitted when interacting with ClickUp discussions.
