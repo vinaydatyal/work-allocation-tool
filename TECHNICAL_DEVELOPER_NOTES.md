@@ -536,6 +536,41 @@ Agencies frequently maintain their complete client roster inside a specific Clic
         - Problem analysis and 5 layout solutions for the sidebar dashboard overlap issue.
         - Complete architectural implementation of Idea 5 (Floating Bottom Island Dock) with Framer Motion physics and full-screen unblocked dashboard.
         - Synchronous chat log updates.
+  20. **Workflow Optimization Suite (5 Core Workflow Improvements)**:
+    - **Objective**: Accelerate day-to-day project management operations, eliminate context switching, prevent team member overload, and improve sync visibility without introducing bloated tabs or external modules.
+    - **Enhancement 1: In-Line Member Capacity in All Selection Dropdowns**:
+      - Implemented `getMemberCapacityLabel(m: TeamMember)` utility.
+      - Calculates assigned workload hours from all active project allocations (`activeHours * (pct / 100)`).
+      - Renders exact workload metrics inside all `<option>` dropdown labels: `[${assigned}/${cap}h • ${pct}%]`.
+      - Adds real-time overload indicator: displays `⚠️ OVERLOAD` when assigned hours exceed capacity.
+      - Integrated in both "Add Project Drawer" and "Edit Project Drawer" for Team Lead, Call Lead, and team member selectors.
+    - **Enhancement 2: Fast In-Place Click-to-Edit on Project Cards**:
+      - Replaced mandatory 3-tab drawer opening with instantaneous micro-popovers directly on the project card:
+        - **Status Pill Popover**: Clicking status opens an instant micro-dropdown to change status to `ON TRACK`, `INITIAL STAGE`, `REVALUATION`, `PAUSED`, or `COMPLETED`.
+        - **In-Line Price / Retainer Editor**: Clicking the price activates an in-place input with save (Check) and cancel (X) buttons, updating both `price` and `paymentAmountNumeric`.
+        - **Quick Lead & Call Lead Popovers**: Hovering/clicking avatar pills allows instant re-assignment of Team Lead or Client Call Assignee from a filtered dropdown.
+    - **Enhancement 3: ClickUp Sync Delta Feedback**:
+      - Enhanced `handleImportProjectsFromClickUpList` with delta tracking:
+        - Tracks newly imported vs. updated vs. unchanged projects.
+        - Displays dynamic sync summary alert banner at the top of the Projects roster.
+        - Adds pulsing `⚡ Synced Just Now` badge on modified project cards via `recentlySyncedProjectIds` state.
+    - **Enhancement 4: Actionable Everyday Filter Presets**:
+      - Extended Filter Studio with 4 high-priority 1-click operational filter buttons:
+        1. `🚨 Needs Call Lead`: Highlights projects missing client call assignment (`!p.clientCallAssigneeId`).
+        2. `⏱️ Hourly Retainers`: Filters to `Weekly Hourly Billing` projects for fast timecard checks.
+        3. `💎 $3k+ Retainers`: Surfaces high-value clients with `>= $3,000` monthly payment volume.
+        4. `⚠️ Over Budget`: Flags projects where logged hours exceed total allocated capacity (`actualHoursLogged > totalHours`).
+    - **Enhancement 5: Multi-Select Floating Bulk Action Strip**:
+      - Added card header multi-select checkbox on every project card (`handleToggleSelectProject`).
+      - Renders an elevated floating action strip (`fixed bottom-24 left-1/2 -translate-x-1/2 z-40 bg-slate-950/95 border border-emerald-500/50 rounded-2xl shadow-2xl`) when 1 or more cards are selected.
+      - Features:
+        - Live selected count badge with pulse indicator.
+        - `Select All ({filteredCount})` / `Deselect All` toggle button.
+        - Bulk Reassign Team Lead dropdown.
+        - Bulk Update Status dropdown.
+        - Bulk Archive to Past Projects button.
+        - Clear selection button.
+
 
 
 

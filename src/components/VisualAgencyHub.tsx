@@ -286,7 +286,24 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   const [smartMode, setSmartMode] = useState<boolean>(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
   const [showSquadWorkload, setShowSquadWorkload] = useState<boolean>(false);
-  const [everydayQuickFilter, setEverydayQuickFilter] = useState<'all' | 'on_track' | 'milestones' | 'needs_attention' | 'ai_high_risk' | 'ai_top_margin' | 'ai_overdue_cashflow' | 'ai_nearing_cap' | 'tier_vip' | 'tier_agency' | 'tier_local' | 'tier_highest_yield'>('all');
+  const [everydayQuickFilter, setEverydayQuickFilter] = useState<
+    | 'all'
+    | 'on_track'
+    | 'milestones'
+    | 'needs_attention'
+    | 'ai_high_risk'
+    | 'ai_top_margin'
+    | 'ai_overdue_cashflow'
+    | 'ai_nearing_cap'
+    | 'tier_vip'
+    | 'tier_agency'
+    | 'tier_local'
+    | 'tier_highest_yield'
+    | 'needs_call_lead'
+    | 'hourly_contracts'
+    | 'vip_retainers'
+    | 'over_budget'
+  >('all');
 
   // Agency Notifications & Activity Center state
   const [notifCategoryFilter, setNotifCategoryFilter] = useState<'all' | 'unread' | 'clickup' | 'finance' | 'capacity' | 'milestone'>('all');
@@ -1545,12 +1562,32 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
       };
     });
 
+    // Delta Tracking for ClickUp Ingestion (Improvement 3)
+    const existingMap = new Map(projectsList.map((p) => [p.id, p]));
+    const updatedIds: string[] = [];
+    const createdIds: string[] = [];
+
+    mappedProjects.forEach((mp) => {
+      if (existingMap.has(mp.id)) {
+        updatedIds.push(mp.id);
+      } else {
+        createdIds.push(mp.id);
+      }
+    });
+
+    const unchangedCount = Math.max(0, projectsList.length - updatedIds.length);
+    const deltaSet = new Set([...createdIds, ...updatedIds]);
+    setRecentlySyncedProjectIds(deltaSet);
+    setTimeout(() => {
+      setRecentlySyncedProjectIds(new Set());
+    }, 15000);
+
     if (replaceExisting) {
       setProjectsList(mappedProjects);
       setLastSyncedTime(new Date());
-      setCopiedToast(`⚡ Replaced Active Projects with ${mappedProjects.length} Clients from ClickUp!`);
-      sonnerToast.success(`⚡ Active Projects Replaced!`, {
-        description: `Imported and mapped all ${mappedProjects.length} clients from "${list.name}".`
+      setCopiedToast(`⚡ Synced: ${createdIds.length} Added, ${updatedIds.length} Updated from ClickUp!`);
+      sonnerToast.success(`⚡ ClickUp Sync Complete!`, {
+        description: `Imported ${mappedProjects.length} accounts (${updatedIds.length} updated, ${createdIds.length} newly added from "${list.name}").`
       });
     } else {
       setProjectsList((prev) => {
@@ -1559,9 +1596,9 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         return [...prev, ...nonDuplicates];
       });
       setLastSyncedTime(new Date());
-      setCopiedToast(`⚡ Added ${mappedProjects.length} Clients to Active Projects!`);
-      sonnerToast.success(`⚡ Added ${mappedProjects.length} Clients!`, {
-        description: `Merged ClickUp accounts from "${list.name}" into Active Projects.`
+      setCopiedToast(`⚡ Merged: ${createdIds.length} New Accounts from ClickUp!`);
+      sonnerToast.success(`⚡ ClickUp Sync Complete!`, {
+        description: `Merged ${createdIds.length} new accounts, ${unchangedCount} unchanged from "${list.name}".`
       });
     }
     setTimeout(() => setCopiedToast(null), 4500);
@@ -2011,6 +2048,137 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     }, 0);
   };
 
+  // Helper: Live Capacity & Availability Label for Dropdowns
+  const getMemberCapacityLabel = (m: TeamMember) => {
+    const assigned = calculateMemberAssignedHours(m.id);
+    const cap = m.weeklyCapacityHours || 40;
+    const pct = Math.round((assigned / cap) * 100);
+    const badge = pct >= 100 ? '🔴 Overload' : pct >= 85 ? '⚠️ Near Cap' : '✅ Free';
+    return `${m.name} (${m.role}) — [${assigned}/${cap}h • ${pct}%] ${badge}`;
+  };
+
+  // State: Multi-Select Bulk Actions on Roster Cards
+  const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set());
+  const [bulkActionDropdown, setBulkActionDropdown] = useState<'lead' | 'status' | null>(null);
+
+  // State: Recently Synced Project IDs (for ClickUp delta pulsing badge)
+  const [recentlySyncedProjectIds, setRecentlySyncedProjectIds] = useState<Set<string>>(new Set());
+
+  // State: Fast In-Line "Click-to-Edit" on Cards
+  const [inlineEditingPriceId, setInlineEditingPriceId] = useState<string | null>(null);
+  const [inlinePriceValue, setInlinePriceValue] = useState<string>('');
+  const [quickStatusMenuProjId, setQuickStatusMenuProjId] = useState<string | null>(null);
+  const [quickLeadMenuProjId, setQuickLeadMenuProjId] = useState<{ projId: string; role: 'lead' | 'call' } | null>(null);
+
+  // In-line Edit Handlers
+  const handleQuickUpdateStatus = (projId: string, newStatus: ActiveProjectItem['status']) => {
+    setProjectsList((prev) =>
+      prev.map((p) => (p.id === projId ? { ...p, status: newStatus } : p))
+    );
+    setQuickStatusMenuProjId(null);
+    sonnerToast.success(`Project status updated to ${newStatus}`);
+  };
+
+  const handleQuickUpdateLead = (projId: string, leadId: string) => {
+    setProjectsList((prev) =>
+      prev.map((p) => {
+        if (p.id !== projId) return p;
+        const member = customMembers.find((m) => m.id === leadId);
+        const updatedMembers = member && !p.members.some((m) => m.id === leadId) ? [member, ...p.members] : p.members;
+        return {
+          ...p,
+          projectLeadId: leadId || undefined,
+          members: updatedMembers
+        };
+      })
+    );
+    setQuickLeadMenuProjId(null);
+    sonnerToast.success('Team Lead reassigned successfully');
+  };
+
+  const handleQuickUpdateCallLead = (projId: string, callAssigneeId: string) => {
+    setProjectsList((prev) =>
+      prev.map((p) => (p.id === projId ? { ...p, clientCallAssigneeId: callAssigneeId || undefined } : p))
+    );
+    setQuickLeadMenuProjId(null);
+    sonnerToast.success('Call Lead updated successfully');
+  };
+
+  const handleSaveInlinePrice = (projId: string) => {
+    if (!inlinePriceValue.trim()) {
+      setInlineEditingPriceId(null);
+      return;
+    }
+    const clean = inlinePriceValue.trim();
+    const num = parseFloat(clean.replace(/[^0-9.]/g, '')) || 0;
+    setProjectsList((prev) =>
+      prev.map((p) => (p.id === projId ? { ...p, price: clean, paymentAmountNumeric: num > 0 ? num : p.paymentAmountNumeric } : p))
+    );
+    setInlineEditingPriceId(null);
+    sonnerToast.success(`Price updated to ${clean}`);
+  };
+
+  // Bulk Action Handlers
+  const handleToggleSelectProject = (projId: string) => {
+    setSelectedProjectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(projId)) next.delete(projId);
+      else next.add(projId);
+      return next;
+    });
+  };
+
+  const handleSelectAllFilteredProjects = () => {
+    if (selectedProjectIds.size === filteredProjectsList.length) {
+      setSelectedProjectIds(new Set());
+    } else {
+      setSelectedProjectIds(new Set(filteredProjectsList.map((p) => p.id)));
+    }
+  };
+
+  const handleBulkReassignLead = (leadId: string) => {
+    if (selectedProjectIds.size === 0) return;
+    const member = customMembers.find((m) => m.id === leadId);
+    setProjectsList((prev) =>
+      prev.map((p) => {
+        if (!selectedProjectIds.has(p.id)) return p;
+        const updatedMembers = member && !p.members.some((m) => m.id === leadId) ? [member, ...p.members] : p.members;
+        return {
+          ...p,
+          projectLeadId: leadId || undefined,
+          members: updatedMembers
+        };
+      })
+    );
+    setBulkActionDropdown(null);
+    sonnerToast.success(`Reassigned Team Lead for ${selectedProjectIds.size} projects!`);
+  };
+
+  const handleBulkUpdateStatus = (newStatus: ActiveProjectItem['status']) => {
+    if (selectedProjectIds.size === 0) return;
+    setProjectsList((prev) =>
+      prev.map((p) => (selectedProjectIds.has(p.id) ? { ...p, status: newStatus } : p))
+    );
+    setBulkActionDropdown(null);
+    sonnerToast.success(`Updated status to ${newStatus} for ${selectedProjectIds.size} projects!`);
+  };
+
+  const handleBulkArchiveProjects = () => {
+    if (selectedProjectIds.size === 0) return;
+    const count = selectedProjectIds.size;
+    const toArchive = projectsList.filter((p) => selectedProjectIds.has(p.id));
+    const archivedItems: ArchivedProjectItem[] = toArchive.map((p) => ({
+      ...p,
+      archiveCategory: 'past_project',
+      archivedAt: new Date().toISOString(),
+      archiveReason: 'Bulk moved to Past Projects'
+    }));
+    setArchivedProjects((prev) => [...archivedItems, ...prev]);
+    setProjectsList((prev) => prev.filter((p) => !selectedProjectIds.has(p.id)));
+    setSelectedProjectIds(new Set());
+    sonnerToast.success(`Archived ${count} projects to Past Projects.`);
+  };
+
   // Toast for Copied Summary / Invoice
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
 
@@ -2393,6 +2561,12 @@ Due Date: ${proj.paymentDueDate}
       const yieldRate = Math.round((proj.paymentAmountNumeric || 0) / Math.max(1, proj.activeHours || proj.totalHours || 1));
       if (yieldRate < 70) return false;
     }
+
+    // 4 High-Impact Actionable Filter Presets
+    if (everydayQuickFilter === 'needs_call_lead' && proj.clientCallAssigneeId && proj.clientCallAssigneeId.trim() !== '') return false;
+    if (everydayQuickFilter === 'hourly_contracts' && proj.billingType !== 'Weekly Hourly Billing' && !proj.price?.toLowerCase().includes('/hr')) return false;
+    if (everydayQuickFilter === 'vip_retainers' && resolvedTier !== 'TIER_S_VIP' && (proj.paymentAmountNumeric || 0) < 3000) return false;
+    if (everydayQuickFilter === 'over_budget' && ((proj.actualHoursLogged || 0) <= (proj.activeHours || 0) || (proj.activeHours || 0) === 0)) return false;
 
     if (filterLeadId !== 'ALL') {
       if (filterLeadId === 'UNASSIGNED') {
@@ -3530,6 +3704,71 @@ Due Date: ${proj.paymentDueDate}
                   >
                     👑 VIP Accounts ({projectsList.filter(p => (p.clientTier || classifyClientTier(p)) === 'TIER_S_VIP').length})
                   </button>
+
+                  {/* 4 Actionable Filter Presets */}
+                  <button
+                    type="button"
+                    onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'needs_call_lead' ? 'all' : 'needs_call_lead')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      everydayQuickFilter === 'needs_call_lead'
+                        ? 'bg-rose-500/25 text-rose-200 border border-rose-400/70 shadow-[0_0_12px_rgba(244,63,94,0.35)]'
+                        : 'bg-slate-900/90 text-rose-300/80 hover:text-rose-200 border border-rose-900/50 hover:border-rose-700/60'
+                    }`}
+                    title="Filter projects missing a Call Lead"
+                  >
+                    <span>🚨 Needs Call Lead</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-rose-950 text-rose-300 text-[10px] font-black border border-rose-800/60">
+                      {projectsList.filter(p => !p.clientCallAssigneeId || p.clientCallAssigneeId.trim() === '').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'hourly_contracts' ? 'all' : 'hourly_contracts')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      everydayQuickFilter === 'hourly_contracts'
+                        ? 'bg-amber-500/25 text-amber-200 border border-amber-400/70 shadow-[0_0_12px_rgba(245,158,11,0.35)]'
+                        : 'bg-slate-900/90 text-amber-300/80 hover:text-amber-200 border border-amber-900/50 hover:border-amber-700/60'
+                    }`}
+                    title="Filter projects billed on weekly hourly basis"
+                  >
+                    <span>⏱️ Hourly Retainers</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-amber-950 text-amber-300 text-[10px] font-black border border-amber-800/60">
+                      {projectsList.filter(p => p.billingType === 'Weekly Hourly Billing' || (p.price && p.price.toLowerCase().includes('/hr'))).length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'vip_retainers' ? 'all' : 'vip_retainers')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      everydayQuickFilter === 'vip_retainers'
+                        ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/70 shadow-[0_0_12px_rgba(99,102,241,0.35)]'
+                        : 'bg-slate-900/90 text-indigo-300/80 hover:text-indigo-200 border border-indigo-900/50 hover:border-indigo-700/60'
+                    }`}
+                    title="Filter high-ticket retainers ($3,000+/mo)"
+                  >
+                    <span>💎 $3k+ Retainers</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-indigo-950 text-indigo-300 text-[10px] font-black border border-indigo-800/60">
+                      {projectsList.filter(p => (p.paymentAmountNumeric || 0) >= 3000 || (p.clientTier || classifyClientTier(p)) === 'TIER_S_VIP').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'over_budget' ? 'all' : 'over_budget')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      everydayQuickFilter === 'over_budget'
+                        ? 'bg-orange-500/25 text-orange-200 border border-orange-400/70 shadow-[0_0_12px_rgba(249,115,22,0.35)]'
+                        : 'bg-slate-900/90 text-orange-300/80 hover:text-orange-200 border border-orange-900/50 hover:border-orange-700/60'
+                    }`}
+                    title="Filter projects where actual hours exceed allocated scope"
+                  >
+                    <span>⚠️ Over Budget</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-orange-950 text-orange-300 text-[10px] font-black border border-orange-800/60">
+                      {projectsList.filter(p => (p.actualHoursLogged || 0) > (p.activeHours || 0) && (p.activeHours || 0) > 0).length}
+                    </span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setEverydayQuickFilter('tier_agency')}
@@ -4086,22 +4325,78 @@ Due Date: ${proj.paymentDueDate}
                   >
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     <div className="space-y-3 min-w-0 w-full relative z-10">
-                      {/* Top Row (Always Visible): Status Tag + Client Label + Price */}
+                      {/* Top Row (Always Visible): Checkbox + Status Tag + Client Label + Price */}
                       <div className="flex flex-wrap items-center justify-between gap-2 min-w-0 w-full">
                         <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
+                          {/* Multi-Select Bulk Checkbox */}
+                          <input
+                            type="checkbox"
+                            checked={selectedProjectIds.has(proj.id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleToggleSelectProject(proj.id);
+                            }}
+                            className={`w-4 h-4 rounded text-emerald-500 cursor-pointer accent-emerald-500 shrink-0 transition-opacity ${
+                              selectedProjectIds.size > 0 ? 'opacity-100 ring-2 ring-emerald-500' : 'opacity-40 group-hover:opacity-100'
+                            }`}
+                            title="Select for bulk action"
+                          />
+
+                          {/* Delta Synced Badge */}
+                          {recentlySyncedProjectIds.has(proj.id) && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/25 text-emerald-300 border border-emerald-400 animate-pulse flex items-center gap-1 shrink-0 shadow-lg shadow-emerald-500/20">
+                              ⚡ Synced Just Now
+                            </span>
+                          )}
+
                           <ClientTierBadge tier={proj.clientTier || classifyClientTier(proj)} size="sm" />
                           <ProjectHealthBadge project={proj} onClick={() => setDiagnosingProject(proj)} size="sm" />
-                          <span
-                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border shrink-0 ${
-                              proj.status === 'INITIAL STAGE'
-                                ? 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40'
-                                : proj.status === 'REVALUATION'
-                                ? 'bg-amber-500/20 text-amber-200 border-amber-500/40'
-                                : 'bg-emerald-500/20 text-emerald-200 border-emerald-500/40'
-                            }`}
-                          >
-                            {proj.status || 'ON TRACK'}
-                          </span>
+
+                          {/* Click-to-Edit Quick Status Popover */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickStatusMenuProjId(quickStatusMenuProjId === proj.id ? null : proj.id);
+                              }}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border shrink-0 cursor-pointer hover:scale-105 transition-all flex items-center gap-1 ${
+                                proj.status === 'INITIAL STAGE'
+                                  ? 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40 hover:bg-cyan-500/30'
+                                  : proj.status === 'REVALUATION'
+                                  ? 'bg-amber-500/20 text-amber-200 border-amber-500/40 hover:bg-amber-500/30'
+                                  : proj.status === 'COMPLETED'
+                                  ? 'bg-purple-500/20 text-purple-200 border-purple-500/40 hover:bg-purple-500/30'
+                                  : 'bg-emerald-500/20 text-emerald-200 border-emerald-500/40 hover:bg-emerald-500/30'
+                              }`}
+                              title="Click to quick-change status"
+                            >
+                              <span>{proj.status || 'ON TRACK'}</span>
+                              <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                            </button>
+
+                            {quickStatusMenuProjId === proj.id && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute left-0 top-full mt-1.5 z-50 rounded-xl shadow-2xl p-1.5 w-40 border bg-slate-900/95 border-slate-700 backdrop-blur-xl space-y-1 animate-fade-in text-left"
+                              >
+                                <div className="text-[9px] font-black text-slate-400 uppercase px-2 py-0.5">Quick Status</div>
+                                {(['ON TRACK', 'INITIAL STAGE', 'REVALUATION', 'PAUSED', 'COMPLETED'] as const).map((st) => (
+                                  <button
+                                    key={st}
+                                    type="button"
+                                    onClick={() => handleQuickUpdateStatus(proj.id, st)}
+                                    className={`w-full text-left px-2 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                                      proj.status === st ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'hover:bg-slate-800 text-slate-300 hover:text-white'
+                                    }`}
+                                  >
+                                    {st}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
                           <span className="text-xs font-bold text-slate-300 uppercase tracking-wider truncate min-w-0 max-w-[180px] sm:max-w-[220px]">
                             {proj.client}
                           </span>
@@ -4113,9 +4408,50 @@ Due Date: ${proj.paymentDueDate}
                             hours={proj.activeHours || proj.totalHours || 1}
                             showLabel={false}
                           />
-                          <span className="text-xs font-bold text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-md border border-emerald-500/40 shadow-sm">
-                            {proj.price}
-                          </span>
+
+                          {/* Quick In-Line Price Editor */}
+                          {inlineEditingPriceId === proj.id ? (
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                value={inlinePriceValue}
+                                onChange={(e) => setInlinePriceValue(e.target.value)}
+                                className="w-20 px-1.5 py-0.5 rounded text-xs font-bold text-emerald-300 bg-slate-900 border border-emerald-500 focus:outline-none"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveInlinePrice(proj.id);
+                                  if (e.key === 'Escape') setInlineEditingPriceId(null);
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveInlinePrice(proj.id)}
+                                className="p-1 rounded bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-xs font-black cursor-pointer"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setInlineEditingPriceId(null)}
+                                className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white text-xs font-bold cursor-pointer"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInlineEditingPriceId(proj.id);
+                                setInlinePriceValue(proj.price || '');
+                              }}
+                              className="text-xs font-bold text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-md border border-emerald-500/40 shadow-sm hover:border-emerald-400/80 hover:scale-105 transition-all cursor-pointer"
+                              title="Click to quick-edit price"
+                            >
+                              {proj.price}
+                            </button>
+                          )}
 
                           <button
                             type="button"
@@ -4244,9 +4580,115 @@ Due Date: ${proj.paymentDueDate}
                             )}
                           </div>
                           <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-300 min-w-0">
-                            <span className="truncate">Lead: <strong className={leadMember ? "text-white font-bold ml-1" : "text-slate-400 italic ml-1"}>{leadMember ? leadMember.name.split(' ')[0] : 'Unassigned'}</strong></span>
+                            {/* Quick Lead Reassign Popover */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuickLeadMenuProjId(
+                                    quickLeadMenuProjId?.projId === proj.id && quickLeadMenuProjId?.role === 'lead'
+                                      ? null
+                                      : { projId: proj.id, role: 'lead' }
+                                  );
+                                }}
+                                className="truncate hover:text-cyan-300 cursor-pointer transition-colors text-left"
+                                title="Click to quickly reassign Team Lead"
+                              >
+                                Lead: <strong className={leadMember ? "text-white font-bold ml-1 underline decoration-dotted" : "text-slate-400 italic ml-1 underline decoration-dotted"}>{leadMember ? leadMember.name.split(' ')[0] : 'Unassigned'}</strong>
+                              </button>
+
+                              {quickLeadMenuProjId?.projId === proj.id && quickLeadMenuProjId?.role === 'lead' && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute left-0 bottom-full mb-2 z-50 rounded-xl shadow-2xl p-2 w-64 border bg-slate-900/95 border-slate-700 backdrop-blur-xl space-y-1 animate-fade-in text-left max-h-56 overflow-y-auto no-scrollbar"
+                                >
+                                  <div className="text-[9px] font-black text-slate-400 uppercase px-1 pb-1 border-b border-slate-800">Quick Assign Lead</div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickUpdateLead(proj.id, '')}
+                                    className="w-full text-left px-2 py-1 rounded-lg text-xs font-semibold hover:bg-slate-800 text-slate-400 italic cursor-pointer"
+                                  >
+                                    -- Unassigned (Leave Blank) --
+                                  </button>
+                                  {customMembers.map((m) => {
+                                    const assigned = calculateMemberAssignedHours(m.id);
+                                    const cap = m.weeklyCapacityHours || 40;
+                                    const pct = Math.round((assigned / cap) * 100);
+                                    const badge = pct >= 100 ? '🔴' : pct >= 85 ? '⚠️' : '✅';
+                                    return (
+                                      <button
+                                        key={m.id}
+                                        type="button"
+                                        onClick={() => handleQuickUpdateLead(proj.id, m.id)}
+                                        className={`w-full text-left px-2 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-between ${
+                                          proj.projectLeadId === m.id ? 'bg-cyan-500/20 text-cyan-300' : 'hover:bg-slate-800 text-slate-300 hover:text-white'
+                                        }`}
+                                      >
+                                        <span className="truncate">{m.name}</span>
+                                        <span className="text-[10px] text-slate-400 font-mono ml-2 shrink-0">{badge} {pct}%</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
                             <span className="w-px h-4 bg-slate-700" aria-hidden="true" />
-                            <span className="truncate">Calls: <strong className={callMember ? "text-white font-bold ml-1" : "text-slate-400 italic ml-1"}>{callMember ? callMember.name.split(' ')[0] : 'Unassigned'}</strong></span>
+
+                            {/* Quick Call Lead Reassign Popover */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuickLeadMenuProjId(
+                                    quickLeadMenuProjId?.projId === proj.id && quickLeadMenuProjId?.role === 'call'
+                                      ? null
+                                      : { projId: proj.id, role: 'call' }
+                                  );
+                                }}
+                                className="truncate hover:text-purple-300 cursor-pointer transition-colors text-left"
+                                title="Click to quickly reassign Call Lead"
+                              >
+                                Calls: <strong className={callMember ? "text-white font-bold ml-1 underline decoration-dotted" : "text-slate-400 italic ml-1 underline decoration-dotted"}>{callMember ? callMember.name.split(' ')[0] : 'Unassigned'}</strong>
+                              </button>
+
+                              {quickLeadMenuProjId?.projId === proj.id && quickLeadMenuProjId?.role === 'call' && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute left-0 bottom-full mb-2 z-50 rounded-xl shadow-2xl p-2 w-64 border bg-slate-900/95 border-slate-700 backdrop-blur-xl space-y-1 animate-fade-in text-left max-h-56 overflow-y-auto no-scrollbar"
+                                >
+                                  <div className="text-[9px] font-black text-slate-400 uppercase px-1 pb-1 border-b border-slate-800">Quick Assign Call Lead</div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickUpdateCallLead(proj.id, '')}
+                                    className="w-full text-left px-2 py-1 rounded-lg text-xs font-semibold hover:bg-slate-800 text-slate-400 italic cursor-pointer"
+                                  >
+                                    -- Unassigned (Leave Blank) --
+                                  </button>
+                                  {customMembers.map((m) => {
+                                    const assigned = calculateMemberAssignedHours(m.id);
+                                    const cap = m.weeklyCapacityHours || 40;
+                                    const pct = Math.round((assigned / cap) * 100);
+                                    const badge = pct >= 100 ? '🔴' : pct >= 85 ? '⚠️' : '✅';
+                                    return (
+                                      <button
+                                        key={m.id}
+                                        type="button"
+                                        onClick={() => handleQuickUpdateCallLead(proj.id, m.id)}
+                                        className={`w-full text-left px-2 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-between ${
+                                          proj.clientCallAssigneeId === m.id ? 'bg-purple-500/20 text-purple-300' : 'hover:bg-slate-800 text-slate-300 hover:text-white'
+                                        }`}
+                                      >
+                                        <span className="truncate">{m.name}</span>
+                                        <span className="text-[10px] text-slate-400 font-mono ml-2 shrink-0">{badge} {pct}%</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="flex flex-col items-end shrink-0 ml-auto">
@@ -4622,6 +5064,108 @@ Due Date: ${proj.paymentDueDate}
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+            {/* Multi-Select Floating Bulk Action Strip (Improvement 5) */}
+            {selectedProjectIds.size > 0 && (
+              <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 bg-slate-950/95 border border-emerald-500/50 rounded-2xl shadow-2xl px-5 py-3 flex flex-wrap items-center gap-3 backdrop-blur-2xl text-white animate-in slide-in-from-bottom-5">
+                <div className="flex items-center gap-2 pr-3 border-r border-slate-700">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-xs font-black text-emerald-300 font-mono">
+                    {selectedProjectIds.size} Selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSelectAllFilteredProjects}
+                    className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 underline cursor-pointer ml-1"
+                  >
+                    {selectedProjectIds.size === filteredProjectsList.length ? 'Deselect All' : `Select All (${filteredProjectsList.length})`}
+                  </button>
+                </div>
+
+                {/* Reassign Lead Bulk Dropdown */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setBulkActionDropdown(bulkActionDropdown === 'lead' ? null : 'lead')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold flex items-center gap-1.5 border border-slate-700 cursor-pointer"
+                  >
+                    <User className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Reassign Lead</span>
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  </button>
+                  {bulkActionDropdown === 'lead' && (
+                    <div className="absolute bottom-full mb-2 left-0 w-64 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl p-2 z-50 max-h-56 overflow-y-auto no-scrollbar space-y-1 text-left">
+                      <div className="text-[10px] font-black uppercase text-slate-400 px-1 pb-1 border-b border-slate-800">Select Team Lead</div>
+                      <button
+                        type="button"
+                        onClick={() => handleBulkReassignLead('')}
+                        className="w-full text-left px-2 py-1 rounded text-xs font-semibold hover:bg-slate-800 text-slate-400 italic cursor-pointer"
+                      >
+                        -- Unassigned (Leave Blank) --
+                      </button>
+                      {customMembers.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => handleBulkReassignLead(m.id)}
+                          className="w-full text-left px-2 py-1 rounded text-xs font-semibold hover:bg-slate-800 text-slate-200 cursor-pointer"
+                        >
+                          {m.name} ({m.role})
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Update Status Bulk Dropdown */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setBulkActionDropdown(bulkActionDropdown === 'status' ? null : 'status')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold flex items-center gap-1.5 border border-slate-700 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Update Status</span>
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  </button>
+                  {bulkActionDropdown === 'status' && (
+                    <div className="absolute bottom-full mb-2 left-0 w-44 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl p-2 z-50 space-y-1 text-left">
+                      <div className="text-[10px] font-black uppercase text-slate-400 px-1 pb-1 border-b border-slate-800">Choose Status</div>
+                      {(['ON TRACK', 'INITIAL STAGE', 'REVALUATION', 'PAUSED', 'COMPLETED'] as const).map((st) => (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() => handleBulkUpdateStatus(st)}
+                          className="w-full text-left px-2 py-1 rounded text-xs font-semibold hover:bg-slate-800 text-slate-200 cursor-pointer"
+                        >
+                          {st}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bulk Archive */}
+                <button
+                  type="button"
+                  onClick={handleBulkArchiveProjects}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-amber-950/60 text-amber-300 hover:text-amber-200 text-xs font-bold flex items-center gap-1.5 border border-slate-700 hover:border-amber-700/50 cursor-pointer"
+                  title="Archive selected projects to Past Projects"
+                >
+                  <FolderArchive className="w-3.5 h-3.5" />
+                  <span>Archive ({selectedProjectIds.size})</span>
+                </button>
+
+                {/* Clear selection */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedProjectIds(new Set())}
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer ml-1"
+                  title="Deselect all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             )}
             </div>
@@ -8129,7 +8673,7 @@ Due Date: ${proj.paymentDueDate}
                               <option value="">-- Unassigned (Leave Blank) --</option>
                               {customMembers.map((m) => (
                                 <option key={m.id} value={m.id}>
-                                  {m.name} ({m.role})
+                                  {getMemberCapacityLabel(m)}
                                 </option>
                               ))}
                             </select>
@@ -8145,7 +8689,7 @@ Due Date: ${proj.paymentDueDate}
                               <option value="">-- Unassigned (Leave Blank) --</option>
                               {customMembers.map((m) => (
                                 <option key={m.id} value={m.id}>
-                                  {m.name} ({m.role})
+                                  {getMemberCapacityLabel(m)}
                                 </option>
                               ))}
                             </select>
@@ -8161,7 +8705,7 @@ Due Date: ${proj.paymentDueDate}
                               <option value="">-- Unassigned (Leave Blank) --</option>
                               {customMembers.map((m) => (
                                 <option key={m.id} value={m.id}>
-                                  {m.name} ({m.role})
+                                  {getMemberCapacityLabel(m)}
                                 </option>
                               ))}
                             </select>
@@ -8238,7 +8782,7 @@ Due Date: ${proj.paymentDueDate}
                                 <option value="">-- Unassigned --</option>
                                 {customMembers.map((m) => (
                                   <option key={m.id} value={m.id}>
-                                    {m.name} ({m.role})
+                                    {getMemberCapacityLabel(m)}
                                   </option>
                                 ))}
                               </select>
@@ -9044,7 +9588,7 @@ Due Date: ${proj.paymentDueDate}
                           <option value="">-- Unassigned (Leave Blank) --</option>
                           {customMembers.map((m) => (
                             <option key={m.id} value={m.id}>
-                              {m.name} ({m.role})
+                              {getMemberCapacityLabel(m)}
                             </option>
                           ))}
                         </select>
@@ -9062,7 +9606,7 @@ Due Date: ${proj.paymentDueDate}
                           <option value="">-- Unassigned (Leave Blank) --</option>
                           {customMembers.map((m) => (
                             <option key={m.id} value={m.id}>
-                              {m.name} ({m.role})
+                              {getMemberCapacityLabel(m)}
                             </option>
                           ))}
                         </select>
@@ -9080,7 +9624,7 @@ Due Date: ${proj.paymentDueDate}
                           <option value="">-- Unassigned (Leave Blank) --</option>
                           {customMembers.map((m) => (
                             <option key={m.id} value={m.id}>
-                              {m.name} ({m.role})
+                              {getMemberCapacityLabel(m)}
                             </option>
                           ))}
                         </select>
@@ -9165,7 +9709,7 @@ Due Date: ${proj.paymentDueDate}
                             <option value="">-- Unassigned --</option>
                             {customMembers.map((m) => (
                               <option key={m.id} value={m.id}>
-                                {m.name} ({m.role})
+                                {getMemberCapacityLabel(m)}
                               </option>
                             ))}
                           </select>
