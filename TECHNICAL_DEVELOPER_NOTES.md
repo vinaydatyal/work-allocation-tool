@@ -603,14 +603,24 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Expanded Project card Executive Leadership cards navigate to `/member/${member.id}`.
       - Assigned deliverables capsules navigate to `/member/${assignee.id}`.
       - Squad Workload & Heatmap cards feature direct profile navigation and a "Profile ➔" button.
-
-
-
-
-
-
-
-
-
-
-
+  23. **ClickUp Assigned Task Picking & Deliverable Synchronization Engine**:
+    - **Problem Addressed**:
+      - Viewing a specialist's profile (e.g. Vivek Kumar with 6 active projects and 24h allocated) showed 0 active tasks because `initialTasks` mock data only tracked an initial sample of sprint tasks for leads, and active project deliverables were disconnected from member task counts.
+    - **Resolution Implemented**:
+      - **Unified Deliverable Derivation (`src/components/MemberProfilePage.tsx`)**:
+        - Automatically derives member sprint deliverables for all active projects where they are assigned as Squad Lead, Call Lead, or Specialist.
+        - Calculates individual allocated hours based on `project.memberHoursMap[member.id]` or team distribution.
+        - Attaches ClickUp task IDs (`#86b...`) and clickable ClickUp deep-links (`https://app.clickup.com/t/...`) to every task card.
+        - Integrates direct sprint tasks from `allTasks`, live ClickUp synced tasks, and active project deliverables with deduplication.
+      - **"⚡ Pick Tasks from ClickUp" Action Button**:
+        - Positioned in the Active Tasks tab header and within empty state views.
+        - When ClickUp OAuth is connected: Queries ClickUp API (`fetchClickUpTasks`) for tasks assigned to the member (matching by `clickUpUserId`, email, or username similarity), converts them to `Task` objects, persists them in `localStorage` (`vat_clickup_member_tasks_${member.id}`), and updates state.
+        - When offline / in Deliverables Mode: Synthesizes and loads active project deliverables with generated ClickUp linkages, giving instant feedback and populating active tasks without requiring OAuth configuration.
+      - **Two-Way Status Synchronization**:
+        - Task cards feature status dropdown selectors (`Backlog`, `Assigned`, `In Progress`, `In Review`, `Completed`).
+        - Changing status updates the local state, persists in `localStorage`, and triggers `updateClickUpTaskStatus` to update the task in ClickUp when an OAuth token is present.
+      - **Live ClickUp Connection Pill**:
+        - Displays a live status badge (`ClickUp Connected` with glowing green pulse or `Deliverables Mode`) next to the action button.
+      - **Mock Data Expansion (`src/data/mockData.ts`)**:
+        - Added `clickUpUserId: 864201` and `clickUpEmail: 'vivek@rankharvest.com'` to Vivek Kumar.
+        - Added initial sprint tasks `tsk_06`, `tsk_07`, `tsk_08`, `tsk_09` for Vivek Kumar with ClickUp task linkages and estimated hours.

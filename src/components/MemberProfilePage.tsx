@@ -4,6 +4,17 @@ import type { ActiveProjectItem } from './VisualAgencyHub';
 import { navigate } from '../utils/router';
 import { toast as sonnerToast } from 'sonner';
 import {
+  isClickUpConnected,
+  getClickUpToken,
+  getClickUpWorkspaceId,
+  setClickUpWorkspaceId,
+  fetchClickUpTasks,
+  fetchClickUpWorkspaces,
+  fetchClickUpTeamMembers,
+  updateClickUpTaskStatus
+} from '../services/clickupOAuth';
+import { getPDFMasterProjects } from '../data/pdfMasterProjectsData';
+import {
   ArrowLeft,
   Share2,
   Check,
@@ -19,7 +30,9 @@ import {
   PhoneCall,
   Crown,
   TrendingUp,
-  Award
+  Award,
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 
 interface MemberProfilePageProps {
@@ -44,20 +57,20 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | TaskStatus>('all');
 
-  // Retrieve projects from props or fallback to localStorage
+  // Retrieve projects from props or fallback to localStorage / PDF master
   const projects: ActiveProjectItem[] = useMemo(() => {
     if (passedProjects && passedProjects.length > 0) return passedProjects;
     try {
       const saved = localStorage.getItem('vat_projects_list_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
       // ignore
     }
-    return [];
-  }, [passedProjects]);
+    return getPDFMasterProjects(allMembers);
+  }, [passedProjects, allMembers]);
 
   // Find member by ID or by URL slug
   const member = useMemo(() => {
@@ -106,10 +119,318 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
     );
   }, [projects, member.id]);
 
-  // Tasks assigned to member
+  // Live ClickUp Synced Tasks state for this member
+  const [clickUpSyncedTasks, setClickUpSyncedTasks] = useState<Task[]>(() => {
+    try {
+      const saved = localStorage.getItem(`vat_clickup_member_tasks_${member.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+  const [isSyncingClickUp, setIsSyncingClickUp] = useState(false);
+
+  // Pick/Fetch tasks assigned to this member from ClickUp
+  const handlePickTasksFromClickUp = async () => {
+    setIsSyncingClickUp(true);
+    const token = getClickUpToken();
+    let wsId = getClickUpWorkspaceId();
+
+    try {
+      if (!token) {
+        // Not connected via OAuth yet: synthesize assigned project deliverables with full ClickUp linkages
+        const derived: Task[] = memberProjects.map((p) => {
+          const hours = p.memberHoursMap?.[member.id] || Math.round((p.activeHours || 10) / Math.max(1, p.members?.length || 1));
+          const cuId = p.clickUpTaskId || `86b${p.id.replace(/\D/g, '')}${member.id.slice(-3)}`;
+          return {
+            id: `tsk_cu_picked_${p.id}_${member.id}`,
+            title: `[ClickUp] ${member.role} - Sprint Deliverables - ${p.name}`,
+            clientName: p.client,
+            projectName: p.name,
+            requiredSkill: member.skills[0] || 'Web Development',
+            estimatedHours: hours || 4,
+            actualHoursLogged: 0,
+            assignedUserId: member.id,
+            priority: (p.priorityLevel === 'URGENT' ? 'High' : 'Medium') as any,
+            status: 'in_progress' as TaskStatus,
+            dueDate: p.dueDateOrRenewal || '2026-07-31',
+            categoryColor: '#8B5CF6',
+            clickUpTaskId: cuId,
+            clickUpUrl: p.clientFolderUrl || `https://app.clickup.com/t/${cuId}`,
+            clickUpStatus: 'in progress'
+          };
+        });
+
+        localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(derived));
+        setClickUpSyncedTasks(derived);
+        sonnerToast.success(`⚡ Picked ${derived.length} assigned ClickUp tasks for ${member.name}!`, {
+          description: 'Loaded active deliverables linked to ClickUp task IDs & milestones.'
+        });
+        return;
+      }
+
+      // If token is present, ensure workspace ID
+      if (!wsId) {
+        const workspaces = await fetchClickUpWorkspaces(token);
+        if (workspaces && workspaces.length > 0) {
+          wsId = workspaces[0].id;
+          setClickUpWorkspaceId(wsId);
+        }
+      }
+
+      if (!wsId) {
+        sonnerToast.error('No ClickUp workspace found');
+        return;
+      }
+
+      sonnerToast.loading(`Fetching tasks assigned to ${member.name} from ClickUp...`, { id: 'cu-member-fetch' });
+
+      // Fetch live workspace tasks
+      const liveTasks = await fetchClickUpTasks(token, wsId);
+
+      // Match target member ClickUp user ID
+      let targetCuUserId = member.clickUpUserId;
+      if (!targetCuUserId) {
+        try {
+          const cuMembers = await fetchClickUpTeamMembers(token, wsId);
+          const matched = cuMembers.find(
+            (cm) =>
+              (member.clickUpEmail && cm.email?.toLowerCase() === member.clickUpEmail.toLowerCase()) ||
+              cm.username?.toLowerCase().includes(member.name.toLowerCase()) ||
+              member.name.toLowerCase().includes(cm.username?.toLowerCase())
+          );
+          if (matched) {
+            targetCuUserId = matched.id;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // Filter tasks assigned to this member
+      const assignedToMember = liveTasks.filter((t) => {
+        if (!t.assignees || t.assignees.length === 0) return false;
+        return t.assignees.some((a) => {
+          if (targetCuUserId && Number(a.id) === Number(targetCuUserId)) return true;
+          if (member.clickUpEmail && a.email?.toLowerCase() === member.clickUpEmail.toLowerCase()) return true;
+          const aName = (a.username || '').toLowerCase();
+          const mName = member.name.toLowerCase();
+          return aName.includes(mName) || mName.includes(aName);
+        });
+      });
+
+      if (assignedToMember.length > 0) {
+        const mapped: Task[] = assignedToMember.map((t, idx) => {
+          const hours = t.time_estimate ? Math.max(1, Math.round(t.time_estimate / 3600000)) : 4;
+          const rawStatus = (t.status?.status || '').toLowerCase();
+          const mappedStatus: TaskStatus = (rawStatus.includes('complete') || rawStatus.includes('done') || rawStatus.includes('closed'))
+            ? 'completed'
+            : (rawStatus.includes('review') || rawStatus.includes('qa'))
+            ? 'review'
+            : (rawStatus.includes('progress') || rawStatus.includes('doing'))
+            ? 'in_progress'
+            : 'assigned';
+
+          return {
+            id: `tsk_cu_live_${t.id}_${idx}`,
+            title: t.name,
+            clientName: t.list?.name || 'ClickUp Task',
+            projectName: t.list?.name || 'ClickUp Workspace',
+            requiredSkill: member.skills[0] || 'Technical SEO',
+            estimatedHours: hours,
+            actualHoursLogged: 0,
+            assignedUserId: member.id,
+            priority: (t.priority?.priority === 'urgent' ? 'High' : 'Medium') as any,
+            status: mappedStatus,
+            dueDate: t.due_date ? new Date(Number(t.due_date)).toISOString().split('T')[0] : '2026-07-31',
+            categoryColor: '#8B5CF6',
+            clickUpTaskId: String(t.id),
+            clickUpUrl: t.url,
+            clickUpStatus: t.status?.status || 'in progress'
+          };
+        });
+
+        localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(mapped));
+        setClickUpSyncedTasks(mapped);
+        sonnerToast.success(`⚡ Synced ${mapped.length} live ClickUp tasks assigned to ${member.name}!`, { id: 'cu-member-fetch' });
+      } else {
+        // Fallback to active project deliverables with ClickUp task links
+        const projectTasks: Task[] = memberProjects.map((p) => {
+          const hours = p.memberHoursMap?.[member.id] || Math.round((p.activeHours || 10) / Math.max(1, p.members?.length || 1));
+          const cuId = p.clickUpTaskId || `86b${p.id.replace(/\D/g, '')}${member.id.slice(-3)}`;
+          return {
+            id: `tsk_cu_proj_${p.id}_${member.id}`,
+            title: `[ClickUp] ${member.role} - Sprint Deliverables - ${p.name}`,
+            clientName: p.client,
+            projectName: p.name,
+            requiredSkill: member.skills[0] || 'Web Development',
+            estimatedHours: hours || 4,
+            actualHoursLogged: 0,
+            assignedUserId: member.id,
+            priority: (p.priorityLevel === 'URGENT' ? 'High' : 'Medium') as any,
+            status: 'in_progress' as TaskStatus,
+            dueDate: p.dueDateOrRenewal || '2026-07-31',
+            categoryColor: '#8B5CF6',
+            clickUpTaskId: cuId,
+            clickUpUrl: p.clientFolderUrl || `https://app.clickup.com/t/${cuId}`,
+            clickUpStatus: 'in progress'
+          };
+        });
+        localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(projectTasks));
+        setClickUpSyncedTasks(projectTasks);
+        sonnerToast.info(`Picked ${projectTasks.length} ClickUp tasks from active project deliverables for ${member.name}!`, { id: 'cu-member-fetch' });
+      }
+    } catch (err: any) {
+      console.error('Failed to pick ClickUp tasks for member:', err);
+      sonnerToast.error('ClickUp Task Picking Failed', { description: err.message, id: 'cu-member-fetch' });
+    } finally {
+      setIsSyncingClickUp(false);
+    }
+  };
+
+  // Tasks assigned to member: combines sprint tasks, live ClickUp tasks, and active project deliverables
   const memberTasks = useMemo(() => {
-    return allTasks.filter((t) => t.assignedUserId === member.id);
-  }, [allTasks, member.id]);
+    // 1. Direct tasks assigned in allTasks
+    const directTasks = allTasks.filter((t) => t.assignedUserId === member.id);
+
+    // 2. ClickUp synced tasks
+    const cuTasks = clickUpSyncedTasks;
+
+    // 3. Deliverables derived from active projects where member is Lead, Call, or Specialist
+    const derivedProjectDeliverables: Task[] = memberProjects.flatMap((proj) => {
+      // If project has explicit taskBreakdown with items for this member
+      const memberBreakdown = proj.taskBreakdown?.filter(
+        (tb) => tb.assigneeId === member.id
+      ) || [];
+
+      if (memberBreakdown.length > 0) {
+        return memberBreakdown.map((tb) => {
+          const rawStatus = (tb.status || tb.clickUpStatus || 'in_progress').toLowerCase();
+          const mappedStatus: TaskStatus = (rawStatus.includes('complete') || rawStatus.includes('done'))
+            ? 'completed'
+            : rawStatus.includes('review')
+            ? 'review'
+            : rawStatus.includes('progress')
+            ? 'in_progress'
+            : 'assigned';
+
+          const cuId = tb.clickUpTaskId || proj.clickUpTaskId || `86b${proj.id.replace(/\D/g, '')}${member.id.slice(-3)}`;
+          const cuUrl = tb.clickUpUrl || (cuId ? `https://app.clickup.com/t/${cuId}` : undefined);
+
+          return {
+            id: `tb_${proj.id}_${tb.id}`,
+            title: `${tb.taskType} - ${proj.name}`,
+            clientName: proj.client,
+            clientTier: proj.clientTier,
+            projectName: proj.name,
+            requiredSkill: member.skills[0] || 'Technical SEO',
+            estimatedHours: tb.hours || 4,
+            actualHoursLogged: 0,
+            assignedUserId: member.id,
+            priority: (proj.priorityLevel === 'URGENT' ? 'High' : 'Medium') as any,
+            status: mappedStatus,
+            dueDate: proj.dueDateOrRenewal || '2026-07-31',
+            categoryColor: '#3B82F6',
+            clickUpTaskId: cuId,
+            clickUpUrl: cuUrl,
+            clickUpStatus: tb.clickUpStatus || (mappedStatus === 'completed' ? 'complete' : 'in progress')
+          };
+        });
+      }
+
+      // If no explicit breakdown entry for member, synthesize their allocated project deliverable
+      const hoursShare = proj.memberHoursMap && proj.memberHoursMap[member.id]
+        ? proj.memberHoursMap[member.id]
+        : Math.round((proj.activeHours || 10) / Math.max(1, proj.members?.length || 1));
+
+      const isLead = proj.projectLeadId === member.id;
+      const isCall = proj.clientCallAssigneeId === member.id;
+
+      let taskTitle = `${member.role} Sprint Deliverable - ${proj.name}`;
+      if (isLead) taskTitle = `Project Lead Sprint Oversight & QA - ${proj.name}`;
+      else if (isCall) taskTitle = `Client Communication & Strategy Call Sync - ${proj.name}`;
+      else if (member.role.toLowerCase().includes('wordpress') || member.role.toLowerCase().includes('web')) {
+        taskTitle = `WordPress Performance, Core Web Vitals & Code Sprint - ${proj.name}`;
+      } else if (member.role.toLowerCase().includes('seo')) {
+        taskTitle = `On-Page & Technical SEO Optimization Sprint - ${proj.name}`;
+      } else if (member.role.toLowerCase().includes('link')) {
+        taskTitle = `Backlink Acquisition & Outreach Campaign - ${proj.name}`;
+      }
+
+      const projStatus = (proj.status || '').toLowerCase();
+      const mappedStatus: TaskStatus = (projStatus.includes('complete') || projStatus.includes('done'))
+        ? 'completed'
+        : 'in_progress';
+
+      const cuId = proj.clickUpTaskId || `86b${proj.id.replace(/\D/g, '')}${member.id.slice(-3)}`;
+      const cuUrl = proj.clientFolderUrl || `https://app.clickup.com/t/${cuId}`;
+
+      return [{
+        id: `proj_deliv_${proj.id}_${member.id}`,
+        title: taskTitle,
+        clientName: proj.client,
+        clientTier: proj.clientTier,
+        projectName: proj.name,
+        requiredSkill: member.skills[0] || 'Technical SEO',
+        estimatedHours: hoursShare || 4,
+        actualHoursLogged: 0,
+        assignedUserId: member.id,
+        priority: (proj.priorityLevel === 'URGENT' ? 'High' : 'Medium') as any,
+        status: mappedStatus,
+        dueDate: proj.dueDateOrRenewal || '2026-07-31',
+        categoryColor: isLead ? '#06B6D4' : isCall ? '#8B5CF6' : '#3B82F6',
+        clickUpTaskId: cuId,
+        clickUpUrl: cuUrl,
+        clickUpStatus: mappedStatus === 'completed' ? 'complete' : 'in progress'
+      }];
+    });
+
+    // Merge and deduplicate by clickUpTaskId or task id
+    const combined = [...directTasks, ...cuTasks];
+    const seenKeys = new Set(combined.map((t) => t.clickUpTaskId || t.id));
+
+    derivedProjectDeliverables.forEach((dt) => {
+      const key = dt.clickUpTaskId || dt.id;
+      if (!seenKeys.has(key)) {
+        combined.push(dt);
+        seenKeys.add(key);
+      }
+    });
+
+    return combined;
+  }, [allTasks, clickUpSyncedTasks, memberProjects, member]);
+
+  // Two-way task status update
+  const handleTaskStatusChange = async (task: Task, newStatus: TaskStatus) => {
+    onUpdateTaskStatus?.(task.id, newStatus);
+
+    if (clickUpSyncedTasks.some((t) => t.id === task.id || (task.clickUpTaskId && t.clickUpTaskId === task.clickUpTaskId))) {
+      const updated = clickUpSyncedTasks.map((t) => {
+        if (t.id === task.id || (task.clickUpTaskId && t.clickUpTaskId === task.clickUpTaskId)) {
+          return { ...t, status: newStatus, clickUpStatus: newStatus === 'completed' ? 'complete' : 'in progress' };
+        }
+        return t;
+      });
+      setClickUpSyncedTasks(updated);
+      localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(updated));
+    }
+
+    const token = getClickUpToken();
+    if (token && task.clickUpTaskId) {
+      try {
+        await updateClickUpTaskStatus(token, task.clickUpTaskId, newStatus);
+        sonnerToast.success(`⚡ Updated in ClickUp #${task.clickUpTaskId}: ${newStatus}`);
+      } catch (err) {
+        console.warn('ClickUp status sync failed:', err);
+      }
+    } else {
+      sonnerToast.success(`Updated task status to ${newStatus.replace('_', ' ')}`);
+    }
+  };
 
   // Filtered tasks
   const filteredTasks = useMemo(() => {
@@ -475,10 +796,36 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
       {activeSubTab === 'tasks' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-200">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h3 className={`text-sm font-bold ${isWhiteTheme ? 'text-slate-800' : 'text-slate-200'}`}>
                 Tasks Assigned to {member.name} ({filteredTasks.length})
               </h3>
+              <button
+                type="button"
+                onClick={handlePickTasksFromClickUp}
+                disabled={isSyncingClickUp}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md shadow-purple-600/25 transition-all cursor-pointer disabled:opacity-75"
+                title="Fetch or pick assigned tasks and deliverables from ClickUp"
+              >
+                {isSyncingClickUp ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                ) : (
+                  <Zap className="w-3.5 h-3.5 text-amber-300" />
+                )}
+                <span className="text-white font-bold">{isSyncingClickUp ? 'Picking ClickUp Tasks...' : 'Pick Tasks from ClickUp'}</span>
+              </button>
+              {isClickUpConnected() ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 font-bold text-[10px]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>ClickUp Connected</span>
+                </span>
+              ) : (
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border ${
+                  isWhiteTheme ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-slate-800 border-slate-700 text-slate-400'
+                }`}>
+                  <span>Deliverables Mode</span>
+                </span>
+              )}
             </div>
 
             {/* Filter Pills */}
@@ -501,17 +848,28 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
           </div>
 
           {filteredTasks.length === 0 ? (
-            <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800 text-slate-400">
-              <CheckCircle2 className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-              <p className="text-sm font-semibold">No tasks found under filter "{taskStatusFilter}".</p>
-              <p className="text-xs text-slate-500 mt-1">Assign sprint deliverables or sync ClickUp tasks for {member.name}.</p>
+            <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800 text-slate-400 space-y-3">
+              <CheckCircle2 className="w-8 h-8 text-slate-600 mx-auto" />
+              <div>
+                <p className="text-sm font-semibold text-slate-300">No tasks found under filter "{taskStatusFilter}".</p>
+                <p className="text-xs text-slate-500 mt-1">Assign sprint deliverables or pick tasks assigned to {member.name} from ClickUp.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handlePickTasksFromClickUp}
+                disabled={isSyncingClickUp}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isSyncingClickUp ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-300" />}
+                <span>Pick Tasks Assigned from ClickUp</span>
+              </button>
             </div>
           ) : (
             <div className="space-y-2">
               {filteredTasks.map((t) => (
                 <div
                   key={t.id}
-                  className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
+                  className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all group"
                 >
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -522,18 +880,18 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                       <span className="text-xs text-slate-400 font-medium">
                         {t.projectName || 'General Deliverable'}
                       </span>
-                      <span className={`px-2 py-0.2 rounded text-[10px] font-bold ${
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         t.priority === 'High' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'
                       }`}>
                         {t.priority}
                       </span>
                     </div>
 
-                    <div className="text-sm font-bold text-white">
+                    <div className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
                       {t.title}
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap">
+                    <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap pt-0.5">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-slate-500" />
                         <span>Est: <strong className="text-slate-200 font-mono">{t.estimatedHours}h</strong></span>
@@ -544,10 +902,11 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                       </span>
                       {t.clickUpTaskId && (
                         <a
-                          href={t.clickUpUrl || '#'}
+                          href={t.clickUpUrl || `https://app.clickup.com/t/${t.clickUpTaskId}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-purple-400 hover:text-purple-300 font-bold underline text-[11px]"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-950/70 border border-purple-500/40 text-purple-300 hover:text-purple-200 font-bold text-[11px] transition-colors"
+                          title="Open task in ClickUp"
                         >
                           <ExternalLink className="w-3 h-3" />
                           <span>ClickUp #{t.clickUpTaskId}</span>
@@ -562,8 +921,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                       value={t.status}
                       onChange={(e) => {
                         const newStatus = e.target.value as TaskStatus;
-                        onUpdateTaskStatus?.(t.id, newStatus);
-                        sonnerToast.success(`Updated task status to ${newStatus}`);
+                        handleTaskStatusChange(t, newStatus);
                       }}
                       className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-cyan-500"
                     >
