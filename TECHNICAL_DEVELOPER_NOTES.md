@@ -498,6 +498,20 @@ Agencies frequently maintain their complete client roster inside a specific Clic
         3. **📅 Follow-Up Schedule & Project Scope**: Next contact date and formatted multi-line scope notes.
     - **Fast-Track Conversion to Active Retainer**:
       - Integrated a 1-click `⚡ Convert to Active Retainer` action in the modal footer when editing existing prospects, immediately transitioning the prospect into active project allocations without re-entering parameters.
+  17. **Interactive Auto-Open / Auto-Close & Pin Navigation Rail Architecture**:
+    - **Problem Statement**:
+      - A permanently expanded 256px sidebar crowded the main application workspace, squishing project table headers and action buttons against the navigation rail. Furthermore, abrupt layout reflows and z-index overlap when opening screens or modals created visual friction.
+    - **Zero-Reflow Layout Spacer**:
+      - Introduced a persistent layout spacer (`<div aria-hidden="true" />`) in the flex row that holds exact width (`w-[72px]` in auto mode, `w-64` in pinned mode). This ensures the main application content keeps a 100% constant, stable width and never jerks, shifts, or recalculates column widths when the navigation menu expands.
+    - **Floating Auto-Hover Overlay**:
+      - When unpinned (default Auto mode):
+        - Sidebar rests as a slim 72px icon dock with centered icons, live capacity indicator, and notification badge dots.
+        - Moving the cursor into the rail (`onMouseEnter`) seamlessly expands it to full width (`w-64 z-50`) with an elevated 3D drop-shadow (`box-shadow: 12px 0 35px -5px rgba(15, 23, 42, 0.18)`).
+        - Moving the cursor away (`onMouseLeave`) smoothly collapses it back with a 180ms debounce.
+        - Clicking any navigation tab immediately navigates and closes the hover expansion, giving unobstructed view to the user.
+    - **Persistent Pin / Lock Mode**:
+      - Added a dedicated Pin toggle button (📌 `Pin` / `PinOff`) in the sidebar header with localStorage persistence (`vat_sidebar_pinned`). Users who prefer a permanently locked-open sidebar can pin it with one click.
+
 
 
 
