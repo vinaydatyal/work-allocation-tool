@@ -486,6 +486,19 @@ Agencies frequently maintain their complete client roster inside a specific Clic
   15. **Conversation Export & Audit Log Generation**:
     - **Overview**: Generated clean, structured chronological Markdown chat export parsing all 170 conversation turns from IDE transcript telemetry.
     - **Artifacts**: Exported to both root workspace file [`CHAT_EXPORT.md`](file:///e:/Antigravity/Work%20Allocation%20Tool/CHAT_EXPORT.md) and IDE artifact directory for offline reference and compliance audit.
+  16. **Executive Business Leads & Pipeline Modal Architecture**:
+    - **Root Cause of Background Ghosting / Bleed-Through**:
+      - In light/white theme (`.theme-white`), generic Tailwind utility classes like `bg-slate-950/80` and `bg-slate-900` were being forcibly overridden by global stylesheet rules (`background-color: #f8fafc !important;`), stripping out alpha opacity and backdrop blur. As a consequence, underlying sidebar navigation menu links and page elements bled directly through modal input fields.
+    - **Frosted Isolation & Layer Hierarchy**:
+      - Implemented an explicit backdrop element positioned with `fixed inset-0`, `zIndex: 1`, and forced inline styles: `backgroundColor: 'rgba(2, 6, 23, 0.85)'`, `backdropFilter: 'blur(16px)'`, completely insulating the dialog from any stylesheet resets.
+    - **Structured 3-Card Intelligence Form**:
+      - Re-architected raw 2-column input fields into 3 logically separated glassmorphic cards:
+        1. **🏢 Prospect & Contact Intelligence**: Company name (required), contact person, email, and phone with dedicated Lucide icon prefixes.
+        2. **💼 Deal Architecture & Team Allocation**: Color-badged pipeline stages (`NEW`, `DISCOVERY`, `PROPOSAL`, `NEGOTIATION`, `WON`, `LOST`), assigned sales/tech lead owner (supporting `-- Unassigned (Leave Blank) --`), estimated value, billing preference, and acquisition lead source.
+        3. **📅 Follow-Up Schedule & Project Scope**: Next contact date and formatted multi-line scope notes.
+    - **Fast-Track Conversion to Active Retainer**:
+      - Integrated a 1-click `⚡ Convert to Active Retainer` action in the modal footer when editing existing prospects, immediately transitioning the prospect into active project allocations without re-entering parameters.
+
 
 
 

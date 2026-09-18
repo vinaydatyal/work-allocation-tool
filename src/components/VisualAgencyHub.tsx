@@ -52,7 +52,10 @@ import {
   Mail,
   Calendar,
   Kanban,
-  List
+  List,
+  Building2,
+  Tag,
+  User
 } from 'lucide-react';
 import { ClickUpOAuthModal } from './ClickUpOAuthModal';
 import { ClickUpTaskActivityModal } from './ClickUpTaskActivityModal';
@@ -10679,34 +10682,92 @@ Due Date: ${proj.paymentDueDate}
 
       {/* MODAL 6.8: Add or Edit Business Lead Modal */}
       {showAddLeadModal && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="relative w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          {/* High-Contrast Frosted Backdrop (Immune to theme overrides and bleed-through) */}
+          <div
+            className="fixed inset-0 transition-opacity duration-300 cursor-pointer"
+            style={{
+              backgroundColor: 'rgba(2, 6, 23, 0.85)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              zIndex: 1
+            }}
+            onClick={() => {
+              setShowAddLeadModal(false);
+              setEditingLead(null);
+            }}
+          />
+
+          {/* Modal Card Window */}
+          <div
+            className="relative w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden z-10 my-auto transition-all animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col"
+            style={{
+              backgroundColor: isWhiteTheme ? '#ffffff' : '#0f172a',
+              borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+              boxShadow: isWhiteTheme
+                ? '0 25px 60px -15px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+                : '0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.08)'
+            }}
+          >
+            {/* Top Luminous Gradient Stripe */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-emerald-400 shrink-0" />
+
+            {/* Modal Header */}
+            <div
+              className="flex items-center justify-between px-6 py-4 border-b shrink-0"
+              style={{ borderColor: isWhiteTheme ? '#e2e8f0' : '#1e293b' }}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/40 text-cyan-400 flex items-center justify-center shadow-lg shadow-cyan-500/10 shrink-0">
                   <Briefcase className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="text-base font-black text-white">
-                    {editingLead ? 'Edit Business Lead' : 'Add New Business Lead'}
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Track prospect information and separate assigned team leads.
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3
+                      className="text-base sm:text-lg font-black tracking-tight truncate"
+                      style={{ color: isWhiteTheme ? '#0f172a' : '#f8fafc' }}
+                    >
+                      {editingLead ? 'Edit Business Lead' : 'Add New Business Prospect'}
+                    </h3>
+                    {editingLead && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                          editingLead.stage === 'WON'
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                            : editingLead.stage === 'LOST'
+                            ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                            : editingLead.stage === 'PROPOSAL' || editingLead.stage === 'NEGOTIATION'
+                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                            : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
+                        }`}
+                      >
+                        {editingLead.stage}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className="text-xs truncate mt-0.5"
+                    style={{ color: isWhiteTheme ? '#64748b' : '#94a3b8' }}
+                  >
+                    Track prospect communication, pipeline stage, and assign dedicated team leads.
                   </p>
                 </div>
               </div>
+
               <button
                 type="button"
                 onClick={() => {
                   setShowAddLeadModal(false);
                   setEditingLead(null);
                 }}
-                className="text-slate-400 hover:text-white p-1"
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 transition-colors shrink-0 ml-2 cursor-pointer"
+                title="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            {/* Modal Body & Form */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -10780,167 +10841,392 @@ Due Date: ${proj.paymentDueDate}
                 setShowAddLeadModal(false);
                 setEditingLead(null);
               }}
-              className="space-y-4"
+              className="flex-1 overflow-y-auto p-6 space-y-5"
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-300">
-                    Company / Prospect Name *
-                  </label>
-                  <input
-                    name="companyName"
-                    type="text"
-                    required
-                    defaultValue={editingLead?.companyName || ''}
-                    placeholder="e.g. Acme Corp Dental"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  />
+              {/* SECTION 1: 🏢 Prospect & Contact Intelligence */}
+              <div
+                className="p-4 rounded-2xl border space-y-3.5"
+                style={{
+                  backgroundColor: isWhiteTheme ? '#f8fafc' : 'rgba(2, 6, 23, 0.45)',
+                  borderColor: isWhiteTheme ? '#e2e8f0' : '#1e293b'
+                }}
+              >
+                <div className="flex items-center justify-between pb-1 border-b border-slate-700/30">
+                  <span className="text-xs font-black uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>1. Prospect &amp; Contact Intelligence</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">* Required</span>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300">Contact Person</label>
-                  <input
-                    name="contactPerson"
-                    type="text"
-                    defaultValue={editingLead?.contactPerson || ''}
-                    placeholder="e.g. John Doe (CEO)"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1 sm:col-span-2">
+                    <label
+                      className="text-xs font-bold flex items-center gap-1"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      <span>Company / Prospect Name</span>
+                      <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Building2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        name="companyName"
+                        type="text"
+                        required
+                        defaultValue={editingLead?.companyName || ''}
+                        placeholder="e.g. Acme Health or Pascal Sohler"
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
+                        style={{
+                          backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                          borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                          color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                          borderWidth: '1px'
+                        }}
+                      />
+                    </div>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300">Stage</label>
-                  <select
-                    name="stage"
-                    defaultValue={editingLead?.stage || 'NEW'}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  >
-                    <option value="NEW">NEW / Inbound</option>
-                    <option value="DISCOVERY">DISCOVERY (Audit / Call)</option>
-                    <option value="PROPOSAL">PROPOSAL (Sent Quote)</option>
-                    <option value="NEGOTIATION">NEGOTIATION</option>
-                    <option value="WON">WON (Closed Deal)</option>
-                    <option value="LOST">LOST</option>
-                  </select>
-                </div>
+                  <div className="space-y-1">
+                    <label
+                      className="text-xs font-bold flex items-center gap-1"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      <span>Contact Person</span>
+                    </label>
+                    <div className="relative">
+                      <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        name="contactPerson"
+                        type="text"
+                        defaultValue={editingLead?.contactPerson || ''}
+                        placeholder="e.g. John Doe (CEO)"
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
+                        style={{
+                          backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                          borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                          color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                          borderWidth: '1px'
+                        }}
+                      />
+                    </div>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300">Email Address</label>
-                  <input
-                    name="email"
-                    type="email"
-                    defaultValue={editingLead?.email || ''}
-                    placeholder="john@acme.com"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
+                  <div className="space-y-1">
+                    <label
+                      className="text-xs font-bold flex items-center gap-1"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      <span>Email Address</span>
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        name="email"
+                        type="email"
+                        defaultValue={editingLead?.email || ''}
+                        placeholder="john@company.com"
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
+                        style={{
+                          backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                          borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                          color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                          borderWidth: '1px'
+                        }}
+                      />
+                    </div>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300">Phone Number</label>
-                  <input
-                    name="phone"
-                    type="tel"
-                    defaultValue={editingLead?.phone || ''}
-                    placeholder="+1 (555) 019-2834"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-
-                {/* Assigned Lead Owner: Dedicated separate team lead with blank option */}
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                    <span>Assigned Lead Owner</span>
-                    <span className="text-[10px] text-cyan-400 font-normal">Optional</span>
-                  </label>
-                  <select
-                    name="assignedOwnerId"
-                    defaultValue={editingLead?.assignedOwnerId || ''}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  >
-                    <option value="">-- Unassigned (Leave Blank) --</option>
-                    {customMembers.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.role || 'Specialist'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300">Estimated Value</label>
-                  <input
-                    name="estimatedValue"
-                    type="text"
-                    defaultValue={editingLead?.estimatedValue || '$3,500/mo'}
-                    placeholder="$3,500/mo or $25/hr"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300">Billing Preference</label>
-                  <select
-                    name="billingPreference"
-                    defaultValue={editingLead?.billingPreference || 'Monthly Retainer'}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  >
-                    <option value="Monthly Retainer">Monthly Retainer</option>
-                    <option value="Weekly Hourly Billing">Weekly Hourly Billing</option>
-                    <option value="Milestone Delivery">Milestone Delivery</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300">Lead Source</label>
-                  <input
-                    name="leadSource"
-                    type="text"
-                    defaultValue={editingLead?.leadSource || 'Website Inbound'}
-                    placeholder="e.g. Website, Referral, Upwork"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-300">Follow-Up Date</label>
-                  <input
-                    name="nextFollowUpDate"
-                    type="text"
-                    defaultValue={editingLead?.nextFollowUpDate || ''}
-                    placeholder="e.g. 2026-09-25 or Next Tuesday 2pm"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-300">Notes &amp; Scope</label>
-                  <textarea
-                    name="notes"
-                    rows={3}
-                    defaultValue={editingLead?.notes || ''}
-                    placeholder="Client requirements, deal notes, website audit summary..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400 resize-none"
-                  />
+                  <div className="space-y-1 sm:col-span-2">
+                    <label
+                      className="text-xs font-bold flex items-center gap-1"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      <span>Phone / WhatsApp</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        name="phone"
+                        type="tel"
+                        defaultValue={editingLead?.phone || ''}
+                        placeholder="+1 (555) 019-2834 or +91 98765 43210"
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
+                        style={{
+                          backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                          borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                          color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                          borderWidth: '1px'
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddLeadModal(false);
-                    setEditingLead(null);
-                  }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-lg shadow-cyan-500/25 transition-all cursor-pointer"
-                >
-                  {editingLead ? 'Save Changes' : 'Create Lead'}
-                </button>
+              {/* SECTION 2: 💼 Deal Architecture & Team Allocation */}
+              <div
+                className="p-4 rounded-2xl border space-y-3.5"
+                style={{
+                  backgroundColor: isWhiteTheme ? '#f8fafc' : 'rgba(2, 6, 23, 0.45)',
+                  borderColor: isWhiteTheme ? '#e2e8f0' : '#1e293b'
+                }}
+              >
+                <div className="flex items-center justify-between pb-1 border-b border-slate-700/30">
+                  <span className="text-xs font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5" />
+                    <span>2. Deal Architecture &amp; Team Allocation</span>
+                  </span>
+                  <span className="text-[10px] text-cyan-400 font-medium">Pipeline &amp; Revenue</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label
+                      className="text-xs font-bold"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      Pipeline Stage
+                    </label>
+                    <select
+                      name="stage"
+                      defaultValue={editingLead?.stage || 'NEW'}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+                      style={{
+                        backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                        borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                        color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                        borderWidth: '1px'
+                      }}
+                    >
+                      <option value="NEW">🔵 NEW / Inbound Prospect</option>
+                      <option value="DISCOVERY">🟣 DISCOVERY (Call / Audit Scheduled)</option>
+                      <option value="PROPOSAL">🟡 PROPOSAL (Sent Quote &amp; Roadmap)</option>
+                      <option value="NEGOTIATION">🟠 NEGOTIATION (Scope Alignment)</option>
+                      <option value="WON">🟢 WON (Closed Deal - Ready for Kickoff)</option>
+                      <option value="LOST">🔴 LOST (Archived / Inactive)</option>
+                    </select>
+                  </div>
+
+                  {/* Assigned Lead Owner: Dedicated separate team lead with blank option */}
+                  <div className="space-y-1">
+                    <label
+                      className="text-xs font-bold flex items-center justify-between"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      <span>Assigned Lead Owner</span>
+                      <span className="text-[10px] text-cyan-400 font-normal">Optional</span>
+                    </label>
+                    <select
+                      name="assignedOwnerId"
+                      defaultValue={editingLead?.assignedOwnerId || ''}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+                      style={{
+                        backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                        borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                        color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                        borderWidth: '1px'
+                      }}
+                    >
+                      <option value="">-- Unassigned (Leave Blank) --</option>
+                      {customMembers.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.role || 'Specialist'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label
+                      className="text-xs font-bold"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      Estimated Deal Value
+                    </label>
+                    <div className="relative">
+                      <DollarSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        name="estimatedValue"
+                        type="text"
+                        defaultValue={editingLead?.estimatedValue || '$3,500/mo'}
+                        placeholder="$3,500/mo or $25/hr"
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+                        style={{
+                          backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                          borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                          color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                          borderWidth: '1px'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label
+                      className="text-xs font-bold"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      Billing Preference
+                    </label>
+                    <select
+                      name="billingPreference"
+                      defaultValue={editingLead?.billingPreference || 'Monthly Retainer'}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+                      style={{
+                        backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                        borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                        color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                        borderWidth: '1px'
+                      }}
+                    >
+                      <option value="Monthly Retainer">Monthly Retainer</option>
+                      <option value="Weekly Hourly Billing">Weekly Hourly Billing ($/hr)</option>
+                      <option value="Milestone Delivery">Milestone Delivery</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <label
+                      className="text-xs font-bold"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      Lead Source / Acquisition Channel
+                    </label>
+                    <div className="relative">
+                      <Tag className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        name="leadSource"
+                        type="text"
+                        defaultValue={editingLead?.leadSource || 'Website Inbound'}
+                        placeholder="e.g. Website Inbound, ClickUp, Upwork, Referral, Cold Email"
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+                        style={{
+                          backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                          borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                          color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                          borderWidth: '1px'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: 📅 Timeline & Detailed Scope */}
+              <div
+                className="p-4 rounded-2xl border space-y-3.5"
+                style={{
+                  backgroundColor: isWhiteTheme ? '#f8fafc' : 'rgba(2, 6, 23, 0.45)',
+                  borderColor: isWhiteTheme ? '#e2e8f0' : '#1e293b'
+                }}
+              >
+                <div className="flex items-center justify-between pb-1 border-b border-slate-700/30">
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>3. Follow-Up Schedule &amp; Project Scope</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">Cadence</span>
+                </div>
+
+                <div className="space-y-3.5">
+                  <div className="space-y-1.5">
+                    <label
+                      className="text-xs font-bold flex items-center justify-between"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      <span>Next Follow-Up Date</span>
+                      <span className="text-[10px] text-slate-400">e.g. 2026-09-25 or Next Tuesday 2pm</span>
+                    </label>
+                    <div className="relative">
+                      <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        name="nextFollowUpDate"
+                        type="text"
+                        defaultValue={editingLead?.nextFollowUpDate || ''}
+                        placeholder="e.g. 2026-09-25 or Next Tuesday 2pm"
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                        style={{
+                          backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                          borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                          color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                          borderWidth: '1px'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label
+                      className="text-xs font-bold flex items-center justify-between"
+                      style={{ color: isWhiteTheme ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      <span>Notes, Requirements &amp; Scope Summary</span>
+                      <span className="text-[10px] text-cyan-400">Preserved during conversion</span>
+                    </label>
+                    <textarea
+                      name="notes"
+                      rows={4}
+                      defaultValue={editingLead?.notes || ''}
+                      placeholder="e.g. We're a leading telehealth provider looking to rank well in LLM results (ChatGPT, Claude, Perplexity). Seeking an expert team for comprehensive roadmap..."
+                      className="w-full p-3.5 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all resize-y leading-relaxed"
+                      style={{
+                        backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
+                        borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+                        color: isWhiteTheme ? '#0f172a' : '#f8fafc',
+                        borderWidth: '1px'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sticky / Dedicated Footer Controls */}
+              <div
+                className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t"
+                style={{ borderColor: isWhiteTheme ? '#e2e8f0' : '#1e293b' }}
+              >
+                {/* Left Side: Conversion to Project Retainer if Editing */}
+                {editingLead ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleConvertLeadToProject(editingLead);
+                      setShowAddLeadModal(false);
+                      setEditingLead(null);
+                    }}
+                    className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/40 hover:scale-[1.02] transition-all cursor-pointer shadow-sm"
+                    title="Convert this lead directly into an active project in the project roster"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Convert to Active Retainer</span>
+                  </button>
+                ) : (
+                  <div className="hidden sm:block text-[11px] text-slate-400 font-medium">
+                    ⚡ Auto-saves to your local agency database.
+                  </div>
+                )}
+
+                {/* Right Side: Cancel and Save */}
+                <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddLeadModal(false);
+                      setEditingLead(null);
+                    }}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent hover:border-slate-700 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 shadow-xl shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{editingLead ? 'Save Changes' : 'Create Lead'}</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
