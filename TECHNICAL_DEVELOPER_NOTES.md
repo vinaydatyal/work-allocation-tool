@@ -500,17 +500,36 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Integrated a 1-click `⚡ Convert to Active Retainer` action in the modal footer when editing existing prospects, immediately transitioning the prospect into active project allocations without re-entering parameters.
   17. **Interactive Auto-Open / Auto-Close & Pin Navigation Rail Architecture**:
     - **Problem Statement**:
-      - A permanently expanded 256px sidebar crowded the main application workspace, squishing project table headers and action buttons against the navigation rail. Furthermore, abrupt layout reflows and z-index overlap when opening screens or modals created visual friction.
+      - A permanently expanded 256px sidebar crowded the main application workspace. In auto mode, floating overlay was tested.
     - **Zero-Reflow Layout Spacer**:
-      - Introduced a persistent layout spacer (`<div aria-hidden="true" />`) in the flex row that holds exact width (`w-[72px]` in auto mode, `w-64` in pinned mode). This ensures the main application content keeps a 100% constant, stable width and never jerks, shifts, or recalculates column widths when the navigation menu expands.
-    - **Floating Auto-Hover Overlay**:
-      - When unpinned (default Auto mode):
-        - Sidebar rests as a slim 72px icon dock with centered icons, live capacity indicator, and notification badge dots.
-        - Moving the cursor into the rail (`onMouseEnter`) seamlessly expands it to full width (`w-64 z-50`) with an elevated 3D drop-shadow (`box-shadow: 12px 0 35px -5px rgba(15, 23, 42, 0.18)`).
-        - Moving the cursor away (`onMouseLeave`) smoothly collapses it back with a 180ms debounce.
-        - Clicking any navigation tab immediately navigates and closes the hover expansion, giving unobstructed view to the user.
-    - **Persistent Pin / Lock Mode**:
-      - Added a dedicated Pin toggle button (📌 `Pin` / `PinOff`) in the sidebar header with localStorage persistence (`vat_sidebar_pinned`). Users who prefer a permanently locked-open sidebar can pin it with one click.
+      - Introduced a persistent layout spacer (`<div aria-hidden="true" />`) in the flex row to keep base layout stable.
+  18. **Floating Bottom Island Dock Architecture (Idea 5 Implementation)**:
+    - **Observed Problem in Production**:
+      - In the previous auto-hover sidebar overlay (`w-64 fixed top-0 left-0 z-50`), moving the cursor anywhere near the left side swung out a 256px solid panel that blinded 20–25% of the active dashboard, completely obscuring project counts, Churn Radar, search inputs, and primary project cards.
+    - **Structural Refactoring**:
+      - **100% Full-Screen Dashboard**: Removed the left spacer (`w-[72px]`) and fixed vertical `aside`. The entire workspace container transitioned from `flex flex-row` to `flex flex-col relative w-full`, unlocking 100% edge-to-edge width for project cards, data tables, and headers.
+      - **Scroll Clearance**: Configured `<main>` with `pt-5 pb-32 overflow-y-auto` to provide generous 128px bottom clearance so cards at the bottom of the roster are never covered by the dock.
+    - **Floating Bottom Dock Component (`Navbar.tsx`)**:
+      - **Placement & Elevation**: Anchored at `fixed bottom-5 left-1/2 -translate-x-1/2 z-50 pointer-events-auto`.
+      - **Glassmorphism Design Tokens**:
+        - Ambient backdrop blur: `backdrop-blur-2xl`.
+        - Theme adaptive backgrounds: `rgba(11, 15, 25, 0.88)` (Dark) vs. `rgba(255, 255, 255, 0.88)` (White theme).
+        - Multi-layer shadow: `0 20px 50px -10px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(16, 185, 129, 0.18) inset`.
+      - **Dock Sections & Features**:
+        1. *Agency Pulse Pill*: Mini brand icon with pulse ring, real-time allocation percentage, and hover popover detailing total allocated vs. capacity hours with visual gradient progress bar.
+        2. *Primary Nav Items*: 9 items (`projects`, `calendar`, `hours`, `dsr`, `skills`, `bot`, `finances`, `notifications` with badge 4, `brief`).
+        3. *Framer Motion Physics*:
+           - Smooth macOS-style hover scale: `whileHover={{ scale: 1.15, y: -2 }}`.
+           - Sliding active background pill: `layoutId="activeDockTab"` with spring physics (`stiffness: 400, damping: 30`).
+           - Micro floating tooltips: Centered above icons (`bottom-full mb-2.5`) with keyboard shortcut tags.
+        4. *Actions & Utilities*:
+           - ClickUp OAuth connection status indicator & modal trigger.
+           - Weekly plan export button (.txt format).
+           - Theme toggle (Sun / Moon) for switching between Dark and Light modes.
+           - User persona / profile switcher with upward-opening flyup menu.
+        5. *Keyboard Navigation*: Hotkeys `1` through `9` map directly to respective tabs for rapid keyboard-driven navigation.
+
+
 
 
 

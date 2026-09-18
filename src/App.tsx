@@ -235,7 +235,7 @@ export function App() {
   return (
     <ToastProvider>
       <Toaster theme="dark" position="bottom-right" />
-      <div className="borderless-ui min-h-screen bg-[#0b0f19] text-slate-100 selection:bg-emerald-500 selection:text-slate-950 flex flex-row font-sans overflow-hidden">
+      <div className="borderless-ui min-h-screen bg-[#0b0f19] text-slate-100 selection:bg-emerald-500 selection:text-slate-950 flex flex-col font-sans overflow-hidden relative">
         <Navbar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -250,7 +250,7 @@ export function App() {
         />
 
         <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-          <main className="flex-1 min-w-0 w-full px-5 sm:px-8 lg:px-10 py-6 overflow-y-auto">
+          <main className="flex-1 min-w-0 w-full px-5 sm:px-8 lg:px-10 pt-5 pb-32 overflow-y-auto">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
