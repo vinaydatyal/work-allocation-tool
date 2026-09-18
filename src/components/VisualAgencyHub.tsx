@@ -202,6 +202,23 @@ export interface ArchivedProjectItem extends ActiveProjectItem {
   archiveReason?: string;
 }
 
+export const formatProjectPriceTag = (
+  priceStr: string | undefined,
+  billingType: string | undefined,
+  activeHours: number = 0
+): string => {
+  if (!priceStr) return '$0';
+  if (billingType === 'Weekly Hourly Billing') {
+    if (priceStr.includes('/hr')) return priceStr;
+    const match = priceStr.match(/\$?([0-9]+(?:\.[0-9]+)?)/);
+    const rate = match ? parseFloat(match[1]) : 0;
+    const weekly = Math.round(rate * activeHours);
+    const monthly = Math.round(weekly * 4);
+    return `$${rate}/hr (${weekly > 0 ? `$${weekly.toLocaleString()}/wk • ` : ''}$${monthly.toLocaleString()}/mo)`;
+  }
+  return priceStr.includes('$') ? priceStr : `$${priceStr}`;
+};
+
 export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   teamMembers: initialMembers,
   tasks: _tasks,
@@ -1063,6 +1080,19 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         clientName = cleanName.split(':')[0].trim();
       }
 
+      // Preserve existing custom columns & audit logs if project was already in local state
+      const existingPrj = projectsList.find(
+        (p) =>
+          p.id === `prj_cu_${t.id}` ||
+          p.id === t.id ||
+          (p.client && clientName && p.client.toLowerCase() === clientName.toLowerCase()) ||
+          (p.name && cleanName && p.name.toLowerCase() === cleanName.toLowerCase())
+      );
+
+      // Total & Active Hours
+      const totalHours = t.time_estimate ? Math.max(5, Math.round(t.time_estimate / 3600000)) : (existingPrj?.totalHours || 20);
+      const activeHours = existingPrj?.activeHours || Math.round(totalHours * 0.75);
+
       // Budget / Retainer Price resolution
       let parsedAmount = 2500;
       if (t.custom_fields && t.custom_fields.length > 0) {
@@ -1083,7 +1113,21 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         if (!isNaN(num) && num > 0) parsedAmount = num;
       }
 
-      const formattedPrice = `$${parsedAmount.toLocaleString()} / mo`;
+      const isHourly = /hourly|\/hr|per hour/i.test(cleanName) || (t.custom_fields && t.custom_fields.some(cf => /billing|rate|type/i.test(cf.name) && /hourly/i.test(String(cf.value || ''))));
+      const detectedBillingType: 'Monthly Retainer' | 'Milestone Delivery' | 'Weekly Hourly Billing' =
+        existingPrj?.billingType || (isHourly ? 'Weekly Hourly Billing' : 'Monthly Retainer');
+
+      let formattedPrice = '';
+      let calculatedPaymentAmount = parsedAmount;
+      if (detectedBillingType === 'Weekly Hourly Billing') {
+        const weeklyCalc = Math.round(parsedAmount * activeHours);
+        const monthlyCalc = Math.round(weeklyCalc * 4);
+        formattedPrice = `$${parsedAmount}/hr (${weeklyCalc > 0 ? `$${weeklyCalc.toLocaleString()}/wk • ` : ''}$${monthlyCalc.toLocaleString()}/mo)`;
+        calculatedPaymentAmount = monthlyCalc > 0 ? monthlyCalc : Math.round(parsedAmount * activeHours * 4);
+      } else {
+        formattedPrice = `$${parsedAmount.toLocaleString()} / mo`;
+        calculatedPaymentAmount = parsedAmount;
+      }
 
       // Status mapping
       const rawStatus = (t.status?.status || 'Open').toLowerCase();
@@ -1120,10 +1164,6 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
       else if (rawPriority === 'high' || rawPriority === '2') priorityLevel = 'HIGH';
       else if (rawPriority === 'low' || rawPriority === '4') priorityLevel = 'LOW';
 
-      // Total & Active Hours
-      const totalHours = t.time_estimate ? Math.max(5, Math.round(t.time_estimate / 3600000)) : 20;
-      const activeHours = Math.round(totalHours * 0.75);
-
       // Dates
       const startDate = t.start_date
         ? new Date(Number(t.start_date)).toISOString().split('T')[0]
@@ -1131,15 +1171,6 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
       const dueDate = t.due_date
         ? new Date(Number(t.due_date)).toISOString().split('T')[0]
         : 'Monthly Renewal: 30th';
-
-      // Preserve existing custom columns & audit logs if project was already in local state
-      const existingPrj = projectsList.find(
-        (p) =>
-          p.id === `prj_cu_${t.id}` ||
-          p.id === t.id ||
-          (p.client && clientName && p.client.toLowerCase() === clientName.toLowerCase()) ||
-          (p.name && cleanName && p.name.toLowerCase() === cleanName.toLowerCase())
-      );
 
       // Team Assignees Matching:
       // Match ClickUp task assignees with team members. If task has NO assignees, leave blank/unassigned.
@@ -1224,7 +1255,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         name: cleanName,
         client: clientName,
         clientTier,
-        billingType: existingPrj?.billingType || 'Monthly Retainer',
+        billingType: detectedBillingType,
         startDate: existingPrj?.startDate || startDate,
         dueDateOrRenewal: dueDate,
         milestonesTotal: existingPrj?.milestonesTotal || 4,
@@ -1239,7 +1270,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         clientCallAssigneeId: callAssigneeId,
         paymentStatus: canonicalStatus === 'COMPLETED' ? 'Paid' : (existingPrj?.paymentStatus || 'Pending'),
         paymentDueDate: dueDate.includes('30th') ? '2026-07-31' : (existingPrj?.paymentDueDate || dueDate),
-        paymentAmountNumeric: existingPrj?.paymentAmountNumeric || parsedAmount,
+        paymentAmountNumeric: existingPrj?.paymentAmountNumeric || calculatedPaymentAmount,
         paymentInvoiceId: existingPrj?.paymentInvoiceId || `INV-CU-${t.id.slice(-4).toUpperCase()}`,
         status: canonicalStatus,
         priorityLevel,
@@ -1809,6 +1840,24 @@ Due Date: ${proj.paymentDueDate}
       ])
     ).filter(Boolean);
     const assignedSquad = customMembers.filter((m) => uniqueMemberIds.includes(m.id));
+    const effectiveActiveHours = totalAllocatedHours > 0 ? totalAllocatedHours : Math.round(newTotalHours * 0.8);
+    const rawRateMatch = newPrice.match(/\$?([0-9]+(?:\.[0-9]+)?)/);
+    const hourlyRate = rawRateMatch ? parseFloat(rawRateMatch[1]) : 0;
+    const rawPriceDigits = newPrice.replace(/[^0-9]/g, '');
+    const parsedAmount = rawPriceDigits ? parseInt(rawPriceDigits, 10) : 3500;
+
+    let finalPrice = newPrice;
+    let finalPaymentAmount = parsedAmount;
+
+    if (newBillingType === 'Weekly Hourly Billing') {
+      const calcWeekly = Math.round(hourlyRate * effectiveActiveHours);
+      const calcMonthly = Math.round(calcWeekly * 4);
+      finalPrice = `$${hourlyRate}/hr (${calcWeekly > 0 ? `$${calcWeekly.toLocaleString()}/wk • ` : ''}$${calcMonthly.toLocaleString()}/mo)`;
+      finalPaymentAmount = calcMonthly > 0 ? calcMonthly : Math.round(hourlyRate * effectiveActiveHours * 4);
+    } else {
+      finalPrice = newPrice.trim() ? (newPrice.includes('$') ? newPrice.trim() : `$${newPrice.trim()}`) : `$${parsedAmount}`;
+      finalPaymentAmount = parsedAmount;
+    }
 
     const item: ActiveProjectItem = {
       id: `proj-${Date.now()}`,
@@ -1819,9 +1868,9 @@ Due Date: ${proj.paymentDueDate}
       dueDateOrRenewal: newDueDate,
       milestonesTotal: newMilestonesTotal,
       milestonesCompleted: 1,
-      price: newPrice,
+      price: finalPrice,
       totalHours: newTotalHours,
-      activeHours: totalAllocatedHours > 0 ? totalAllocatedHours : Math.round(newTotalHours * 0.8),
+      activeHours: effectiveActiveHours,
       progress: 80,
       color: 'from-emerald-500 to-teal-600',
       members: assignedSquad,
@@ -1831,7 +1880,7 @@ Due Date: ${proj.paymentDueDate}
       taskBreakdown: newTaskAllocations,
       paymentStatus: 'Pending',
       paymentDueDate: daysFromToday(7),
-      paymentAmountNumeric: parseInt(newPrice.replace(/[^0-9]/g, ''), 10) || 3500,
+      paymentAmountNumeric: finalPaymentAmount,
       paymentInvoiceId: `#INV-${Math.floor(100 + Math.random() * 900)}`,
       status: newStatus,
       priorityLevel: newPriorityLevel,
@@ -2060,11 +2109,25 @@ Due Date: ${proj.paymentDueDate}
       Math.max(0, Math.round((resolvedActiveHours / totalHours) * 100))
     );
 
+    const rawRateMatch = (editingProject.price || '').match(/\$?([0-9]+(?:\.[0-9]+)?)/);
+    const hourlyRate = rawRateMatch ? parseFloat(rawRateMatch[1]) : 0;
     const rawPriceDigits = (editingProject.price || '').replace(/[^0-9]/g, '');
     const parsedAmount = rawPriceDigits ? parseInt(rawPriceDigits, 10) : 0;
-    const formattedPrice = editingProject.price?.trim() 
-      ? (editingProject.price.includes('$') ? editingProject.price.trim() : `$${editingProject.price.trim()}`)
-      : `$${parsedAmount}`;
+
+    let formattedPrice = '';
+    let resolvedPaymentAmount = parsedAmount;
+
+    if (editingProject.billingType === 'Weekly Hourly Billing') {
+      const calcWeekly = Math.round(hourlyRate * resolvedActiveHours);
+      const calcMonthly = Math.round(calcWeekly * 4);
+      formattedPrice = `$${hourlyRate}/hr (${calcWeekly > 0 ? `$${calcWeekly.toLocaleString()}/wk • ` : ''}$${calcMonthly.toLocaleString()}/mo)`;
+      resolvedPaymentAmount = calcMonthly > 0 ? calcMonthly : Math.round(hourlyRate * resolvedActiveHours * 4);
+    } else {
+      formattedPrice = editingProject.price?.trim() 
+        ? (editingProject.price.includes('$') ? editingProject.price.trim() : `$${editingProject.price.trim()}`)
+        : `$${parsedAmount}`;
+      resolvedPaymentAmount = parsedAmount;
+    }
 
     // Reconstruct assigned squad members from breakdown + leads
     const assignedMemberIds = new Set<string>();
@@ -2081,7 +2144,7 @@ Due Date: ${proj.paymentDueDate}
       client: editingProject.client.trim(),
       name: editingProject.name.trim(),
       price: formattedPrice,
-      paymentAmountNumeric: parsedAmount,
+      paymentAmountNumeric: resolvedPaymentAmount,
       projectLeadId: editingProject.projectLeadId?.trim() ? editingProject.projectLeadId.trim() : undefined,
       clientCallAssigneeId: editingProject.clientCallAssigneeId?.trim() ? editingProject.clientCallAssigneeId.trim() : undefined,
       devTechAssigneeId: editingProject.devTechAssigneeId?.trim() ? editingProject.devTechAssigneeId.trim() : undefined,
@@ -6890,15 +6953,82 @@ Due Date: ${proj.paymentDueDate}
                         </div>
 
                         <div>
-                          <label className="text-[11px] font-bold text-slate-400 block mb-1">Price Tag ($ / mo)</label>
+                          <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                            {newBillingType === 'Weekly Hourly Billing' ? 'Hourly Rate ($ / hr)' : 'Price Tag ($ / mo)'}
+                          </label>
                           <input
                             type="text"
                             value={newPrice}
                             onChange={(e) => setNewPrice(e.target.value)}
+                            placeholder={newBillingType === 'Weekly Hourly Billing' ? 'e.g. 17 or $17/hr' : 'e.g. 2500'}
                             className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
                           />
                         </div>
                       </div>
+
+                      {/* Add Project Hourly Billing Calculation Preview Banner */}
+                      {newBillingType === 'Weekly Hourly Billing' && (() => {
+                        const rateMatch = newPrice.match(/\$?([0-9]+(?:\.[0-9]+)?)/);
+                        const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
+                        const allocatedHrs = newTaskAllocations.reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                        const effectiveHrs = allocatedHrs > 0 ? allocatedHrs : newTotalHours;
+                        const weeklyAmt = Math.round(rate * effectiveHrs);
+                        const monthlyAmt = Math.round(weeklyAmt * 4);
+
+                        return (
+                          <div className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/40 via-slate-900 to-indigo-950/40 border border-cyan-500/40 space-y-2.5 animate-fade-in shadow-lg">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-cyan-400" />
+                                <span className="text-xs font-black text-white tracking-wide">
+                                  ⚡ Hourly Billing Auto-Calculation
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                                Weekly Hourly Billing ($/hr)
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1 text-center">
+                              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Hourly Rate</div>
+                                <div className="text-sm font-black text-cyan-300 font-mono mt-0.5">
+                                  ${rate}/hr
+                                </div>
+                              </div>
+                              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Assigned Scope</div>
+                                <div className="text-sm font-black text-indigo-300 font-mono mt-0.5">
+                                  {allocatedHrs} hrs / wk
+                                </div>
+                              </div>
+                              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Weekly Billing</div>
+                                <div className="text-sm font-black text-emerald-400 font-mono mt-0.5">
+                                  ${weeklyAmt.toLocaleString()} / wk
+                                </div>
+                              </div>
+                              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Monthly Est. (4 wks)</div>
+                                <div className="text-sm font-black text-emerald-300 font-mono mt-0.5">
+                                  ${monthlyAmt.toLocaleString()} / mo
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
+                              <span>
+                                📌 Calculated Price Tag: <strong className="text-white">${rate}/hr × {allocatedHrs} hrs/wk = ${weeklyAmt.toLocaleString()}/wk (~${monthlyAmt.toLocaleString()}/mo)</strong>
+                              </span>
+                              {allocatedHrs === 0 && (
+                                <span className="text-amber-400 font-bold">
+                                  ⚠️ 0 hrs assigned. Set deliverable hours in Tab 3.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {newBillingType === 'Milestone Delivery' && (
                         <div className="p-3 rounded-xl bg-cyan-950/20 border border-cyan-500/30 space-y-3 animate-fade-in">
@@ -7112,9 +7242,21 @@ Due Date: ${proj.paymentDueDate}
                           <label className="text-xs font-extrabold text-slate-300">
                             Deliverable Specialists & Weekly Hours Allocation
                           </label>
-                          <span className="text-[11px] text-slate-400">
-                            Allocated: {newTaskAllocations.reduce((s, a) => s + (Number(a.hours) || 0), 0)} hrs / week
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {newBillingType === 'Weekly Hourly Billing' && (() => {
+                              const allocHrs = newTaskAllocations.reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                              const rateMatch = newPrice.match(/\$?([0-9]+(?:\.[0-9]+)?)/);
+                              const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
+                              return (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                                  ⚡ Auto-Calc: ${Math.round(rate * allocHrs).toLocaleString()}/wk (${Math.round(rate * allocHrs * 4).toLocaleString()}/mo)
+                                </span>
+                              );
+                            })()}
+                            <span className="text-[11px] text-slate-400">
+                              Allocated: {newTaskAllocations.reduce((s, a) => s + (Number(a.hours) || 0), 0)} hrs / week
+                            </span>
+                          </div>
                         </div>
 
                         {newTaskAllocations.map((tb) => (
@@ -7699,15 +7841,82 @@ Due Date: ${proj.paymentDueDate}
                     </div>
 
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">Price Tag ($ / mo)</label>
+                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                        {editingProject.billingType === 'Weekly Hourly Billing' ? 'Hourly Rate ($ / hr)' : 'Price Tag ($ / mo)'}
+                      </label>
                       <input
                         type="text"
                         value={editingProject.price}
                         onChange={(e) => setEditingProject({ ...editingProject, price: e.target.value })}
+                        placeholder={editingProject.billingType === 'Weekly Hourly Billing' ? 'e.g. 17 or $17/hr' : 'e.g. 2500'}
                         className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 focus:outline-none focus:border-cyan-500"
                       />
                     </div>
                   </div>
+
+                  {/* Edit Project Hourly Billing Calculation Preview Banner */}
+                  {editingProject.billingType === 'Weekly Hourly Billing' && (() => {
+                    const rateMatch = (editingProject.price || '').match(/\$?([0-9]+(?:\.[0-9]+)?)/);
+                    const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
+                    const allocatedHrs = (editingProject.taskBreakdown || []).reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                    const effectiveHrs = allocatedHrs > 0 ? allocatedHrs : (Number(editingProject.activeHours) || Number(editingProject.totalHours) || 0);
+                    const weeklyAmt = Math.round(rate * effectiveHrs);
+                    const monthlyAmt = Math.round(weeklyAmt * 4);
+
+                    return (
+                      <div className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/40 via-slate-900 to-indigo-950/40 border border-cyan-500/40 space-y-2.5 animate-fade-in shadow-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-cyan-400" />
+                            <span className="text-xs font-black text-white tracking-wide">
+                              ⚡ Hourly Billing Auto-Calculation
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                            Weekly Hourly Billing ($/hr)
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1 text-center">
+                          <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Hourly Rate</div>
+                            <div className="text-sm font-black text-cyan-300 font-mono mt-0.5">
+                              ${rate}/hr
+                            </div>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Assigned Scope</div>
+                            <div className="text-sm font-black text-indigo-300 font-mono mt-0.5">
+                              {effectiveHrs} hrs / wk
+                            </div>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Weekly Billing</div>
+                            <div className="text-sm font-black text-emerald-400 font-mono mt-0.5">
+                              ${weeklyAmt.toLocaleString()} / wk
+                            </div>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Monthly Est. (4 wks)</div>
+                            <div className="text-sm font-black text-emerald-300 font-mono mt-0.5">
+                              ${monthlyAmt.toLocaleString()} / mo
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
+                          <span>
+                            📌 Calculated Price Tag: <strong className="text-white">${rate}/hr × {effectiveHrs} hrs/wk = ${weeklyAmt.toLocaleString()}/wk (~${monthlyAmt.toLocaleString()}/mo)</strong>
+                          </span>
+                          {effectiveHrs === 0 && (
+                            <span className="text-amber-400 font-bold">
+                              ⚠️ 0 hrs assigned. Allocate deliverable hours in Tab 3.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {editingProject.billingType === 'Milestone Delivery' && (
                     <div className="p-3 rounded-xl bg-cyan-950/20 border border-cyan-500/30 space-y-3 animate-fade-in">
@@ -7954,11 +8163,23 @@ Due Date: ${proj.paymentDueDate}
                       <label className="text-xs font-extrabold text-slate-300">
                         Deliverable Specialists & Weekly Hours Allocation
                       </label>
+                    <div className="flex items-center gap-2">
+                      {editingProject.billingType === 'Weekly Hourly Billing' && (() => {
+                        const allocHrs = (editingProject.taskBreakdown || []).reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                        const rateMatch = (editingProject.price || '').match(/\$?([0-9]+(?:\.[0-9]+)?)/);
+                        const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
+                        return (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                            ⚡ Auto-Calc: ${Math.round(rate * allocHrs).toLocaleString()}/wk (${Math.round(rate * allocHrs * 4).toLocaleString()}/mo)
+                          </span>
+                        );
+                      })()}
                       <span className="text-[11px] text-slate-400">
                         Allocated:{' '}
                         {(editingProject.taskBreakdown || []).reduce((s, a) => s + (Number(a.hours) || 0), 0)} hrs /
                         week
                       </span>
+                    </div>
                     </div>
 
                     {(editingProject.taskBreakdown || []).map((tb) => (

@@ -435,5 +435,25 @@ Agencies frequently maintain their complete client roster inside a specific Clic
         - **🔄 1-Click Restore**: Moves project back into the active roster and recalculates employee workload instantly with toast notification.
         - **👁️ 360° Inspection**: Full access to historic audit records, invoices, and deliverable notes.
         - **⇄ Category Switching**: Easily move items between Trash and Past Projects folders.
-        - **❌ Permanent Purge**: Cleanly purges individual archived projects from browser storage.
+  12. **Weekly Hourly Billing Auto-Calculation & Dynamic Pricing Engine**:
+    - **Business Logic & Formula Specification**:
+      - For contracts billed on an hourly basis (`Weekly Hourly Billing`), the financial price is determined by the hourly rate multiplied by the allocated weekly deliverable hours:
+        $$\text{Weekly Billing Amount} = \text{Hourly Rate} \times \text{Allocated Weekly Hours}$$
+        $$\text{Monthly Billing Estimate} = \text{Weekly Billing Amount} \times 4 = \text{Hourly Rate} \times \text{Allocated Weekly Hours} \times 4$$
+    - **Real-Time Dynamic Form Experience**:
+      - **Dynamic Form Labels**: When `Weekly Hourly Billing ($/hr)` is selected as the billing method in either Add Project Drawer or Edit Project Drawer, the price field label dynamically transitions from `Price Tag ($ / mo)` to `Hourly Rate ($ / hr)`, with helpful placeholder guidance (`e.g. 17 or $17/hr`).
+      - **Interactive 4-Metric Calculation Banner**:
+        - Displays in real-time beneath the billing inputs in Tab 2:
+          1. **Hourly Rate**: Extracted `$X/hr`.
+          2. **Assigned Scope**: Sum of weekly allocated hours across specialists (or base hours if no deliverables specified yet).
+          3. **Weekly Billing**: `Weekly Rate × Assigned Scope` formatted as `$X / wk`.
+          4. **Monthly Estimate (4 wks)**: `Weekly Rate × 4` formatted as `$Y / mo`.
+        - Features interactive warnings if 0 deliverable hours are currently assigned.
+      - **Live Auto-Calc Badges in Tab 3 (Deliverables)**:
+        - When managers adjust deliverable hours across SEO, AEO, Dev, or Content specialists, a live badge `⚡ Auto-Calc: $X/wk ($Y/mo)` updates synchronously in the deliverable allocation header.
+    - **ClickUp Ingestion Auto-Resolution**:
+      - In `handleImportProjectsFromClickUpList`, tasks marked with hourly billing indicators (via title `hourly`, `/hr`, `per hour` or custom fields) automatically detect `Weekly Hourly Billing`.
+      - Extracts the numeric rate and computes formatted pricing strings (e.g., `$17/hr ($170/wk • $680/mo)`) and populates `paymentAmountNumeric` with the monthly equivalent for revenue reporting.
+    - **Financial Rollup & Revenue Analytics Integration**:
+      - Project cards, tables, and financial pulse tabs seamlessly recognize hourly rate breakdowns while aggregating projected monthly agency revenue accurately.
 
