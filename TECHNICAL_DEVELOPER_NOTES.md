@@ -456,4 +456,32 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Extracts the numeric rate and computes formatted pricing strings (e.g., `$17/hr ($170/wk • $680/mo)`) and populates `paymentAmountNumeric` with the monthly equivalent for revenue reporting.
     - **Financial Rollup & Revenue Analytics Integration**:
       - Project cards, tables, and financial pulse tabs seamlessly recognize hourly rate breakdowns while aggregating projected monthly agency revenue accurately.
+  13. **Unassigned / Blank Leadership & Deliverable Assignee Support**:
+    - **Context & Motivation**:
+      - Previously, leadership selection dropdowns (`Assignee (Team Lead)`, `Client Face (Call Lead)`, `Tech / Dev Lead`) and deliverable allocation dropdowns forced a team member selection, or defaulted to the first team member (e.g., Vinay) when importing from ClickUp tasks without assigned users.
+    - **Implementation**:
+      - Added high-contrast `-- Unassigned / Leave Blank --` (`value=""`) option at the top of:
+        - `newProjectLeadId` (Add Project Drawer)
+        - `newClientCallAssigneeId` (Add Project Drawer)
+        - `newDevTechAssigneeId` (Add Project Drawer)
+        - `tb.assigneeId` (Deliverable allocations in Add Project Drawer)
+        - `editingProject.projectLeadId` (Edit Project Drawer)
+        - `editingProject.clientCallAssigneeId` (Edit Project Drawer)
+        - `editingProject.devTechAssigneeId` (Edit Project Drawer)
+        - `editingProject.taskBreakdown[].assigneeId` (Deliverable allocations in Edit Project Drawer)
+      - Updated card and table view renders to gracefully show empty/unassigned states (`Unassigned` dashed pill or neutral placeholder) rather than breaking or displaying missing member errors.
+  14. **ClickUp Ingestion & Custom Column Preservation Architecture**:
+    - **Audit of Custom Columns**:
+      - **Confirmation**: Existing custom columns and operational tracking fields were **NEVER deleted**. All fields defined in `ActiveProjectItem` remain active, queryable, and editable:
+        - Audit & Setup Access: `ga4Access`, `gbpAccess`, `gscAccess`, `gtmAccess`, `backendLoginsNote`
+        - Client Relations & Operations: `communicationChannel`, `billingAccount`, `guestPostIncluded`, `reportingNote`, `reportingPlatform`, `serviceLabels`
+        - Time & Capacity Tracking: `weeklyHoursOffPage`, `weeklyHoursOnPage`, `weeklyHoursTech`, `actualHoursLogged`
+        - Tiering & History: `clientTier`, `monthlyHistory`
+    - **Smart Field Merge on Re-Import / Ingestion**:
+      - During `handleImportProjectsFromClickUpList`:
+        - If a project being imported already exists in the system (matched by ClickUp Task ID, internal ID, or client name), the importer performs a **non-destructive field merge**:
+          - Preserves existing custom column values (`ga4Access`, `communicationChannel`, `billingAccount`, `backendLoginsNote`, `guestPostIncluded`, `serviceLabels`, `monthlyHistory`, etc.).
+          - Merges newly incoming ClickUp custom fields or scope without overwriting already audited operational parameters.
+        - Tasks in ClickUp with no assignees are left **unassigned/blank** (`projectLeadId: undefined`, `clientCallAssigneeId: undefined`, `members: []`) rather than artificially assigning fallback team leads.
+
 

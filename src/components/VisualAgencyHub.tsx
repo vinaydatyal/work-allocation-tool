@@ -46,7 +46,13 @@ import {
   ExternalLink,
   RefreshCw,
   MessageSquare,
-  Flame
+  Flame,
+  Briefcase,
+  Phone,
+  Mail,
+  Calendar,
+  Kanban,
+  List
 } from 'lucide-react';
 import { ClickUpOAuthModal } from './ClickUpOAuthModal';
 import { ClickUpTaskActivityModal } from './ClickUpTaskActivityModal';
@@ -153,7 +159,7 @@ export interface ActiveProjectItem {
   paymentDueDate: string;
   paymentAmountNumeric: number;
   paymentReceivedDate?: string;
-  paymentInvoiceId: string;
+  paymentInvoiceId?: string;
   billingMonth?: string; // e.g. '2026-07'
   monthlyHistory?: {
     month: string; // e.g. 'July 2026'
@@ -200,6 +206,27 @@ export interface ArchivedProjectItem extends ActiveProjectItem {
   archivedAt: string;
   archiveCategory: 'trash' | 'past_project';
   archiveReason?: string;
+}
+
+export interface BusinessLeadItem {
+  id: string;
+  clickUpTaskId?: string;
+  clickUpUrl?: string;
+  companyName: string;
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  assignedOwnerId?: string; // Dedicated Assigned Lead Owner (links to TeamMember.id or blank)
+  stage: 'NEW' | 'DISCOVERY' | 'PROPOSAL' | 'NEGOTIATION' | 'WON' | 'LOST';
+  estimatedValue: string; // e.g. "$3,500/mo" or "$15,000"
+  estimatedValueNumeric: number;
+  billingPreference?: 'Monthly Retainer' | 'Milestone Delivery' | 'Weekly Hourly Billing';
+  leadSource?: string; // e.g., "Inbound Website", "Referral", "LinkedIn", "Upwork", "Cold Outreach"
+  serviceInterest?: string[]; // e.g., ["Full SEO", "AEO / GEO", "WordPress Dev"]
+  notes?: string;
+  nextFollowUpDate?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const formatProjectPriceTag = (
@@ -382,6 +409,100 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     }
   }, [archivedProjects]);
 
+  // New Business Leads & Sales Pipeline with localStorage persistence
+  const [businessLeads, setBusinessLeads] = useState<BusinessLeadItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('vat_business_leads_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load business leads from localStorage', e);
+    }
+    return [
+      {
+        id: 'lead-1',
+        companyName: 'Apex Dental Care',
+        contactPerson: 'Dr. Marcus Vance',
+        email: 'marcus@apexdental.com',
+        phone: '+1 (555) 234-5678',
+        assignedOwnerId: 'member-1',
+        stage: 'DISCOVERY',
+        estimatedValue: '$2,500/mo',
+        estimatedValueNumeric: 2500,
+        billingPreference: 'Monthly Retainer',
+        leadSource: 'Inbound Website',
+        serviceInterest: ['Local SEO', 'Full SEO', 'GBP Optimization'],
+        notes: 'Initial audit requested. 3 clinic locations in Chicago. Interested in local map pack rankings.',
+        nextFollowUpDate: '2026-09-22',
+        createdAt: '2026-09-14T10:00:00.000Z',
+        updatedAt: '2026-09-16T14:30:00.000Z'
+      },
+      {
+        id: 'lead-2',
+        companyName: 'Nordic Peak Outdoor Gear',
+        contactPerson: 'Elena Lindqvist',
+        email: 'elena@nordicpeak.io',
+        phone: '+1 (555) 876-5432',
+        assignedOwnerId: 'member-2',
+        stage: 'PROPOSAL',
+        estimatedValue: '$4,200/mo',
+        estimatedValueNumeric: 4200,
+        billingPreference: 'Monthly Retainer',
+        leadSource: 'Referral',
+        serviceInterest: ['Full SEO', 'AEO / GEO', 'Content Marketing'],
+        notes: 'Ecommerce store migrating to Shopify. Proposal sent for multi-market SEO + AI search positioning.',
+        nextFollowUpDate: '2026-09-20',
+        createdAt: '2026-09-10T09:00:00.000Z',
+        updatedAt: '2026-09-15T11:20:00.000Z'
+      },
+      {
+        id: 'lead-3',
+        companyName: 'Vanguard Legal Advisors',
+        contactPerson: 'Robert Sterling, Esq.',
+        email: 'r.sterling@vanguardlegal.com',
+        phone: '+1 (555) 345-6789',
+        assignedOwnerId: 'member-3',
+        stage: 'NEGOTIATION',
+        estimatedValue: '$5,000/mo',
+        estimatedValueNumeric: 5000,
+        billingPreference: 'Monthly Retainer',
+        leadSource: 'Upwork',
+        serviceInterest: ['Full SEO', 'Technical SEO'],
+        notes: 'Final contract terms under review. Needs GA4 and GSC historical data audit before signing.',
+        nextFollowUpDate: '2026-09-19',
+        createdAt: '2026-09-08T12:00:00.000Z',
+        updatedAt: '2026-09-17T16:00:00.000Z'
+      },
+      {
+        id: 'lead-4',
+        companyName: 'SaaS Metrics Cloud',
+        contactPerson: 'Chloe Chen',
+        email: 'chloe@saasmetrics.io',
+        assignedOwnerId: undefined, // Unassigned lead
+        stage: 'NEW',
+        estimatedValue: '$18/hr ($180/wk)',
+        estimatedValueNumeric: 720,
+        billingPreference: 'Weekly Hourly Billing',
+        leadSource: 'LinkedIn Inbound',
+        serviceInterest: ['Technical SEO', 'WordPress Dev'],
+        notes: 'New inquiry looking for 10 hrs/wk technical audit and schema markup implementation.',
+        nextFollowUpDate: '2026-09-21',
+        createdAt: '2026-09-18T08:00:00.000Z',
+        updatedAt: '2026-09-18T08:00:00.000Z'
+      }
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vat_business_leads_v1', JSON.stringify(businessLeads));
+    } catch (e) {
+      console.error('Failed to save business leads to localStorage', e);
+    }
+  }, [businessLeads]);
+
   const [archiveFilterTab, setArchiveFilterTab] = useState<'all' | 'past_project' | 'trash'>('all');
   const [archiveSearchQuery, setArchiveSearchQuery] = useState<string>('');
 
@@ -503,10 +624,128 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   };
 
   // Sub-Hub Navigation & Density States
-  type HubSubTab = 'projects' | 'squad' | 'executive' | 'archive';
+  type HubSubTab = 'projects' | 'squad' | 'executive' | 'archive' | 'leads';
   const [hubSubTab, setHubSubTab] = useState<HubSubTab>('projects');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(9);
+
+  // Leads Sub-Hub View & Filter States
+  const [leadsViewMode, setLeadsViewMode] = useState<'table' | 'kanban'>('table');
+  const [leadStageFilter, setLeadStageFilter] = useState<string>('ALL');
+  const [leadOwnerFilter, setLeadOwnerFilter] = useState<string>('ALL');
+  const [leadSearchQuery, setLeadSearchQuery] = useState<string>('');
+  const [showAddLeadModal, setShowAddLeadModal] = useState<boolean>(false);
+  const [editingLead, setEditingLead] = useState<BusinessLeadItem | null>(null);
+
+  // Business Leads Action Handlers
+  const handleUpdateLeadOwner = (leadId: string, newOwnerId: string) => {
+    const targetOwner = customMembers.find((m) => m.id === newOwnerId);
+    setBusinessLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadId
+          ? { ...l, assignedOwnerId: newOwnerId || undefined, updatedAt: new Date().toISOString() }
+          : l
+      )
+    );
+    if (newOwnerId) {
+      sonnerToast.success(`Assigned to ${targetOwner?.name || 'team member'}!`);
+    } else {
+      sonnerToast.info('Lead unassigned.');
+    }
+  };
+
+  const handleUpdateLeadStage = (leadId: string, newStage: BusinessLeadItem['stage']) => {
+    setBusinessLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadId
+          ? { ...l, stage: newStage, updatedAt: new Date().toISOString() }
+          : l
+      )
+    );
+    sonnerToast.success(`Stage moved to ${newStage}!`);
+  };
+
+  const handleDeleteLead = (leadId: string) => {
+    const target = businessLeads.find((l) => l.id === leadId);
+    setBusinessLeads((prev) => prev.filter((l) => l.id !== leadId));
+    sonnerToast.success(`Lead "${target?.companyName || 'Lead'}" removed.`);
+  };
+
+  const handleConvertLeadToProject = (lead: BusinessLeadItem) => {
+    const rawRateMatch = lead.estimatedValue.match(/\$?([0-9]+(?:\.[0-9]+)?)/);
+    const numericRate = rawRateMatch ? parseFloat(rawRateMatch[1]) : 0;
+    const isHourly = lead.billingPreference === 'Weekly Hourly Billing';
+    const effectiveHours = isHourly ? 10 : 20;
+
+    let finalPrice = lead.estimatedValue;
+    let finalAmount = lead.estimatedValueNumeric || 3500;
+
+    if (isHourly) {
+      const calcWk = Math.round(numericRate * effectiveHours);
+      const calcMo = Math.round(calcWk * 4);
+      finalPrice = `$${numericRate}/hr (${calcWk > 0 ? `$${calcWk.toLocaleString()}/wk • ` : ''}$${calcMo.toLocaleString()}/mo)`;
+      finalAmount = calcMo > 0 ? calcMo : Math.round(numericRate * effectiveHours * 4);
+    }
+
+    const assignedMember = customMembers.find((m) => m.id === lead.assignedOwnerId);
+    const projectMembers = assignedMember ? [assignedMember] : [];
+
+    const newProject: ActiveProjectItem = {
+      id: `proj-${Date.now()}`,
+      name: `${lead.companyName} - Retainer`,
+      client: lead.companyName,
+      billingType: lead.billingPreference || 'Monthly Retainer',
+      startDate: todayLocal(),
+      dueDateOrRenewal: 'Monthly Renewal: 30th',
+      milestonesTotal: 4,
+      milestonesCompleted: 0,
+      price: finalPrice,
+      totalHours: effectiveHours,
+      activeHours: effectiveHours,
+      progress: 5,
+      color: '#06b6d4',
+      members: projectMembers,
+      projectLeadId: lead.assignedOwnerId,
+      clientCallAssigneeId: lead.assignedOwnerId,
+      taskBreakdown: [
+        {
+          id: `tb-1`,
+          taskType: 'Discovery & Kickoff Audit',
+          hours: isHourly ? 5 : 8,
+          assigneeId: lead.assignedOwnerId || ''
+        },
+        {
+          id: `tb-2`,
+          taskType: 'Strategy Roadmap & Quick Wins',
+          hours: isHourly ? 5 : 12,
+          assigneeId: lead.assignedOwnerId || ''
+        }
+      ],
+      paymentStatus: 'Pending',
+      paymentDueDate: 'End of Month',
+      paymentAmountNumeric: finalAmount,
+      paymentInvoiceId: `INV-${Date.now().toString().slice(-4)}`,
+      status: 'INITIAL STAGE',
+      priorityLevel: 'HIGH',
+      serviceLabels: lead.serviceInterest && lead.serviceInterest.length > 0 ? lead.serviceInterest : ['Full SEO'],
+      taskContent: lead.notes || `Converted from Business Lead. Contact: ${lead.contactPerson || 'N/A'} (${lead.email || 'N/A'})`
+    };
+
+    setProjectsList((prev) => [newProject, ...prev]);
+
+    // Update lead stage to WON
+    setBusinessLeads((prev) =>
+      prev.map((l) =>
+        l.id === lead.id
+          ? { ...l, stage: 'WON', updatedAt: new Date().toISOString() }
+          : l
+      )
+    );
+
+    sonnerToast.success(`🏆 "${lead.companyName}" successfully converted to Active Project Roster!`, {
+      description: `Retainer created with ${lead.assignedOwnerId ? 'assigned lead' : 'unassigned lead'}. View in Project Roster.`
+    });
+  };
 
   // Visual Filters State
   const [filterLeadId, setFilterLeadId] = useState<string>('ALL');
@@ -1323,6 +1562,131 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
       });
     }
     setTimeout(() => setCopiedToast(null), 4500);
+  };
+
+  const handleImportLeadsFromClickUpList = (
+    list: { id: string; name: string; folderName?: string; spaceName?: string },
+    clickUpTasks: ClickUpTask[],
+    replaceExisting: boolean
+  ) => {
+    if (!clickUpTasks || clickUpTasks.length === 0) {
+      sonnerToast.error(`No tasks found in ClickUp list "${list.name}".`);
+      return;
+    }
+
+    const mappedLeads: BusinessLeadItem[] = clickUpTasks.map((t) => {
+      const cleanName = t.name.trim();
+
+      // Separate Assignee (Team Lead / Owner) matching
+      let assignedOwnerId: string | undefined = undefined;
+      if (t.assignees && t.assignees.length > 0) {
+        const found = customMembers.find((cm) =>
+          t.assignees.some((cuUser) => {
+            const cmName = cm.name.toLowerCase();
+            const cuUsername = (cuUser.username || '').toLowerCase();
+            return (
+              cuUsername.includes(cmName) ||
+              cmName.includes(cuUsername)
+            );
+          })
+        );
+        if (found) {
+          assignedOwnerId = found.id;
+        }
+      }
+
+      // Stage detection
+      const rawStatus = (t.status?.status || 'New').toLowerCase();
+      let stage: BusinessLeadItem['stage'] = 'NEW';
+      if (rawStatus.includes('won') || rawStatus.includes('closed') || rawStatus.includes('complete')) {
+        stage = 'WON';
+      } else if (rawStatus.includes('lost') || rawStatus.includes('reject') || rawStatus.includes('cancel')) {
+        stage = 'LOST';
+      } else if (rawStatus.includes('proposal') || rawStatus.includes('quote')) {
+        stage = 'PROPOSAL';
+      } else if (rawStatus.includes('negotiat') || rawStatus.includes('contract') || rawStatus.includes('review')) {
+        stage = 'NEGOTIATION';
+      } else if (rawStatus.includes('audit') || rawStatus.includes('call') || rawStatus.includes('meet') || rawStatus.includes('discovery')) {
+        stage = 'DISCOVERY';
+      }
+
+      // Budget extraction
+      let parsedAmount = 2500;
+      let valString = '$2,500/mo';
+      let billingPref: 'Monthly Retainer' | 'Milestone Delivery' | 'Weekly Hourly Billing' = 'Monthly Retainer';
+
+      if (t.custom_fields && t.custom_fields.length > 0) {
+        const budgetField = t.custom_fields.find((cf) =>
+          /budget|price|value|amount|fee/i.test(cf.name)
+        );
+        if (budgetField && budgetField.value) {
+          const num = typeof budgetField.value === 'number'
+            ? budgetField.value
+            : parseFloat(String(budgetField.value).replace(/[^0-9.]/g, ''));
+          if (!isNaN(num) && num > 0) parsedAmount = num;
+        }
+      }
+
+      const isHourly = /hourly|\/hr|per hour/i.test(cleanName) || (t.custom_fields && t.custom_fields.some(cf => /billing|rate|type/i.test(cf.name) && /hourly/i.test(String(cf.value || ''))));
+      if (isHourly) {
+        billingPref = 'Weekly Hourly Billing';
+        valString = `$${parsedAmount}/hr`;
+      } else {
+        valString = `$${parsedAmount.toLocaleString()}/mo`;
+      }
+
+      // Extract contact details
+      let email: string | undefined = undefined;
+      let phone: string | undefined = undefined;
+      let contactPerson: string | undefined = undefined;
+
+      if (t.custom_fields) {
+        const emailField = t.custom_fields.find(cf => /email/i.test(cf.name));
+        if (emailField && emailField.value) email = String(emailField.value);
+        const phoneField = t.custom_fields.find(cf => /phone|mobile|cell/i.test(cf.name));
+        if (phoneField && phoneField.value) phone = String(phoneField.value);
+        const contactField = t.custom_fields.find(cf => /contact|client name|person|owner/i.test(cf.name));
+        if (contactField && contactField.value) contactPerson = String(contactField.value);
+      }
+
+      if (!email && t.text_content) {
+        const emailMatch = t.text_content.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+        if (emailMatch) email = emailMatch[0];
+      }
+
+      return {
+        id: `lead_cu_${t.id}`,
+        clickUpTaskId: t.id,
+        clickUpUrl: t.url,
+        companyName: cleanName,
+        contactPerson: contactPerson || undefined,
+        email: email,
+        phone: phone,
+        assignedOwnerId: assignedOwnerId, // Dedicated Assigned Lead Owner
+        stage: stage,
+        estimatedValue: valString,
+        estimatedValueNumeric: parsedAmount,
+        billingPreference: billingPref,
+        leadSource: `ClickUp: ${list.name}`,
+        serviceInterest: ['Full SEO'],
+        notes: t.text_content ? t.text_content.slice(0, 300) : `Imported from ClickUp list "${list.name}"`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    });
+
+    if (replaceExisting) {
+      setBusinessLeads(mappedLeads);
+    } else {
+      setBusinessLeads((prev) => {
+        const existingIds = new Set(prev.map((l) => l.clickUpTaskId || l.id));
+        const filteredNew = mappedLeads.filter((l) => !existingIds.has(l.clickUpTaskId || l.id));
+        return [...filteredNew, ...prev];
+      });
+    }
+
+    setHubSubTab('leads');
+    sonnerToast.success(`💼 Synced ${mappedLeads.length} leads from ClickUp list "${list.name}"!`);
   };
 
   const handleQuickSyncCrmClients = async () => {
@@ -2767,6 +3131,21 @@ Due Date: ${proj.paymentDueDate}
 
               <button
                 type="button"
+                onClick={() => setHubSubTab('leads')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-all cursor-pointer shadow-sm relative group"
+                title="View New Business Leads & Sales Pipeline"
+              >
+                <Briefcase className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Business Leads</span>
+                {businessLeads.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                    {businessLeads.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setShowAddMemberModal(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 text-cyan-700 font-semibold text-xs transition-colors cursor-pointer"
               >
@@ -2863,10 +3242,29 @@ Due Date: ${proj.paymentDueDate}
                   {archivedProjects.length}
                 </span>
               </button>
+
+              {/* Sub-Tab 5: New Business Leads */}
+              <button
+                type="button"
+                onClick={() => setHubSubTab('leads')}
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  hubSubTab === 'leads'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 ring-1 ring-cyan-400/40'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                }`}
+              >
+                <Briefcase className="w-4 h-4" />
+                <span>💼 New Business Leads</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                  hubSubTab === 'leads' ? 'bg-slate-950/60 text-cyan-200 border-cyan-400/30' : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}>
+                  {businessLeads.length}
+                </span>
+              </button>
             </div>
 
             <div className="hidden lg:flex items-center gap-2 pr-2 text-xs font-medium text-slate-400">
-              <span>Sub-Hub: <strong className="text-white uppercase font-bold">{hubSubTab === 'projects' ? 'Project Roster' : hubSubTab === 'squad' ? 'Team Capacity' : hubSubTab === 'executive' ? 'Executive Pulse' : 'Past Projects & Trash'}</strong></span>
+              <span>Sub-Hub: <strong className="text-white uppercase font-bold">{hubSubTab === 'projects' ? 'Project Roster' : hubSubTab === 'squad' ? 'Team Capacity' : hubSubTab === 'executive' ? 'Executive Pulse' : hubSubTab === 'archive' ? 'Past Projects & Trash' : 'Business Leads & Pipeline'}</strong></span>
             </div>
           </div>
           </div>
@@ -5260,6 +5658,547 @@ Due Date: ${proj.paymentDueDate}
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* SUB-HUB TAB 5: NEW BUSINESS LEADS & SALES PIPELINE */}
+          {hubSubTab === 'leads' && (() => {
+            const filteredLeads = businessLeads.filter((l) => {
+              if (leadStageFilter !== 'ALL' && l.stage !== leadStageFilter) return false;
+              if (leadOwnerFilter === 'UNASSIGNED') {
+                if (l.assignedOwnerId) return false;
+              } else if (leadOwnerFilter !== 'ALL') {
+                if (l.assignedOwnerId !== leadOwnerFilter) return false;
+              }
+              if (leadSearchQuery.trim()) {
+                const q = leadSearchQuery.toLowerCase();
+                const matchCompany = l.companyName.toLowerCase().includes(q);
+                const matchContact = (l.contactPerson || '').toLowerCase().includes(q);
+                const matchEmail = (l.email || '').toLowerCase().includes(q);
+                const matchNotes = (l.notes || '').toLowerCase().includes(q);
+                if (!matchCompany && !matchContact && !matchEmail && !matchNotes) return false;
+              }
+              return true;
+            });
+
+            const totalPipelineValue = businessLeads
+              .filter(l => l.stage !== 'LOST')
+              .reduce((sum, l) => sum + (l.estimatedValueNumeric || 0), 0);
+
+            const stageCounts = {
+              ALL: businessLeads.length,
+              NEW: businessLeads.filter(l => l.stage === 'NEW').length,
+              DISCOVERY: businessLeads.filter(l => l.stage === 'DISCOVERY').length,
+              PROPOSAL: businessLeads.filter(l => l.stage === 'PROPOSAL').length,
+              NEGOTIATION: businessLeads.filter(l => l.stage === 'NEGOTIATION').length,
+              WON: businessLeads.filter(l => l.stage === 'WON').length,
+              LOST: businessLeads.filter(l => l.stage === 'LOST').length,
+            };
+
+            const stageColors: Record<BusinessLeadItem['stage'], { bg: string; text: string; border: string }> = {
+              NEW: { bg: 'bg-blue-500/15', text: 'text-blue-300', border: 'border-blue-500/30' },
+              DISCOVERY: { bg: 'bg-purple-500/15', text: 'text-purple-300', border: 'border-purple-500/30' },
+              PROPOSAL: { bg: 'bg-amber-500/15', text: 'text-amber-300', border: 'border-amber-500/30' },
+              NEGOTIATION: { bg: 'bg-orange-500/15', text: 'text-orange-300', border: 'border-orange-500/30' },
+              WON: { bg: 'bg-emerald-500/15', text: 'text-emerald-300', border: 'border-emerald-500/30' },
+              LOST: { bg: 'bg-rose-500/15', text: 'text-rose-300', border: 'border-rose-500/30' },
+            };
+
+            return (
+              <div className="space-y-6">
+                {/* Leads Header & Pipeline KPI Banner */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 p-5 border border-slate-700/80 shadow-2xl">
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-emerald-400" />
+                  
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/10">
+                        <Briefcase className="w-6 h-6 text-cyan-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2.5">
+                          <h2 className="text-xl font-black text-white tracking-tight">
+                            Business Leads &amp; Sales Pipeline
+                          </h2>
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                            {businessLeads.length} Prospects
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-300 mt-0.5">
+                          Track potential clients, separate assigned lead owners, and convert won proposals into Active Project Retainers.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <div className="bg-slate-950/80 border border-slate-700 px-3.5 py-1.5 rounded-xl text-left">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                          Active Pipeline Est.
+                        </span>
+                        <span className="text-base font-black text-emerald-400">
+                          ${totalPipelineValue.toLocaleString()}
+                          <span className="text-[10px] text-slate-400 font-medium ml-1">total value</span>
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowClickUpModal(true)}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600/90 hover:bg-purple-600 text-white font-bold text-xs shadow-lg shadow-purple-600/20 transition-all cursor-pointer border border-purple-500/40 hover:scale-[1.02]"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Sync Leads from ClickUp</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingLead(null);
+                          setShowAddLeadModal(true);
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-xs shadow-lg shadow-cyan-500/25 transition-all cursor-pointer hover:scale-[1.02]"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add New Lead</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Stage Quick-Filter Pills */}
+                  <div className="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap items-center gap-2">
+                    {(['ALL', 'NEW', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'] as const).map((st) => {
+                      const isActive = leadStageFilter === st;
+                      return (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() => setLeadStageFilter(st)}
+                          className={`flex items-center gap-1.5 px-3 py-1.2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30'
+                              : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60'
+                          }`}
+                        >
+                          <span>{st === 'ALL' ? 'All Leads' : st}</span>
+                          <span
+                            className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                              isActive ? 'bg-slate-950 text-cyan-300' : 'bg-slate-900 text-slate-400'
+                            }`}
+                          >
+                            {stageCounts[st]}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Filter and View Mode Toolbar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                  <div className="flex flex-wrap items-center gap-2.5 flex-1">
+                    <div className="relative flex-1 min-w-[200px] max-w-sm">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search company, contact, notes..."
+                        value={leadSearchQuery}
+                        onChange={(e) => setLeadSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                      />
+                      {leadSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setLeadSearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Filter by Assigned Lead Owner */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-bold text-slate-400">Owner:</span>
+                      <select
+                        value={leadOwnerFilter}
+                        onChange={(e) => setLeadOwnerFilter(e.target.value)}
+                        className="bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-400"
+                      >
+                        <option value="ALL">All Owners</option>
+                        <option value="UNASSIGNED">-- Unassigned Only --</option>
+                        {customMembers.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({m.role || 'Member'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* View Mode Toggle: Table vs Kanban */}
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setLeadsViewMode('table')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        leadsViewMode === 'table'
+                          ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>Table</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLeadsViewMode('kanban')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        leadsViewMode === 'kanban'
+                          ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Kanban className="w-3.5 h-3.5" />
+                      <span>Pipeline Kanban</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Main Content: Table or Kanban */}
+                {filteredLeads.length === 0 ? (
+                  <div className="text-center py-16 px-4 rounded-2xl bg-slate-900/40 border border-slate-800 text-slate-400 space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-800 mx-auto flex items-center justify-center text-slate-500">
+                      <Briefcase className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-200">No leads match your current filter</h3>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                      Adjust your search or status filters, or click "Add New Lead" or "Sync Leads from ClickUp" to add prospects.
+                    </p>
+                  </div>
+                ) : leadsViewMode === 'table' ? (
+                  /* TABLE VIEW */
+                  <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/50 shadow-xl">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-950/80 text-[11px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                        <tr>
+                          <th className="py-3 px-4">Company &amp; Contact</th>
+                          <th className="py-3 px-4">Stage</th>
+                          <th className="py-3 px-4">Estimated Value</th>
+                          <th className="py-3 px-4">Assigned Lead Owner</th>
+                          <th className="py-3 px-4">Services / Source</th>
+                          <th className="py-3 px-4">Next Follow-Up / Notes</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/70 font-medium">
+                        {filteredLeads.map((lead) => {
+                          const assignedOwner = customMembers.find((m) => m.id === lead.assignedOwnerId);
+                          const stageStyle = stageColors[lead.stage] || stageColors.NEW;
+
+                          return (
+                            <tr key={lead.id} className="hover:bg-slate-800/40 transition-colors">
+                              {/* Company & Contact */}
+                              <td className="py-3.5 px-4">
+                                <div className="font-bold text-white text-sm flex items-center gap-1.5">
+                                  <span>{lead.companyName}</span>
+                                  {lead.clickUpUrl && (
+                                    <a
+                                      href={lead.clickUpUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title="Open ClickUp Task"
+                                      className="text-purple-400 hover:text-purple-300"
+                                    >
+                                      <ExternalLink className="w-3 h-3 inline" />
+                                    </a>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5 space-y-0.5">
+                                  {lead.contactPerson && (
+                                    <div className="flex items-center gap-1 text-slate-300">
+                                      <span>👤 {lead.contactPerson}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-2 text-[10px]">
+                                    {lead.email && (
+                                      <a
+                                        href={`mailto:${lead.email}`}
+                                        className="text-cyan-400 hover:underline flex items-center gap-0.5"
+                                      >
+                                        <Mail className="w-2.5 h-2.5" />
+                                        {lead.email}
+                                      </a>
+                                    )}
+                                    {lead.phone && (
+                                      <span className="text-slate-400 flex items-center gap-0.5">
+                                        <Phone className="w-2.5 h-2.5" />
+                                        {lead.phone}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Stage Selector */}
+                              <td className="py-3.5 px-4">
+                                <select
+                                  value={lead.stage}
+                                  onChange={(e) =>
+                                    handleUpdateLeadStage(
+                                      lead.id,
+                                      e.target.value as BusinessLeadItem['stage']
+                                    )
+                                  }
+                                  className={`text-[11px] font-black uppercase px-2.5 py-1 rounded-lg border focus:outline-none ${stageStyle.bg} ${stageStyle.text} ${stageStyle.border} bg-slate-950 cursor-pointer`}
+                                >
+                                  <option value="NEW">NEW</option>
+                                  <option value="DISCOVERY">DISCOVERY</option>
+                                  <option value="PROPOSAL">PROPOSAL</option>
+                                  <option value="NEGOTIATION">NEGOTIATION</option>
+                                  <option value="WON">WON</option>
+                                  <option value="LOST">LOST</option>
+                                </select>
+                              </td>
+
+                              {/* Estimated Value */}
+                              <td className="py-3.5 px-4">
+                                <span className="font-bold text-emerald-400 text-xs block">
+                                  {lead.estimatedValue}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {lead.billingPreference}
+                                </span>
+                              </td>
+
+                              {/* Assigned Lead Owner Dropdown */}
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-2">
+                                  {assignedOwner ? (
+                                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                                      {assignedOwner.name[0]}
+                                    </div>
+                                  ) : (
+                                    <div className="w-6 h-6 rounded-full border border-dashed border-slate-600 flex items-center justify-center text-[10px] text-slate-500 shrink-0">
+                                      ?
+                                    </div>
+                                  )}
+                                  <select
+                                    value={lead.assignedOwnerId || ''}
+                                    onChange={(e) => handleUpdateLeadOwner(lead.id, e.target.value)}
+                                    className="bg-slate-950 border border-slate-700 text-[11px] text-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-cyan-400 cursor-pointer max-w-[150px]"
+                                  >
+                                    <option value="">-- Unassigned (Leave Blank) --</option>
+                                    {customMembers.map((m) => (
+                                      <option key={m.id} value={m.id}>
+                                        {m.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </td>
+
+                              {/* Services / Source */}
+                              <td className="py-3.5 px-4">
+                                <div className="flex flex-wrap gap-1 max-w-[160px]">
+                                  {lead.serviceInterest?.map((srv, i) => (
+                                    <span
+                                      key={i}
+                                      className="px-1.5 py-0.2 rounded bg-slate-800 text-[10px] text-slate-300 border border-slate-700 font-semibold"
+                                    >
+                                      {srv}
+                                    </span>
+                                  ))}
+                                </div>
+                                {lead.leadSource && (
+                                  <span className="text-[10px] text-cyan-400/90 block mt-1">
+                                    via {lead.leadSource}
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Next Follow-Up / Notes */}
+                              <td className="py-3.5 px-4 max-w-[200px]">
+                                {lead.nextFollowUpDate && (
+                                  <div className="text-[11px] text-amber-300 font-semibold flex items-center gap-1 mb-0.5">
+                                    <Calendar className="w-3 h-3" />
+                                    <span>{lead.nextFollowUpDate}</span>
+                                  </div>
+                                )}
+                                <p className="text-[11px] text-slate-400 line-clamp-2" title={lead.notes}>
+                                  {lead.notes || 'No notes added.'}
+                                </p>
+                              </td>
+
+                              {/* Actions */}
+                              <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {lead.stage !== 'WON' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleConvertLeadToProject(lead)}
+                                      className="flex items-center gap-1 px-2.5 py-1.2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 hover:text-emerald-200 border border-emerald-500/40 text-[11px] font-bold transition-all cursor-pointer shadow-sm hover:scale-105"
+                                      title="Convert won lead into an Active Project Retainer"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>Convert</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingLead(lead);
+                                      setShowAddLeadModal(true);
+                                    }}
+                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                                    title="Edit Lead Details"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteLead(lead.id)}
+                                    className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition-colors cursor-pointer"
+                                    title="Delete Lead"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  /* KANBAN VIEW */
+                  <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                    {(['NEW', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION', 'WON'] as const).map((stageCol) => {
+                      const colLeads = filteredLeads.filter((l) => l.stage === stageCol);
+                      const colStyle = stageColors[stageCol];
+
+                      return (
+                        <div
+                          key={stageCol}
+                          className="bg-slate-900/60 rounded-2xl p-3 border border-slate-800 flex flex-col h-full shadow-lg"
+                        >
+                          {/* Column Header */}
+                          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`px-2 py-0.5 rounded-md text-xs font-black uppercase border ${colStyle.bg} ${colStyle.text} ${colStyle.border}`}
+                              >
+                                {stageCol}
+                              </span>
+                            </div>
+                            <span className="text-xs font-bold text-slate-400 bg-slate-950 px-2 py-0.5 rounded-full border border-slate-800">
+                              {colLeads.length}
+                            </span>
+                          </div>
+
+                          {/* Card List */}
+                          <div className="space-y-3 flex-1 overflow-y-auto max-h-[600px] pr-1">
+                            {colLeads.length === 0 ? (
+                              <div className="py-8 text-center text-slate-600 text-xs font-medium italic border border-dashed border-slate-800 rounded-xl">
+                                No prospects in {stageCol.toLowerCase()}
+                              </div>
+                            ) : (
+                              colLeads.map((lead) => {
+                                return (
+                                  <div
+                                    key={lead.id}
+                                    className="bg-slate-950/90 rounded-xl p-3.5 border border-slate-800 hover:border-slate-700 transition-all shadow-md group relative flex flex-col justify-between gap-3"
+                                  >
+                                    <div>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <h4 className="font-bold text-white text-xs leading-tight">
+                                          {lead.companyName}
+                                        </h4>
+                                        <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingLead(lead);
+                                              setShowAddLeadModal(true);
+                                            }}
+                                            className="text-slate-400 hover:text-white"
+                                            title="Edit Lead"
+                                          >
+                                            <Edit2 className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {lead.contactPerson && (
+                                        <div className="text-[10px] text-slate-400 mt-1">
+                                          👤 {lead.contactPerson}
+                                        </div>
+                                      )}
+
+                                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-900">
+                                        <span className="font-black text-emerald-400 text-xs">
+                                          {lead.estimatedValue}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.2 rounded">
+                                          {lead.billingPreference === 'Weekly Hourly Billing' ? 'Hourly' : 'Retainer'}
+                                        </span>
+                                      </div>
+
+                                      {lead.notes && (
+                                        <p className="text-[10px] text-slate-400 mt-2 line-clamp-2 italic">
+                                          "{lead.notes}"
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    {/* Footer: Owner Selector & Move Stage */}
+                                    <div className="pt-2 border-t border-slate-900 flex flex-col gap-2">
+                                      <div className="flex items-center justify-between text-[10px]">
+                                        <span className="text-slate-500 font-semibold">Lead Owner:</span>
+                                        <select
+                                          value={lead.assignedOwnerId || ''}
+                                          onChange={(e) => handleUpdateLeadOwner(lead.id, e.target.value)}
+                                          className="bg-slate-900 border border-slate-800 text-[10px] text-cyan-300 rounded px-1.5 py-0.5 focus:outline-none max-w-[120px]"
+                                        >
+                                          <option value="">-- Unassigned --</option>
+                                          {customMembers.map((m) => (
+                                            <option key={m.id} value={m.id}>
+                                              {m.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+
+                                      <div className="flex items-center justify-between gap-1 mt-1">
+                                        {lead.stage !== 'WON' ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleConvertLeadToProject(lead)}
+                                            className="w-full flex items-center justify-center gap-1 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold cursor-pointer"
+                                          >
+                                            <CheckCircle2 className="w-3 h-3" />
+                                            <span>Convert to Retainer</span>
+                                          </button>
+                                        ) : (
+                                          <div className="w-full text-center text-[10px] font-black text-emerald-400 bg-emerald-500/10 py-1 rounded border border-emerald-500/20">
+                                            ✓ Converted to Retainer
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -9738,6 +10677,277 @@ Due Date: ${proj.paymentDueDate}
         document.body
       )}
 
+      {/* MODAL 6.8: Add or Edit Business Lead Modal */}
+      {showAddLeadModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="relative w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                  <Briefcase className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">
+                    {editingLead ? 'Edit Business Lead' : 'Add New Business Lead'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Track prospect information and separate assigned team leads.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddLeadModal(false);
+                  setEditingLead(null);
+                }}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const companyName = String(formData.get('companyName') || '').trim();
+                if (!companyName) {
+                  sonnerToast.error('Please enter a company name.');
+                  return;
+                }
+
+                const contactPerson = String(formData.get('contactPerson') || '').trim();
+                const email = String(formData.get('email') || '').trim();
+                const phone = String(formData.get('phone') || '').trim();
+                const stage = String(formData.get('stage') || 'NEW') as BusinessLeadItem['stage'];
+                const assignedOwnerId = String(formData.get('assignedOwnerId') || '').trim() || undefined;
+                const billingPreference = String(formData.get('billingPreference') || 'Monthly Retainer') as any;
+                const estimatedValue = String(formData.get('estimatedValue') || '$3,500/mo').trim();
+                const leadSource = String(formData.get('leadSource') || '').trim();
+                const nextFollowUpDate = String(formData.get('nextFollowUpDate') || '').trim();
+                const notes = String(formData.get('notes') || '').trim();
+
+                const numMatch = estimatedValue.match(/\$?([0-9,]+(?:\.[0-9]+)?)/);
+                const numericVal = numMatch ? parseFloat(numMatch[1].replace(/,/g, '')) : 0;
+
+                if (editingLead) {
+                  setBusinessLeads((prev) =>
+                    prev.map((l) =>
+                      l.id === editingLead.id
+                        ? {
+                            ...l,
+                            companyName,
+                            contactPerson: contactPerson || undefined,
+                            email: email || undefined,
+                            phone: phone || undefined,
+                            stage,
+                            assignedOwnerId,
+                            billingPreference,
+                            estimatedValue,
+                            estimatedValueNumeric: numericVal,
+                            leadSource: leadSource || undefined,
+                            nextFollowUpDate: nextFollowUpDate || undefined,
+                            notes: notes || undefined,
+                            updatedAt: new Date().toISOString()
+                          }
+                        : l
+                    )
+                  );
+                  sonnerToast.success(`Lead "${companyName}" updated.`);
+                } else {
+                  const newLead: BusinessLeadItem = {
+                    id: `lead-${Date.now()}`,
+                    companyName,
+                    contactPerson: contactPerson || undefined,
+                    email: email || undefined,
+                    phone: phone || undefined,
+                    stage,
+                    assignedOwnerId,
+                    billingPreference,
+                    estimatedValue,
+                    estimatedValueNumeric: numericVal,
+                    leadSource: leadSource || 'Manual Entry',
+                    nextFollowUpDate: nextFollowUpDate || undefined,
+                    notes: notes || undefined,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+                  setBusinessLeads((prev) => [newLead, ...prev]);
+                  sonnerToast.success(`Lead "${companyName}" created.`);
+                }
+
+                setShowAddLeadModal(false);
+                setEditingLead(null);
+              }}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-300">
+                    Company / Prospect Name *
+                  </label>
+                  <input
+                    name="companyName"
+                    type="text"
+                    required
+                    defaultValue={editingLead?.companyName || ''}
+                    placeholder="e.g. Acme Corp Dental"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Contact Person</label>
+                  <input
+                    name="contactPerson"
+                    type="text"
+                    defaultValue={editingLead?.contactPerson || ''}
+                    placeholder="e.g. John Doe (CEO)"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Stage</label>
+                  <select
+                    name="stage"
+                    defaultValue={editingLead?.stage || 'NEW'}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  >
+                    <option value="NEW">NEW / Inbound</option>
+                    <option value="DISCOVERY">DISCOVERY (Audit / Call)</option>
+                    <option value="PROPOSAL">PROPOSAL (Sent Quote)</option>
+                    <option value="NEGOTIATION">NEGOTIATION</option>
+                    <option value="WON">WON (Closed Deal)</option>
+                    <option value="LOST">LOST</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Email Address</label>
+                  <input
+                    name="email"
+                    type="email"
+                    defaultValue={editingLead?.email || ''}
+                    placeholder="john@acme.com"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Phone Number</label>
+                  <input
+                    name="phone"
+                    type="tel"
+                    defaultValue={editingLead?.phone || ''}
+                    placeholder="+1 (555) 019-2834"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+
+                {/* Assigned Lead Owner: Dedicated separate team lead with blank option */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>Assigned Lead Owner</span>
+                    <span className="text-[10px] text-cyan-400 font-normal">Optional</span>
+                  </label>
+                  <select
+                    name="assignedOwnerId"
+                    defaultValue={editingLead?.assignedOwnerId || ''}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  >
+                    <option value="">-- Unassigned (Leave Blank) --</option>
+                    {customMembers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.role || 'Specialist'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Estimated Value</label>
+                  <input
+                    name="estimatedValue"
+                    type="text"
+                    defaultValue={editingLead?.estimatedValue || '$3,500/mo'}
+                    placeholder="$3,500/mo or $25/hr"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Billing Preference</label>
+                  <select
+                    name="billingPreference"
+                    defaultValue={editingLead?.billingPreference || 'Monthly Retainer'}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  >
+                    <option value="Monthly Retainer">Monthly Retainer</option>
+                    <option value="Weekly Hourly Billing">Weekly Hourly Billing</option>
+                    <option value="Milestone Delivery">Milestone Delivery</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Lead Source</label>
+                  <input
+                    name="leadSource"
+                    type="text"
+                    defaultValue={editingLead?.leadSource || 'Website Inbound'}
+                    placeholder="e.g. Website, Referral, Upwork"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-300">Follow-Up Date</label>
+                  <input
+                    name="nextFollowUpDate"
+                    type="text"
+                    defaultValue={editingLead?.nextFollowUpDate || ''}
+                    placeholder="e.g. 2026-09-25 or Next Tuesday 2pm"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-300">Notes &amp; Scope</label>
+                  <textarea
+                    name="notes"
+                    rows={3}
+                    defaultValue={editingLead?.notes || ''}
+                    placeholder="Client requirements, deal notes, website audit summary..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddLeadModal(false);
+                    setEditingLead(null);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-lg shadow-cyan-500/25 transition-all cursor-pointer"
+                >
+                  {editingLead ? 'Save Changes' : 'Create Lead'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* MODAL 7: ClickUp Live OAuth & API Sync Modal */}
       <ClickUpOAuthModal
         isOpen={showClickUpModal}
@@ -9746,6 +10956,7 @@ Due Date: ${proj.paymentDueDate}
         onImportMembers={handleImportClickUpMembers}
         onImportTimeEntries={handleImportClickUpTimeEntries}
         onImportProjectsFromList={handleImportProjectsFromClickUpList}
+        onImportLeadsFromList={handleImportLeadsFromClickUpList}
       />
 
       {/* MODAL 7.5: ClickUp CRM Ingestion Scope Modal (Tasks vs Subtasks vs Both) */}

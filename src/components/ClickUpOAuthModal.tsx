@@ -66,6 +66,11 @@ interface ClickUpOAuthModalProps {
     tasks: ClickUpTask[],
     replaceExisting: boolean
   ) => void;
+  onImportLeadsFromList?: (
+    list: { id: string; name: string; folderName?: string; spaceName?: string },
+    tasks: ClickUpTask[],
+    replaceExisting: boolean
+  ) => void;
 }
 
 type ActiveFeatureTab = 'overview' | 'hierarchy' | 'time' | 'members' | 'create' | 'webhooks';
@@ -76,7 +81,8 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
   onSyncComplete,
   onImportMembers,
   onImportTimeEntries,
-  onImportProjectsFromList
+  onImportProjectsFromList,
+  onImportLeadsFromList
 }) => {
   const [connected, setConnected]           = useState(isClickUpConnected());
   const [connectedUser, setConnectedUser]   = useState(getClickUpUser());
@@ -1236,6 +1242,30 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                                     <PlusCircle className="w-3.5 h-3.5 text-cyan-400" />
                                     <span>➕ Add to Projects</span>
                                   </button>
+
+                                  {onImportLeadsFromList && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        onImportLeadsFromList(
+                                          {
+                                            id: selectedList,
+                                            name: selectedListName,
+                                            folderName: folders.find((f) => f.lists?.some((l) => l.id === selectedList))?.name,
+                                            spaceName: spaces.find((s) => s.id === selectedSpace)?.name
+                                          },
+                                          listTasks,
+                                          false
+                                        );
+                                        onClose();
+                                      }}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+                                      title="Sync ClickUp tasks directly into the New Business Leads & Sales Pipeline space"
+                                    >
+                                      <Zap className="w-3.5 h-3.5 fill-slate-950" />
+                                      <span>💼 Sync as Business Leads ({listTasks.length})</span>
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             )}
