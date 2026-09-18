@@ -5067,8 +5067,17 @@ Due Date: ${proj.paymentDueDate}
               </div>
             )}
             {/* Multi-Select Floating Bulk Action Strip (Improvement 5) */}
-            {selectedProjectIds.size > 0 && (
-              <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 bg-slate-950/95 border border-emerald-500/50 rounded-2xl shadow-2xl px-5 py-3 flex flex-wrap items-center gap-3 backdrop-blur-2xl text-white animate-in slide-in-from-bottom-5">
+            {selectedProjectIds.size > 0 && typeof document !== 'undefined' && createPortal(
+              <div 
+                className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 bg-slate-950/95 border border-emerald-500/50 rounded-2xl shadow-2xl px-5 py-3 flex flex-wrap items-center gap-3 backdrop-blur-2xl text-white animate-in slide-in-from-bottom-5"
+                style={{
+                  position: 'fixed',
+                  bottom: '88px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 49
+                }}
+              >
                 <div className="flex items-center gap-2 pr-3 border-r border-slate-700">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="text-xs font-black text-emerald-300 font-mono">
@@ -5166,7 +5175,8 @@ Due Date: ${proj.paymentDueDate}
                 >
                   <X className="w-4 h-4" />
                 </button>
-              </div>
+              </div>,
+              document.body
             )}
             </div>
           </div>

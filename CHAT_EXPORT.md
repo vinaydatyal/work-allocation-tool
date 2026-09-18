@@ -5517,5 +5517,30 @@ Implemented all 5 core workflow improvements into `src/components/VisualAgencyHu
 
 ---
 
+## 👤 User (Turn #177)
+
+great, just a bit of navigation going into the main dashboard, sort it out 
+[Attached Screenshot showing top navigation overlapping "Projects 68 Active - Capacity, ownership and financial health in one place"]
+
+## 🤖 Assistant (Antigravity)
+
+Investigated and resolved the navigation overlap issue:
+1. **Identified Root Cause**:
+   - The app uses hand-coded vanilla CSS utilities (`src/index.css`) rather than Tailwind build processing.
+   - Classes `.bottom-5`, `.left-1/2`, and `.-translate-x-1/2` were missing from `src/index.css`.
+   - Without explicit positioning coordinates, CSS positioned the `fixed` navigation dock at its static top-left (0,0) location, overlapping the main dashboard title.
+   - In addition, `<motion.div>` in `App.tsx` has CSS `transform`, which creates a containing block that traps nested fixed elements.
+2. **Implementation & Fixes**:
+   - Added all missing positioning classes (`.bottom-0`, `.bottom-4`, `.bottom-5`, `.bottom-6`, `.bottom-20`, `.bottom-24`, `.bottom-full`, `.left-1/2`, `.-translate-x-1/2`, `.max-w-fit`, `.mx-auto`, `.z-30`, `.z-40`, `.z-49`, `.z-50`) to `src/index.css`.
+   - Added explicit inline positioning (`position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); zIndex: 50`) to `src/components/Navbar.tsx` for bulletproof viewport anchoring across all environments.
+   - Portaled the multi-select bulk action strip to `document.body` via `createPortal` with inline styles (`bottom: 88px; left: 50%; transform: translateX(-50%); zIndex: 49`) escaping parent stacking contexts.
+3. **Verification**:
+   - `npm run build` passed with exit code 0.
+   - Verified via browser subagent on `http://localhost:5173/`: confirmed 100% clean dashboard header without any overlap, and bottom dock perfectly centered.
+   - Updated `TECHNICAL_DEVELOPER_NOTES.md` (Section 21).
+
+---
+
+
 
 

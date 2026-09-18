@@ -191,6 +191,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* FLOATING BOTTOM COMMAND DOCK */}
       <div 
         className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 50
+        }}
         role="navigation"
         aria-label="Bottom Navigation Dock"
       >

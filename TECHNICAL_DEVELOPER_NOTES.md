@@ -569,7 +569,20 @@ Agencies frequently maintain their complete client roster inside a specific Clic
         - Bulk Reassign Team Lead dropdown.
         - Bulk Update Status dropdown.
         - Bulk Archive to Past Projects button.
-        - Clear selection button.
+    21. **Navigation Placement & CSS Stacking Context Resolution**:
+    - **Issue Identified**:
+      - Floating dock was appearing at the top-left of the viewport, overlapping the dashboard header (`Projects 68 Active - Capacity, ownership and financial health in one place`).
+    - **Root Cause Analysis**:
+      - The project uses custom vanilla CSS utilities (`src/index.css`) rather than standard Tailwind compilation.
+      - Classes `.bottom-5`, `.left-1/2`, and `.-translate-x-1/2` were missing from `src/index.css`.
+      - In standard CSS specifications, a `position: fixed` element without explicit `top`, `bottom`, `left`, or `right` properties remains at its static document position (top-left 0,0).
+      - Furthermore, `<motion.div>` in `App.tsx` applies CSS `transform` during animations, which creates a new CSS containing block for all descendants and traps nested `fixed` elements.
+    - **Resolution Implemented**:
+      - **CSS Utilities (`src/index.css`)**: Added `.bottom-0`, `.bottom-4`, `.bottom-5`, `.bottom-6`, `.bottom-20`, `.bottom-24`, `.bottom-full`, `.left-1/2`, `.-translate-x-1/2`, `.max-w-fit`, `.mx-auto`, `.z-30`, `.z-40`, `.z-49`, `.z-50`.
+      - **Dock Positioning (`src/components/Navbar.tsx`)**: Applied explicit inline positioning styles (`position: 'fixed'`, `bottom: '20px'`, `left: '50%'`, `transform: 'translateX(-50%)'`, `zIndex: 50`) to guarantee viewport anchoring across all environments.
+      - **Bulk Action Dock Portaling (`src/components/VisualAgencyHub.tsx`)**: Portaled the multi-select bulk action strip to `document.body` using `createPortal`, completely escaping the `<motion.div>` transform containing block, with inline position `bottom: 88px; left: 50%; transform: translateX(-50%); zIndex: 49`.
+      - **Visual Verification**: Tested via browser subagent on `http://localhost:5173/`. Confirmed 100% clean dashboard header with zero overlap and dock centered at the bottom of the viewport.
+
 
 
 
