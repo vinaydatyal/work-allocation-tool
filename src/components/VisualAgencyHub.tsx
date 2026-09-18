@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { daysFromToday, firstDayOfCurrentMonth, monthOption, todayLocal } from '../utils/dateUtils';
 import { createPortal } from 'react-dom';
+import { navigate } from '../utils/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast as sonnerToast } from 'sonner';
 import type { TeamMember, Task, ClientReadyTier, ClientTier } from '../types';
@@ -4547,12 +4548,22 @@ Due Date: ${proj.paymentDueDate}
                         <div className="flex items-center gap-2 min-w-0 flex-1 max-w-full">
                           <div className="flex -space-x-1.5 overflow-hidden shrink-0" title={`Lead: ${leadMember ? leadMember.name : 'Unassigned'} • Calls: ${callMember ? callMember.name : 'Unassigned'}`}>
                             {leadMember ? (
-                              <img
-                                src={leadMember.avatar}
-                                alt={leadMember.name}
-                                style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
-                                className="rounded-full object-cover ring-1 ring-cyan-500 block"
-                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/member/${leadMember.id}`);
+                                }}
+                                className="cursor-pointer hover:scale-110 hover:z-20 transition-transform block"
+                                title={`View ${leadMember.name}'s Profile & Workload`}
+                              >
+                                <img
+                                  src={leadMember.avatar}
+                                  alt={leadMember.name}
+                                  style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
+                                  className="rounded-full object-cover ring-1 ring-cyan-500 block"
+                                />
+                              </button>
                             ) : (
                               <div
                                 style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
@@ -4563,12 +4574,22 @@ Due Date: ${proj.paymentDueDate}
                               </div>
                             )}
                             {callMember ? (
-                              <img
-                                src={callMember.avatar}
-                                alt={callMember.name}
-                                style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
-                                className="rounded-full object-cover ring-1 ring-purple-500 block"
-                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/member/${callMember.id}`);
+                                }}
+                                className="cursor-pointer hover:scale-110 hover:z-20 transition-transform block"
+                                title={`View ${callMember.name}'s Profile & Workload`}
+                              >
+                                <img
+                                  src={callMember.avatar}
+                                  alt={callMember.name}
+                                  style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
+                                  className="rounded-full object-cover ring-1 ring-purple-500 block"
+                                />
+                              </button>
                             ) : (
                               <div
                                 style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
@@ -4747,15 +4768,23 @@ Due Date: ${proj.paymentDueDate}
                           {/* Clean Executive Leadership Card */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0 w-full">
                             <div
-                              className="bg-slate-900 rounded-lg p-2 border border-slate-700 flex items-center gap-2 overflow-hidden min-w-0 max-w-full"
-                              title={leadMember ? `Project Lead: ${leadMember.name}` : 'Project Lead: Unassigned'}
+                              onClick={(e) => {
+                                if (leadMember) {
+                                  e.stopPropagation();
+                                  navigate(`/member/${leadMember.id}`);
+                                }
+                              }}
+                              className={`bg-slate-900 rounded-lg p-2 border border-slate-700 flex items-center gap-2 overflow-hidden min-w-0 max-w-full transition-all ${
+                                leadMember ? 'cursor-pointer hover:border-cyan-500/60 hover:bg-slate-800/80 group/lead' : ''
+                              }`}
+                              title={leadMember ? `Project Lead: ${leadMember.name} (Click to open full profile)` : 'Project Lead: Unassigned'}
                             >
                               {leadMember ? (
                                 <img
                                   src={leadMember.avatar}
                                   alt={leadMember.name}
                                   style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px', maxWidth: '26px', maxHeight: '26px' }}
-                                  className="rounded-full object-cover ring-1 ring-cyan-500/50 shrink-0 block"
+                                  className="rounded-full object-cover ring-1 ring-cyan-500/50 shrink-0 block group-hover/lead:scale-105 transition-transform"
                                 />
                               ) : (
                                 <div
@@ -4769,22 +4798,30 @@ Due Date: ${proj.paymentDueDate}
                                 <span className="text-[9px] uppercase tracking-wider text-cyan-400 font-bold leading-tight truncate block">
                                   Squad Lead
                                 </span>
-                                <span className={`text-xs font-bold truncate block ${leadMember ? 'text-white' : 'text-slate-400 italic'}`}>
+                                <span className={`text-xs font-bold truncate block ${leadMember ? 'text-white group-hover/lead:text-cyan-300' : 'text-slate-400 italic'}`}>
                                   {leadMember ? leadMember.name.split(' ')[0] : 'Unassigned'}
                                 </span>
                               </div>
                             </div>
 
                             <div
-                              className="bg-slate-900 rounded-lg p-2 border border-slate-700 flex items-center gap-2 overflow-hidden min-w-0 max-w-full"
-                              title={callMember ? `Client Call Lead: ${callMember.name}` : 'Client Call Lead: Unassigned'}
+                              onClick={(e) => {
+                                if (callMember) {
+                                  e.stopPropagation();
+                                  navigate(`/member/${callMember.id}`);
+                                }
+                              }}
+                              className={`bg-slate-900 rounded-lg p-2 border border-slate-700 flex items-center gap-2 overflow-hidden min-w-0 max-w-full transition-all ${
+                                callMember ? 'cursor-pointer hover:border-purple-500/60 hover:bg-slate-800/80 group/call' : ''
+                              }`}
+                              title={callMember ? `Client Call Lead: ${callMember.name} (Click to open full profile)` : 'Client Call Lead: Unassigned'}
                             >
                               {callMember ? (
                                 <img
                                   src={callMember.avatar}
                                   alt={callMember.name}
                                   style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px', maxWidth: '26px', maxHeight: '26px' }}
-                                  className="rounded-full object-cover ring-1 ring-purple-500/50 shrink-0 block"
+                                  className="rounded-full object-cover ring-1 ring-purple-500/50 shrink-0 block group-hover/call:scale-105 transition-transform"
                                 />
                               ) : (
                                 <div
@@ -4798,7 +4835,7 @@ Due Date: ${proj.paymentDueDate}
                                 <span className="text-[9px] uppercase tracking-wider text-purple-400 font-bold leading-tight truncate block">
                                   Client Calls
                                 </span>
-                                <span className={`text-xs font-bold truncate block ${callMember ? 'text-white' : 'text-slate-400 italic'}`}>
+                                <span className={`text-xs font-bold truncate block ${callMember ? 'text-white group-hover/call:text-purple-300' : 'text-slate-400 italic'}`}>
                                   {callMember ? callMember.name.split(' ')[0] : 'Unassigned'}
                                 </span>
                               </div>
@@ -5269,12 +5306,33 @@ Due Date: ${proj.paymentDueDate}
                           : 'bg-slate-900/80 border-slate-700/80 hover:border-slate-600 hover:bg-slate-900'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-xl object-cover ring-1 ring-slate-600/80 shadow-sm shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-bold text-white truncate leading-tight">{member.name}</h4>
-                          <span className="text-xs text-slate-400 truncate block font-medium leading-tight">{member.role}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <div
+                          className="flex items-center gap-3 cursor-pointer group/prof flex-1 min-w-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/member/${member.id}`);
+                          }}
+                          title={`Click to open ${member.name}'s profile page`}
+                        >
+                          <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-xl object-cover ring-1 ring-slate-600/80 group-hover/prof:ring-cyan-400 shadow-sm shrink-0 transition-all" />
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-bold text-white truncate leading-tight group-hover/prof:text-cyan-300 underline decoration-dotted transition-colors">{member.name}</h4>
+                            <span className="text-xs text-slate-400 truncate block font-medium leading-tight">{member.role}</span>
+                          </div>
                         </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/member/${member.id}`);
+                          }}
+                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-cyan-500/20 hover:text-cyan-300 text-[10px] font-bold text-slate-300 transition-colors shrink-0 cursor-pointer"
+                          title="Open dedicated profile page"
+                        >
+                          Profile ➔
+                        </button>
                       </div>
 
                       <div className="space-y-1.5">

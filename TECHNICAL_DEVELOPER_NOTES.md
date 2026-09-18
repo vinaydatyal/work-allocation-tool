@@ -581,7 +581,29 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - **CSS Utilities (`src/index.css`)**: Added `.bottom-0`, `.bottom-4`, `.bottom-5`, `.bottom-6`, `.bottom-20`, `.bottom-24`, `.bottom-full`, `.left-1/2`, `.-translate-x-1/2`, `.max-w-fit`, `.mx-auto`, `.z-30`, `.z-40`, `.z-49`, `.z-50`.
       - **Dock Positioning (`src/components/Navbar.tsx`)**: Applied explicit inline positioning styles (`position: 'fixed'`, `bottom: '20px'`, `left: '50%'`, `transform: 'translateX(-50%)'`, `zIndex: 50`) to guarantee viewport anchoring across all environments.
       - **Bulk Action Dock Portaling (`src/components/VisualAgencyHub.tsx`)**: Portaled the multi-select bulk action strip to `document.body` using `createPortal`, completely escaping the `<motion.div>` transform containing block, with inline position `bottom: 88px; left: 50%; transform: translateX(-50%); zIndex: 49`.
-      - **Visual Verification**: Tested via browser subagent on `http://localhost:5173/`. Confirmed 100% clean dashboard header with zero overlap and dock centered at the bottom of the viewport.
+  22. **URL-Based Routing Architecture & Dedicated Member Profile System**:
+    - **Architectural Motivation**:
+      - Replaced internal in-memory tab state with standard browser URL-driven routing (`window.history.pushState` + `popstate`).
+      - Every view has a bookmarkable, shareable URL: `/projects`, `/calendar`, `/hours`, `/dsr`, `/skills`, `/bot`, `/finances`, `/notifications`, `/brief`, and `/member/:id`.
+      - Supports native browser back/forward navigation and direct link sharing.
+    - **Router Implementation (`src/utils/router.ts`)**:
+      - `parseRoute(pathname, search)`: Normalizes paths and segments.
+      - `navigate(path, options)`: Dispatches custom `app:navigate` event alongside `history.pushState`.
+      - `useAppRouter()`: Reactive hook listening to `popstate` and `app:navigate` events.
+      - Full SPA routing verified with `vercel.json` rewrite rule (`/((?!api/).*)` -> `/index.html`).
+    - **Dedicated Member Profile Page (`src/components/MemberProfilePage.tsx`)**:
+      - Accessible at `/member/:id`, `/member/:id/projects`, `/member/:id/tasks`, `/member/:id/skills`.
+      - **Hero Header**: Member avatar with live capacity pulse indicator, Name, Role, Department, Seniority pill, Client-Ready Tier badge, and 1-click shareable profile link.
+      - **Capacity & Utilization Gauge**: Live calculation of allocated hours vs. weekly capacity with color-coded overload indicators.
+      - **Sub-View 1: Active Projects**: Displays all projects where the member is Squad Lead, Call Lead, or Specialist, complete with client name, status badge, billing type, and project hours.
+      - **Sub-View 2: Active Tasks**: Lists all tasks assigned to the member, filterable by status (`all`, `assigned`, `in_progress`, `review`, `completed`), priority badges, due dates, and ClickUp task deep links.
+      - **Sub-View 3: Skills & Competencies**: Technical skill calibration radar scores (Quality, Speed, Communication) and general readiness ratings (English Fluency, Client Comms, Requirement Clarity, Reliability).
+    - **Universal Member Click-to-Profile Links**:
+      - Project card Squad Lead and Call Lead preview avatars navigate directly to `/member/${member.id}`.
+      - Expanded Project card Executive Leadership cards navigate to `/member/${member.id}`.
+      - Assigned deliverables capsules navigate to `/member/${assignee.id}`.
+      - Squad Workload & Heatmap cards feature direct profile navigation and a "Profile ➔" button.
+
 
 
 

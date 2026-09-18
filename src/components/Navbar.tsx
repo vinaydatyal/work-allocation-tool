@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { AppUserProfile } from '../types';
 import { ClickUpOAuthModal } from './ClickUpOAuthModal';
 import { handleClickUpCallback, isClickUpConnected, getClickUpUser } from '../services/clickupOAuth';
+import { navigate } from '../utils/router';
 import { 
   BarChart3, 
   Kanban, 
@@ -219,7 +220,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div 
               className="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-800 via-slate-900 to-[#111827] border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/15 shrink-0 group hover:scale-105 transition-transform cursor-pointer"
               title="Smart Allocation Hub"
-              onClick={() => setActiveTab('projects')}
+              onClick={() => {
+                setActiveTab('projects');
+                navigate('/projects');
+              }}
             >
               <Activity className="w-4.5 h-4.5 text-emerald-400 group-hover:scale-110 transition-transform" />
             </div>
@@ -287,7 +291,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div key={item.id} className="relative">
                   <motion.button
                     type="button"
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      navigate('/' + item.id);
+                    }}
                     onMouseEnter={() => setHoveredTab(item.id)}
                     onMouseLeave={() => setHoveredTab(null)}
                     whileHover={{ scale: 1.15, y: -2 }}

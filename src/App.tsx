@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ToastProvider, QuickFAB, KeyboardShortcutsModal } from './components/TopTierUI';
 import { Navbar } from './components/Navbar';
 import { VisualAgencyHub } from './components/VisualAgencyHub';
+import { MemberProfilePage } from './components/MemberProfilePage';
 import { ProjectBriefAnalyzer } from './components/ProjectBriefAnalyzer';
 import { ProjectAllocationWizard } from './components/ProjectAllocationWizard';
 import { AllocatorGrid } from './components/AllocatorGrid';
@@ -16,18 +17,25 @@ import { appUserProfiles } from './data/userProfiles';
 import type { TeamMember, Task, SkillCategory, TaskStatus, AppUserProfile, ProjectResourceBlock, ClientReadyTier } from './types';
 import { calculateMemberAllocatedHours } from './utils/matchingEngine';
 import { daysFromToday } from './utils/dateUtils';
+import { useAppRouter, navigate } from './utils/router';
 
 import { Toaster } from 'sonner';
 
 export function App() {
+  const router = useAppRouter();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(initialTeamMembers);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [currentProfile, setCurrentProfile] = useState<AppUserProfile>(appUserProfiles[0]);
 
-  const [activeTab, setActiveTab] = useState<string>('projects');
+  // Sync activeTab with router.route (or default to 'projects')
+  const activeTab = router.route === 'member' ? 'projects' : (router.route || 'projects');
   const [isWhiteTheme, setIsWhiteTheme] = useState<boolean>(true);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [triggerAddProjectModal, setTriggerAddProjectModal] = useState<boolean>(false);
+
+  const handleNavigateTab = (tab: string) => {
+    navigate('/' + tab);
+  };
 
   useEffect(() => {
     if (isWhiteTheme) {
@@ -45,19 +53,21 @@ export function App() {
       }
 
       if (e.key === '1') {
-        setActiveTab('projects');
+        navigate('/projects');
       } else if (e.key === '2') {
-        setActiveTab('hours');
+        navigate('/calendar');
       } else if (e.key === '3') {
-        setActiveTab('dsr');
+        navigate('/hours');
       } else if (e.key === '4') {
-        setActiveTab('skills');
+        navigate('/dsr');
       } else if (e.key === '5') {
-        setActiveTab('bot');
+        navigate('/skills');
       } else if (e.key === '6') {
-        setActiveTab('finances');
+        navigate('/bot');
       } else if (e.key === '7') {
-        setActiveTab('notifications');
+        navigate('/finances');
+      } else if (e.key === '8') {
+        navigate('/notifications');
       } else if (e.key === '?' || (e.shiftKey && e.key === '/')) {
         setShowShortcutsModal((prev) => !prev);
       } else if (e.key === 'Escape') {
@@ -237,8 +247,8 @@ export function App() {
       <Toaster theme="dark" position="bottom-right" />
       <div className="borderless-ui min-h-screen bg-[#0b0f19] text-slate-100 selection:bg-emerald-500 selection:text-slate-950 flex flex-col font-sans overflow-hidden relative">
         <Navbar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          activeTab={router.route === 'member' ? '' : activeTab}
+          setActiveTab={handleNavigateTab}
           totalCapacity={totalCapacity}
           totalAllocated={totalAllocated}
           onExportPlan={handleExportPlan}
@@ -253,27 +263,38 @@ export function App() {
           <main className="flex-1 min-w-0 w-full px-5 sm:px-8 lg:px-10 pt-5 pb-32 overflow-y-auto">
             <AnimatePresence mode="wait">
               <motion.div
-                key={activeTab}
+                key={router.route === 'member' ? `member-${router.memberId}-${router.memberTab}` : activeTab}
                 initial={{ opacity: 0, y: 15, scale: 0.99 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.99 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               >
-                {(activeTab === 'projects' ||
-                  activeTab === 'calendar' ||
-                  activeTab === 'hours' ||
-                  activeTab === 'dsr' ||
-                  activeTab === 'skills' ||
-                  activeTab === 'bot' ||
-                  activeTab === 'finances' ||
-                  activeTab === 'notifications') && (
-                  <VisualAgencyHub
-                    teamMembers={teamMembers}
-                    tasks={tasks}
-                    onAddMember={handleAddMember}
-                    onDeleteMember={handleDeleteMember}
-                    activeView={activeTab as any}
-                    onNavigateView={(view) => setActiveTab(view)}
+                {router.route === 'member' && router.memberId ? (
+                  <MemberProfilePage
+                    memberId={router.memberId}
+                    activeSubTab={router.memberTab}
+                    allMembers={teamMembers}
+                    allTasks={tasks}
+                    isWhiteTheme={isWhiteTheme}
+                    onUpdateTaskStatus={handleUpdateTaskStatus}
+                  />
+                ) : (
+                  <>
+                    {(activeTab === 'projects' ||
+                      activeTab === 'calendar' ||
+                      activeTab === 'hours' ||
+                      activeTab === 'dsr' ||
+                      activeTab === 'skills' ||
+                      activeTab === 'bot' ||
+                      activeTab === 'finances' ||
+                      activeTab === 'notifications') && (
+                      <VisualAgencyHub
+                        teamMembers={teamMembers}
+                        tasks={tasks}
+                        onAddMember={handleAddMember}
+                        onDeleteMember={handleDeleteMember}
+                        activeView={activeTab as any}
+                        onNavigateView={(view) => handleNavigateTab(view)}
                     isWhiteTheme={isWhiteTheme}
                     onToggleTheme={() => setIsWhiteTheme(!isWhiteTheme)}
                     triggerAddProjectModal={triggerAddProjectModal}
@@ -358,6 +379,8 @@ export function App() {
                     onUpdateMemberScores={handleUpdateMemberScores}
                   />
                 )}
+                  </>
+                )}
               </motion.div>
             </AnimatePresence>
           </main>
@@ -373,7 +396,7 @@ export function App() {
       {/* Floating Action Button */}
       <QuickFAB
         onAddProject={() => {
-          setActiveTab('projects');
+          handleNavigateTab('projects');
           setTriggerAddProjectModal(true);
         }}
         onToggleTheme={() => setIsWhiteTheme((prev) => !prev)}

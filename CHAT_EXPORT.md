@@ -5541,6 +5541,50 @@ Investigated and resolved the navigation overlap issue:
 
 ---
 
+## 👤 User (Turn #178)
+
+clicking on a person should go to his active projects and active tasks within his profile on a seperate page and all the data related to that specific profile on a different page. I want to use URL structure for navigating the app rather relying on react or jave scripts
+
+## 🤖 Assistant (Antigravity)
+
+Architected and implemented a complete browser URL-driven routing system and a dedicated, comprehensive **Member Profile Page**:
+
+1. **URL-Driven Routing Engine (`src/utils/router.ts`)**:
+   - Replaced internal in-memory state with HTML5 History API URL routing (`window.history.pushState` + `popstate`).
+   - Every view has a distinct, bookmarkable, and shareable URL:
+     - `/` or `/projects` -> Active Projects Dashboard
+     - `/calendar` -> Activity Calendar
+     - `/hours` -> Employee Workload & Capacity
+     - `/dsr` -> Daily Status Report Tracker
+     - `/skills` -> Employee Skills Matrix
+     - `/bot` -> Job Delivery Bot
+     - `/finances` -> Financial & Payments Tracker
+     - `/notifications` -> Alerts & Notifications
+     - `/brief` -> Project Brief Analyzer
+     - `/member/:memberId` -> Dedicated Member Profile Page (with `/projects`, `/tasks`, `/skills` tabs).
+   - Full browser back/forward history navigation works seamlessly.
+
+2. **Dedicated Member Profile Page (`src/components/MemberProfilePage.tsx`)**:
+   - **Hero Header**: Member avatar with status badge, Full Name, Role, Department, Seniority, Client-Ready Tier badge, live capacity utilization stats (`X/Y hrs - Z%`), and 1-click share profile link button.
+   - **Active Projects Tab (`/member/:id/projects`)**: Surfaces all projects where the member is Squad Lead, Call Lead, or assigned Specialist, complete with client, status, billing type, and allocated project hours.
+   - **Active Tasks Tab (`/member/:id/tasks`)**: Surfaces all active sprint deliverables assigned to the member, filterable by status (`all`, `assigned`, `in_progress`, `review`, `completed`), priority tags, due dates, and ClickUp task links. Includes in-place status updater.
+   - **Skills & Competency Tab (`/member/:id/skills`)**: Technical skills scorecard with progress bars (Quality, Speed/Efficiency, Communication) and general agency readiness scorecard (English Fluency, Client Comms, Requirement Clarity, Reliability).
+   - **Breadcrumbs**: "← Projects Dashboard" and "Team Roster" buttons with direct URL links.
+
+3. **Universal Member Click-to-Profile Links Across All Views**:
+   - Project card Squad Lead and Call Lead preview avatars navigate directly to `/member/${member.id}`.
+   - Project card Executive Leadership cards navigate directly to `/member/${member.id}`.
+   - Assigned deliverable capsules navigate directly to `/member/${assignee.id}`.
+   - Squad Workload & Heatmap cards feature direct profile navigation and a "Profile ➔" button.
+
+**Validation & Documentation**:
+- `npm run build` (`tsc -b && vite build`) passed with 0 errors.
+- Updated Section 22 of `TECHNICAL_DEVELOPER_NOTES.md`.
+- Synchronized chat log in `CHAT_EXPORT.md`.
+
+---
+
+
 
 
 
