@@ -91,6 +91,8 @@ import { getPDFMasterProjects, classifyClientTier } from '../data/pdfMasterProje
 import { DSRTrackerStudio } from './DSRTrackerStudio';
 import { ActivityCalendar } from './ActivityCalendar';
 import { AnimatedCounter, ClientTierBadge, DonutChart, EmptyState, GraphicSectionHeader, MiniSparkline, SpotlightCard, VIPPriorityBanner, YieldGauge, useToast } from './TopTierUI';
+import { calculateProjectFinancials } from '../utils/projectFinancials';
+import { ClientPnLModal } from './ClientPnLModal';
 
 export interface AgencyNotificationItem {
   id: string;
@@ -305,7 +307,44 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     | 'vip_retainers'
     | 'over_budget'
     | 'scope_creep_risk'
+    | 'low_margin'
+    | 'high_margin'
+    | 'at_risk_health'
   >('all');
+
+  // Client P&L & Staffing Optimizer Modal State (Ideas 1, 2, 3)
+  const [activePnLProject, setActivePnLProject] = useState<ActiveProjectItem | null>(null);
+
+  const handleOptimizeSquad = (projectId: string, oldMemberId: string, newMemberId: string) => {
+    setProjectsList((prev) =>
+      prev.map((proj) => {
+        if (proj.id !== projectId) return proj;
+        const targetNewMember = customMembers.find((m) => m.id === newMemberId);
+        if (!targetNewMember) return proj;
+
+        const updatedMembers = (proj.members || []).map((m) =>
+          m.id === oldMemberId ? targetNewMember : m
+        );
+        if (!updatedMembers.some((m) => m.id === newMemberId)) {
+          updatedMembers.push(targetNewMember);
+        }
+
+        const updatedMap = { ...(proj.memberHoursMap || {}) };
+        if (oldMemberId && updatedMap[oldMemberId]) {
+          const hours = updatedMap[oldMemberId];
+          delete updatedMap[oldMemberId];
+          updatedMap[newMemberId] = hours;
+        }
+
+        return {
+          ...proj,
+          members: updatedMembers,
+          memberHoursMap: updatedMap
+        };
+      })
+    );
+    sonnerToast.success('⚡ Squad staffing rebalanced! Junior/Mid specialist added to protect margin.');
+  };
 
   // Scope Creep & Retainer Upsell Modal State
   const [scopeUpsellModalProj, setScopeUpsellModalProj] = useState<ActiveProjectItem | null>(null);
@@ -2580,6 +2619,20 @@ Due Date: ${proj.paymentDueDate}
       if (ratio < 0.85) return false;
     }
 
+    // Executive Triage Quick-Filters (Idea 8)
+    if (everydayQuickFilter === 'low_margin') {
+      const fin = calculateProjectFinancials(proj, customMembers);
+      if (fin.grossMarginPercent >= 45) return false;
+    }
+    if (everydayQuickFilter === 'high_margin') {
+      const fin = calculateProjectFinancials(proj, customMembers);
+      if (fin.grossMarginPercent < 60) return false;
+    }
+    if (everydayQuickFilter === 'at_risk_health') {
+      const health = computeProjectHealthScore(proj);
+      if (health.score >= 65) return false;
+    }
+
     if (filterLeadId !== 'ALL') {
       if (filterLeadId === 'UNASSIGNED') {
         if (proj.projectLeadId) return false;
@@ -3867,6 +3920,52 @@ Due Date: ${proj.paymentDueDate}
                     </span>
                   </button>
 
+                  {/* Executive Triage Quick-Filters (Idea 8) */}
+                  <button
+                    type="button"
+                    onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'low_margin' ? 'all' : 'low_margin')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      everydayQuickFilter === 'low_margin'
+                        ? 'bg-rose-500/25 text-rose-200 font-bold border border-rose-500/50 shadow-md shadow-rose-500/20'
+                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
+                    }`}
+                  >
+                    <span>💰 Low Margin (&lt;45%)</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300">
+                      {projectsList.filter(p => calculateProjectFinancials(p, customMembers).grossMarginPercent < 45).length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'high_margin' ? 'all' : 'high_margin')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      everydayQuickFilter === 'high_margin'
+                        ? 'bg-emerald-500/25 text-emerald-200 font-bold border border-emerald-500/50 shadow-md shadow-emerald-500/20'
+                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
+                    }`}
+                  >
+                    <span>✨ High Margin (≥60%)</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300">
+                      {projectsList.filter(p => calculateProjectFinancials(p, customMembers).grossMarginPercent >= 60).length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'at_risk_health' ? 'all' : 'at_risk_health')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      everydayQuickFilter === 'at_risk_health'
+                        ? 'bg-amber-500/25 text-amber-200 font-bold border border-amber-500/50 shadow-md shadow-amber-500/20'
+                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
+                    }`}
+                  >
+                    <span>🩺 At-Risk (&lt;65 Health)</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300">
+                      {projectsList.filter(p => computeProjectHealthScore(p).score < 65).length}
+                    </span>
+                  </button>
+
                   <div className="h-4 w-px bg-slate-700 hidden sm:block mx-1" />
 
                   <button
@@ -4332,6 +4431,7 @@ Due Date: ${proj.paymentDueDate}
                 const leadMember = proj.projectLeadId ? customMembers.find((m) => m.id === proj.projectLeadId) : undefined;
                 const callMember = proj.clientCallAssigneeId ? customMembers.find((m) => m.id === proj.clientCallAssigneeId) : undefined;
                 const prof = calculateProjectProfitability(proj);
+                const projectFin = calculateProjectFinancials(proj, customMembers);
 
                 const isExpanded = !!expandedCardIds[proj.id];
 
@@ -4748,9 +4848,25 @@ Due Date: ${proj.paymentDueDate}
                               ? `${proj.milestonesCompleted}/${proj.milestonesTotal} Ms`
                               : `${proj.activeHours}h / ${proj.totalHours}h`}
                           </span>
-                          <span className="text-[10px] font-bold text-slate-400">
-                            {prof.marginPercent}% Margin
-                          </span>
+                          {/* Idea 1: Interactive Real-Time Gross Margin & Profit Badge */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActivePnLProject(proj);
+                            }}
+                            title="Click to view Client P&L and Staffing Optimizer"
+                            className={`mt-0.5 inline-flex items-center gap-1 text-[10px] font-black px-1.5 py-0.5 rounded border transition-all cursor-pointer ${
+                              projectFin.marginTier === 'high'
+                                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                                : projectFin.marginTier === 'standard'
+                                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/25'
+                                : 'bg-rose-500/15 text-rose-300 border-rose-500/30 hover:bg-rose-500/25 animate-pulse'
+                            }`}
+                          >
+                            <span>💰 {projectFin.grossMarginPercent}% Margin</span>
+                            <span className="text-[9px] font-semibold opacity-80">(+${projectFin.grossProfitDollars})</span>
+                          </button>
                         </div>
                       </div>
 
@@ -4824,6 +4940,38 @@ Due Date: ${proj.paymentDueDate}
                           </div>
                         );
                       })()}
+
+                      {/* Idea 4: Cash-Flow Risk & "Deliverable Hold" Guardrail */}
+                      {projectFin.paymentHoldActive && (
+                        <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-rose-500/15 border border-rose-500/35 flex items-center justify-between gap-2 animate-pulse">
+                          <div className="flex items-center gap-1.5 text-xs text-rose-300 font-bold">
+                            <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                            <span>🛑 Payment Hold: Retainer Invoice Overdue</span>
+                          </div>
+                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 bg-rose-500/25 text-rose-200 rounded">
+                            Pause Sprints
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Idea 2: Seniority Misalignment Warning Chip */}
+                      {projectFin.seniorityMismatch.hasMismatch && (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActivePnLProject(proj);
+                          }}
+                          className="mt-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-1.5 cursor-pointer hover:bg-amber-500/25 transition-all text-xs text-amber-200"
+                        >
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-amber-400 text-xs">⚠️</span>
+                            <span className="font-semibold text-[11px] truncate">Seniority Mismatch: {projectFin.seniorityMismatch.recommendation}</span>
+                          </div>
+                          <span className="text-[10px] font-black text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded shrink-0">
+                            Rebalance ⚡
+                          </span>
+                        </div>
+                      )}
 
                       {/* Expandable Pocket Section */}
                       {isExpanded && (
@@ -13105,6 +13253,17 @@ Due Date: ${proj.paymentDueDate}
             </div>
           </div>
         </div>
+      )}
+
+      {/* Idea 3: 1-Click Client P&L & Staffing Optimizer Modal */}
+      {activePnLProject && (
+        <ClientPnLModal
+          isOpen={!!activePnLProject}
+          onClose={() => setActivePnLProject(null)}
+          project={activePnLProject}
+          allMembers={customMembers}
+          onOptimizeSquad={handleOptimizeSquad}
+        />
       )}
     </div>
   );

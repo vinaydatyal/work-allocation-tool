@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { TeamMember, Task, PriorityLevel, TaskStatus } from '../types';
 import type { ActiveProjectItem } from './VisualAgencyHub';
 import { calculateMemberAllocatedHours } from '../utils/matchingEngine';
+import { calculateAgencyOverallFinancials, getMemberCostPerHour } from '../utils/projectFinancials';
 import { navigate } from '../utils/router';
 import { toast as sonnerToast } from 'sonner';
 import confetti from 'canvas-confetti';
@@ -40,7 +41,7 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
   onAddTask,
   onUpdateTaskStatus,
   isWhiteTheme: _isWhiteTheme = false,
-  projects: _projects = [],
+  projects = [],
   onOpenBatchSync
 }) => {
   const [selectedDept, setSelectedDept] = useState<string>('all');
@@ -54,6 +55,11 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
   const [newSkill, setNewSkill] = useState('Technical SEO');
   const [newHours, setNewHours] = useState(4);
   const [newPriority, setNewPriority] = useState<PriorityLevel>('High');
+
+  // Agency Overall Financials & Blended Margin (Idea 6)
+  const agencyFinancials = useMemo(() => {
+    return calculateAgencyOverallFinancials(projects, teamMembers);
+  }, [projects, teamMembers]);
 
   // Derive unassigned tasks (backlog)
   const unassignedTasks = useMemo(() => {
@@ -122,16 +128,20 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
     });
   }, [unassignedTasks, taskFilterSkill]);
 
-  // Top recommendation candidate for an unassigned task
+  // Top recommendation candidate for an unassigned task (Idea 5: margin-aware matching)
   const getTopCandidateForTask = (task: Task) => {
     const qualified = teamMembers
       .filter((m) => m.skills.includes(task.requiredSkill))
       .map((m) => {
         const allocated = calculateMemberAllocatedHours(m.id, tasks);
         const freeHours = m.weeklyCapacityHours - allocated;
-        return { member: m, allocated, freeHours };
+        const costRate = getMemberCostPerHour(m);
+        return { member: m, allocated, freeHours, costRate };
       })
-      .sort((a, b) => b.freeHours - a.freeHours);
+      .sort((a, b) => {
+        if (b.freeHours !== a.freeHours) return b.freeHours - a.freeHours;
+        return a.costRate - b.costRate;
+      });
 
     return qualified[0] || null;
   };
@@ -400,7 +410,7 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
       </div>
 
       {/* Cockpit KPI Meters */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
             <span>AGENCY BANDWIDTH</span>
@@ -463,6 +473,21 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
           </div>
           <div className="text-[10px] text-slate-400 mt-2">
             Available for client call handling
+          </div>
+        </div>
+
+        {/* Idea 6: Executive Gross Margin & Net Profit Cockpit Bar */}
+        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 col-span-2 sm:col-span-1">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
+            <span>BLENDED MARGIN</span>
+            <span className="text-xs">💰</span>
+          </div>
+          <div className="text-2xl font-black text-emerald-300 mt-1.5 font-mono">
+            {agencyFinancials.blendedGrossMarginPercent}% <span className="text-xs font-normal text-slate-400">margin</span>
+          </div>
+          <div className="text-[10px] text-slate-400 mt-2 flex items-center justify-between font-mono">
+            <span>${Math.round(agencyFinancials.totalMonthlyRevenue / 1000)}k rev</span>
+            <span className="text-emerald-400 font-bold">+${Math.round(agencyFinancials.netProjectedProfit / 1000)}k net</span>
           </div>
         </div>
       </div>
@@ -553,7 +578,7 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
                         <span className="font-semibold text-slate-300">{task.requiredSkill}</span>
                       </div>
 
-                      {/* 1-Click Assignment Bar */}
+                      {/* 1-Click Assignment Bar (Idea 5: Profit-Margin Aware Dispatch) */}
                       <div className="pt-2 border-t border-slate-900 flex items-center justify-between gap-2">
                         {topCandidate ? (
                           <div className="flex items-center gap-2">
@@ -562,18 +587,18 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
                               type="button"
                               onClick={() => handleQuickAssign(task.id, topCandidate.member.id)}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-[11px] font-bold text-cyan-300 transition-all cursor-pointer"
-                              title={`Assign to ${topCandidate.member.name} (${topCandidate.freeHours}h available)`}
+                              title={`Assign to ${topCandidate.member.name} (${topCandidate.freeHours}h free • $${topCandidate.costRate}/h loaded rate)`}
                             >
                               <Sparkles className="w-3 h-3 text-cyan-400" />
                               <span>{topCandidate.member.name}</span>
-                              <span className="text-[10px] text-slate-400 font-mono">({topCandidate.freeHours}h free)</span>
+                              <span className="text-[10px] text-slate-400 font-mono">({topCandidate.freeHours}h • ${topCandidate.costRate}/h)</span>
                             </button>
                           </div>
                         ) : (
                           <span className="text-[10px] text-amber-400">No candidate with free hours</span>
                         )}
 
-                        {/* Dropdown for manual assign */}
+                        {/* Dropdown for manual assign with cost transparency */}
                         <select
                           value=""
                           onChange={(e) => {
@@ -585,9 +610,10 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
                           {teamMembers.map((m) => {
                             const alloc = calculateMemberAllocatedHours(m.id, tasks);
                             const free = m.weeklyCapacityHours - alloc;
+                            const rate = getMemberCostPerHour(m);
                             return (
                               <option key={m.id} value={m.id}>
-                                {m.name} ({free}h free)
+                                {m.name} ({free}h free • ${rate}/h)
                               </option>
                             );
                           })}

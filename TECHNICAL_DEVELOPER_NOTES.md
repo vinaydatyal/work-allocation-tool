@@ -708,6 +708,43 @@ Agencies frequently maintain their complete client roster inside a specific Clic
         - Dedicated `RefreshCw` quick sync icon and ClickUp pill button in the top Navbar.
         - "Sync ClickUp" action button in the Monday Allocation War-Room header.
         - Universal Command Palette shortcut (`action-sync-all-clickup`).
+  27. **In-Workflow Business & Financial Intelligence Suite (Ideas 1 to 8)**:
+    - **Architecture & Foundation (`src/utils/projectFinancials.ts`)**:
+      - Centralized mathematical and financial telemetry engine calculating loaded specialist payroll rates ($58/h Senior/Lead, $36/h Mid, $22/h Junior).
+      - Computes project gross margins, dollar profit, retainer revenue, squad labor cost distribution, and margin health tiers (`high` ≥60%, `standard` 45-59%, `low` <45%).
+      - Computes aggregate agency blended gross margin, total retainer revenue, loaded payroll overhead, and net projected agency profit.
+      - Calculates individual specialist ROI multipliers (e.g. `4.2x ROI`) comparing retainer revenue generated to loaded salary cost, alongside billable utilization percentage.
+    - **Idea 1: Interactive Real-Time Gross Margin & Profit Badge (`VisualAgencyHub.tsx`)**:
+      - Embedded directly on project cards next to hours burn meters (`💰 X% Margin (+$X net)`).
+      - Dynamically colored by margin tier (emerald for high, cyan for standard, rose pulse for low margin).
+      - Clicking the badge opens the 1-Click Client P&L and Staffing Optimizer modal.
+    - **Idea 2: Seniority Misalignment Warning Chip (`VisualAgencyHub.tsx`)**:
+      - Telemetry automatically flags when Tier 1 or Senior specialists ($58/h) consume >30% of hours on budget/local retainers (≤$1,200/mo).
+      - Surfaces interactive warning chip on the project card highlighting margin leak and potential margin gain.
+      - 1-click opens P&L Staffing Optimizer.
+    - **Idea 3: 1-Click Client P&L & Staffing Optimizer Modal (`src/components/ClientPnLModal.tsx`)**:
+      - Full client financial inspection modal displaying Monthly Retainer Revenue, Loaded Squad Cost, Gross Margin %, and Gross Profit $.
+      - Features Seniority Misalignment alert banner with calculated monthly margin leak and 1-click "Optimize Staffing" button to swap expensive senior specialists with available Junior/Mid team members.
+      - Complete assigned squad breakdown table showing specialist roles, assigned hours, loaded cost per hour, monthly cost, and squad share %.
+    - **Idea 4: Cash-Flow Risk & "Deliverable Hold" Guardrail (`VisualAgencyHub.tsx`)**:
+      - Real-time financial guardrail that detects accounts with overdue invoices.
+      - Renders high-visibility animated banner (`🛑 Payment Hold: Retainer Invoice Overdue - Pause Sprints`) preventing agency labor leakage on unpaid accounts.
+    - **Idea 5: Profit-Margin Impact on Task Dispatch (`MondayAllocationWarRoom.tsx`)**:
+      - War-room matching algorithm incorporates specialist loaded hourly rates into candidate matching.
+      - Displays loaded cost per hour (`$22/h`, `$36/h`, `$58/h`) alongside available hours on the "Best match" recommendation chip and manual assignment dropdowns to prevent margin degradation during sprint planning.
+    - **Idea 6: Executive Revenue & Agency Blended Margin KPI Cockpit (`MondayAllocationWarRoom.tsx`)**:
+      - Added 5th executive metric card to the top cockpit meters: **BLENDED MARGIN** (`X% margin`, `$Xk rev`, `+$Xk net profit`).
+      - Provides managers immediate financial health feedback during weekly deliverable dispatch.
+    - **Idea 7: Specialist Revenue Generation & ROI Multiplier (`MemberProfilePage.tsx`)**:
+      - Expanded Quick Metrics Grid in specialist profile header from 4 to 6 metric cards.
+      - Added **ROI Multiplier Card** (e.g., `4.2x ROI` with `$X/mo` retainer value generated).
+      - Added **Billable Ratio Card** (e.g., `85% Billable` direct client work).
+    - **Idea 8: Executive Triage Quick-Filters (`VisualAgencyHub.tsx`)**:
+      - Added 3 one-click triage filter presets to the Project Hub toolbar with live dynamic account counter badges:
+        - `"💰 Low Margin (<45%)"`
+        - `"✨ High Margin (≥60%)"`
+        - `"🩺 At-Risk (<65 Health)"`
+      - Allows leadership to instantly isolate margin leaks or celebrate high-margin accounts without navigating away from the project hub.
 
 
 

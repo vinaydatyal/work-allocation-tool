@@ -15,6 +15,7 @@ import {
   updateClickUpTaskStatus
 } from '../services/clickupOAuth';
 import { getPDFMasterProjects } from '../data/pdfMasterProjectsData';
+import { calculateMemberROI } from '../utils/projectFinancials';
 import {
   ArrowLeft,
   Share2,
@@ -652,6 +653,12 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
   const ledProjectsCount = memberProjects.filter((p) => p.projectLeadId === member.id).length;
   const callProjectsCount = memberProjects.filter((p) => p.clientCallAssigneeId === member.id).length;
 
+  // Idea 7: Specialist Revenue Generation & ROI Multiplier
+  const memberROI = useMemo(() => {
+    if (!member) return null;
+    return calculateMemberROI(member, memberProjects, memberTasks);
+  }, [member, memberProjects, memberTasks]);
+
   const handleCopyProfileUrl = () => {
     const url = window.location.origin + `/member/${member.id}`;
     navigator.clipboard.writeText(url);
@@ -758,8 +765,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
             </div>
           </div>
 
-          {/* Quick Metrics Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+          {/* Quick Metrics Grid (Idea 7: with ROI Multiplier & Billable Ratio) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 shrink-0">
             {/* Capacity Card */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 text-center min-w-[110px]">
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Weekly Cap</div>
@@ -794,6 +801,24 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                 <span>{callProjectsCount}</span>
               </div>
               <div className="text-[10px] text-slate-500 mt-0.5">Accounts</div>
+            </div>
+
+            {/* Specialist Revenue Generated & ROI Card (Idea 7) */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 text-center min-w-[110px]">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ROI Multiplier</div>
+              <div className="text-lg font-black text-amber-300 mt-0.5 font-mono flex items-center justify-center gap-0.5">
+                <span>{memberROI?.roiMultiplier || '3.5x'}</span>
+              </div>
+              <div className="text-[10px] text-emerald-400 font-mono mt-0.5">${Math.round(memberROI?.monthlyRetainerValueGenerated || 0).toLocaleString()}/mo</div>
+            </div>
+
+            {/* Billable Ratio Card (Idea 7) */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 text-center min-w-[110px]">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Billable Ratio</div>
+              <div className="text-lg font-black text-cyan-300 mt-0.5 font-mono">
+                {memberROI?.billableUtilizationPercent || 0}%
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Direct Client Work</div>
             </div>
           </div>
         </div>
