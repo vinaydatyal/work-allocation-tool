@@ -644,8 +644,37 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Offers quick keyboard navigation with instant query filtering, highlighting, and route navigation.
     - **Interactive Keyboard Shortcuts & Command Guide (`?`)**:
       - Enhanced `KeyboardShortcutsModal` in `src/components/TopTierUI.tsx` with clear, categorized sections:
-        - **Tab Navigation**: Number keys `1` through `9` for direct tab switching.
+        - **Tab Navigation**: Number keys `1` through `9` for direct tab switching, plus `0` for Monday War-Room.
         - **Search & Commands**: `Ctrl + K` / `Cmd + K` for Command Palette, `/` for Quick Search.
         - **Quick Actions**: `D` (Toggle Dark Mode), `N` (Quick Notes), `?` (Shortcuts Guide).
         - **General**: `Esc` (Dismiss active modal/palette).
+  25. **Manager Leverage System: Monday War-Room, Scope Creep & Retainer Burn Meters, and Skill Gap Hiring Matrix**:
+    - **Monday Morning Allocation War-Room (`/war-room`, Hotkey `0`)**:
+      - Implemented `src/components/MondayAllocationWarRoom.tsx` as an operational cockpit for sprint allocation.
+      - **Agency Cockpit KPIs**: Live meters for Agency Bandwidth (Allocated vs. Total Capacity), Unassigned Backlog Deliverables, Specialist Overload/Burnout Risk alerts, and Client-Facing Lead readiness count.
+      - **Two-Column Command Interface**:
+        - *Left Column*: Unassigned sprint deliverables queue with skill filtering, priority badges, and top-candidate recommendation chip based on free weekly bandwidth.
+        - *Right Column*: Specialist allocation cards detailing role, seniority, live workload gauge, and assigned deliverables with 1-click unassign.
+      - **Algorithmic Solver ("⚡ Auto-Balance Week")**:
+        - Automatically matches unassigned tasks to available specialists with matching domain skills who have sufficient remaining capacity.
+        - Prioritizes higher-priority tasks first, updates allocations in real-time, and fires celebratory confetti on completion.
+      - **Schedule Export**:
+        - 1-click export of the sprint schedule formatted in structured Markdown for Slack/email pasting or direct `.md` file download.
+    - **Scope Creep & Retainer Burn-Rate Alert Engine**:
+      - Integrated into `src/components/VisualAgencyHub.tsx` across active project cards.
+      - **Real-Time Burn Consumption Meter**:
+        - Compares `actualHoursLogged` against `totalHours` with progress gauge and percentage badge.
+        - Color-coded: `< 85%` Emerald (Safe), `85% - 99%` Amber (`Caution: Approaching Cap`), `>= 100%` Rose (`🚨 Scope Creep Risk / Over Budget`).
+      - **1-Click Upsell & Retainer Extension Draft**:
+        - Interactive modal generating personalized client messaging warning of scope creep and offering pre-calculated retainer hour top-ups or billable extensions.
+        - 1-click clipboard copy to immediately send to the client.
+      - **Quick Filter (`'scope_creep_risk'`)**:
+        - Added dedicated button in the manager filter bar `"🔥 Scope Creep / High Burn"` with live account count badge to instantly triage accounts operating near or past retainer thresholds.
+    - **Smart Skill Gap & Hiring Forecast Matrix (`/matrix`, `/hiring`)**:
+      - Implemented `src/components/SkillGapHiringMatrix.tsx` tracking demand versus capacity across 8 agency core competencies (Technical SEO, Content Writing, Site Migration, AEO & GEO Strategy, Core Web Vitals, Link Building, WordPress Dev, UI/UX Redesign).
+      - Computes net hours (Demand vs. Capacity), identifies critical/moderate deficits, and surfaces hiring recommendations (e.g., "Demand exceeds capacity by 28h/wk. Prioritize hiring Senior Specialist").
+      - Highlights sales surplus headroom indicating how many new client accounts can be pitched in high-margin domains.
+      - Surfaces candidate upskilling pathways to cross-train internal specialists to bridge gaps before hiring.
+      - Direct routing added to `AppRoute`, `ROUTE_MAP`, Command Palette (`Ctrl + K`), and header navigation in the Monday War-Room.
+
 

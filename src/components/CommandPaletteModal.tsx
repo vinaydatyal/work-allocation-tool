@@ -19,7 +19,8 @@ import {
   Moon,
   Keyboard,
   Briefcase,
-  ChevronRight
+  ChevronRight,
+  Zap
 } from 'lucide-react';
 
 export interface CommandPaletteModalProps {
@@ -178,6 +179,29 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         shortcut: '9',
         action: () => {
           navigate('/brief');
+          onClose();
+        }
+      },
+      {
+        id: 'nav-war-room',
+        title: 'Go to Monday Allocation War-Room',
+        category: 'Navigation',
+        subtitle: 'Weekly planning cockpit, auto-balance hours & dispatch',
+        icon: Zap,
+        shortcut: '0',
+        action: () => {
+          navigate('/war-room');
+          onClose();
+        }
+      },
+      {
+        id: 'nav-matrix',
+        title: 'Go to Skill Gap & Hiring Matrix',
+        category: 'Navigation',
+        subtitle: 'Demand vs. capacity intelligence, hiring alerts & upskilling',
+        icon: Award,
+        action: () => {
+          navigate('/matrix');
           onClose();
         }
       }

@@ -304,7 +304,12 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     | 'hourly_contracts'
     | 'vip_retainers'
     | 'over_budget'
+    | 'scope_creep_risk'
   >('all');
+
+  // Scope Creep & Retainer Upsell Modal State
+  const [scopeUpsellModalProj, setScopeUpsellModalProj] = useState<ActiveProjectItem | null>(null);
+  const [copiedUpsellDraft, setCopiedUpsellDraft] = useState(false);
 
   // Agency Notifications & Activity Center state
   const [notifCategoryFilter, setNotifCategoryFilter] = useState<'all' | 'unread' | 'clickup' | 'finance' | 'capacity' | 'milestone'>('all');
@@ -2568,6 +2573,12 @@ Due Date: ${proj.paymentDueDate}
     if (everydayQuickFilter === 'hourly_contracts' && proj.billingType !== 'Weekly Hourly Billing' && !proj.price?.toLowerCase().includes('/hr')) return false;
     if (everydayQuickFilter === 'vip_retainers' && resolvedTier !== 'TIER_S_VIP' && (proj.paymentAmountNumeric || 0) < 3000) return false;
     if (everydayQuickFilter === 'over_budget' && ((proj.actualHoursLogged || 0) <= (proj.activeHours || 0) || (proj.activeHours || 0) === 0)) return false;
+    if (everydayQuickFilter === 'scope_creep_risk') {
+      const budget = Math.max(1, proj.activeHours || proj.totalHours || 1);
+      const logged = proj.actualHoursLogged || 0;
+      const ratio = logged > 0 ? (logged / budget) : (proj.progress / 100);
+      if (ratio < 0.85) return false;
+    }
 
     if (filterLeadId !== 'ALL') {
       if (filterLeadId === 'UNASSIGNED') {
@@ -3836,6 +3847,25 @@ Due Date: ${proj.paymentDueDate}
                   >
                     🚨 Needs Attention
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setEverydayQuickFilter('scope_creep_risk')}
+                    className={`px-4 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                      everydayQuickFilter === 'scope_creep_risk'
+                        ? 'bg-amber-500/25 text-amber-200 font-bold border border-amber-500/50 shadow-md shadow-amber-500/20'
+                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
+                    }`}
+                  >
+                    <span>🔥 Scope Creep / High Burn</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300">
+                      {projectsList.filter(p => {
+                        const budget = Math.max(1, p.activeHours || p.totalHours || 1);
+                        const logged = p.actualHoursLogged || 0;
+                        const ratio = logged > 0 ? (logged / budget) : (p.progress / 100);
+                        return ratio >= 0.85;
+                      }).length}
+                    </span>
+                  </button>
 
                   <div className="h-4 w-px bg-slate-700 hidden sm:block mx-1" />
 
@@ -4723,6 +4753,77 @@ Due Date: ${proj.paymentDueDate}
                           </span>
                         </div>
                       </div>
+
+                      {/* Retainer Consumption & Scope Creep Burn Meter */}
+                      {(() => {
+                        const budget = Math.max(1, proj.activeHours || proj.totalHours || 1);
+                        const logged = proj.actualHoursLogged || 0;
+                        const burnRatio = logged > 0 ? (logged / budget) : (proj.progress / 100);
+                        const burnPercent = Math.round(burnRatio * 100);
+                        const isScopeCreep = burnPercent >= 100;
+                        const isHighBurn = burnPercent >= 85 && burnPercent < 100;
+
+                        return (
+                          <div className="pt-2.5 pb-1 space-y-1.5 border-t border-slate-800/70 min-w-0 w-full">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-slate-400 font-semibold flex items-center gap-1">
+                                <span>Retainer Burn:</span>
+                                <strong className={isScopeCreep ? 'text-rose-400 font-mono' : isHighBurn ? 'text-amber-400 font-mono' : 'text-slate-200 font-mono'}>
+                                  {logged > 0 ? `${logged}h / ${budget}h` : `${burnPercent}%`}
+                                </strong>
+                              </span>
+
+                              {isScopeCreep ? (
+                                <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[9px] font-black uppercase flex items-center gap-1 animate-pulse">
+                                  🚨 Scope Creep (+{logged > budget ? Math.round(logged - budget) : 0}h)
+                                </span>
+                              ) : isHighBurn ? (
+                                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-black uppercase flex items-center gap-1">
+                                  ⚠️ High Burn (85%+)
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-500 font-mono">
+                                  {burnPercent}% used
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Meter Bar */}
+                            <div className="w-full h-1.5 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  isScopeCreep
+                                    ? 'bg-rose-500'
+                                    : isHighBurn
+                                    ? 'bg-amber-400'
+                                    : 'bg-emerald-400'
+                                }`}
+                                style={{ width: `${Math.min(100, burnPercent)}%` }}
+                              />
+                            </div>
+
+                            {/* Quick Action: Scope Upsell Draft for High Burn / Over Budget accounts */}
+                            {(isHighBurn || isScopeCreep) && (
+                              <div className="flex items-center justify-between pt-1">
+                                <span className="text-[10px] text-slate-400 italic truncate">
+                                  {isScopeCreep ? 'Free agency labor leaking' : 'Buffer nearly exhausted'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setScopeUpsellModalProj(proj);
+                                    setCopiedUpsellDraft(false);
+                                  }}
+                                  className="text-[10px] font-bold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                                >
+                                  <span>✉️ Draft Upsell</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Expandable Pocket Section */}
                       {isExpanded && (
@@ -12904,6 +13005,106 @@ Due Date: ${proj.paymentDueDate}
           project={diagnosingProject}
           onClose={() => setDiagnosingProject(null)}
         />
+      )}
+
+      {/* Scope Creep & Retainer Upsell Draft Modal */}
+      {scopeUpsellModalProj && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl max-w-lg w-full p-6 text-white space-y-4 relative">
+            <button
+              type="button"
+              onClick={() => setScopeUpsellModalProj(null)}
+              className="absolute top-4 right-4 p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Retainer Scope & Upsell Draft</h3>
+                <p className="text-xs text-slate-400">
+                  {scopeUpsellModalProj.name} ({scopeUpsellModalProj.client})
+                </p>
+              </div>
+            </div>
+
+            {/* Scope Stats Banner */}
+            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs font-mono">
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase">Retainer Cap</span>
+                <span className="text-cyan-400 font-bold">{scopeUpsellModalProj.activeHours || scopeUpsellModalProj.totalHours || 20} hrs/mo</span>
+              </div>
+              <div className="text-right">
+                <span className="text-slate-400 block text-[10px] uppercase">Hours Logged</span>
+                <span className="text-rose-400 font-bold">{scopeUpsellModalProj.actualHoursLogged || Math.round((scopeUpsellModalProj.activeHours || 20) * 0.95)} hrs</span>
+              </div>
+              <div className="text-right">
+                <span className="text-slate-400 block text-[10px] uppercase">Status</span>
+                <span className="text-amber-300 font-bold">
+                  {(scopeUpsellModalProj.actualHoursLogged || 0) >= (scopeUpsellModalProj.activeHours || 20)
+                    ? '⚠️ Scope Overrun'
+                    : '🟡 Buffer Nearly Exhausted'}
+                </span>
+              </div>
+            </div>
+
+            {/* Pre-drafted Client Message */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-300">
+                Client Communication Draft (Ready for Slack / Email):
+              </label>
+              <textarea
+                readOnly
+                rows={7}
+                value={`Hi ${scopeUpsellModalProj.client} team,\n\nOur agency sprint squad has currently completed ${scopeUpsellModalProj.actualHoursLogged || Math.round((scopeUpsellModalProj.activeHours || 20) * 0.95)} hours of our ${scopeUpsellModalProj.activeHours || scopeUpsellModalProj.totalHours || 20}-hour monthly retainer on "${scopeUpsellModalProj.name}", executing high-priority SEO deliverables.\n\nTo ensure continued sprint momentum and handle upcoming roadmap priorities without pause, we recommend authorizing a 5-hour or 10-hour bolt-on allocation block.\n\nPlease let us know if you'd like us to add this so our team can proceed smoothly!`}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 font-sans focus:outline-none focus:border-amber-400 select-all leading-relaxed"
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+              <span className="text-[11px] text-slate-400">
+                Protects agency gross margin & eliminates unpaid overtime
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setScopeUpsellModalProj(null)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = `Hi ${scopeUpsellModalProj.client} team,\n\nOur agency sprint squad has currently completed ${scopeUpsellModalProj.actualHoursLogged || Math.round((scopeUpsellModalProj.activeHours || 20) * 0.95)} hours of our ${scopeUpsellModalProj.activeHours || scopeUpsellModalProj.totalHours || 20}-hour monthly retainer on "${scopeUpsellModalProj.name}", executing high-priority SEO deliverables.\n\nTo ensure continued sprint momentum and handle upcoming roadmap priorities without pause, we recommend authorizing a 5-hour or 10-hour bolt-on allocation block.\n\nPlease let us know if you'd like us to add this so our team can proceed smoothly!`;
+                    navigator.clipboard.writeText(text);
+                    setCopiedUpsellDraft(true);
+                    sonnerToast.success('📋 Scope Upsell Draft copied to clipboard!');
+                    setTimeout(() => setCopiedUpsellDraft(false), 3000);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                >
+                  {copiedUpsellDraft ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy Draft</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

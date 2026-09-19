@@ -1031,7 +1031,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
       ]
     },
     {
-      group: 'Instant Tab Navigation (1–9)',
+      group: 'Instant Tab Navigation (1–9, 0)',
       items: [
         { key: '1', label: 'Active Projects Dashboard', desc: 'All client retainers, health status & squads' },
         { key: '2', label: 'Activity & Sprint Calendar', desc: 'Sprint timeline, deliverables & milestones' },
@@ -1041,7 +1041,8 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         { key: '6', label: 'Job Delivery Bot', desc: 'Automated ClickUp task & client delivery pack' },
         { key: '7', label: 'Finances & Retainer Billing', desc: 'Invoices, margins, yields & payment status' },
         { key: '8', label: 'Notifications Hub', desc: 'ClickUp logs, budget alerts & delivery pings' },
-        { key: '9', label: 'Project Brief Analyzer', desc: 'Claude AI brief parsing & work slice estimator' }
+        { key: '9', label: 'Project Brief Analyzer', desc: 'Claude AI brief parsing & work slice estimator' },
+        { key: '0', label: 'Monday Allocation War-Room', desc: 'Weekly planning cockpit, auto-balance hours & dispatch' }
       ]
     }
   ];

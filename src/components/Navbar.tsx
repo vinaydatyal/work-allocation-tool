@@ -18,7 +18,8 @@ import {
   Calendar,
   CalendarCheck,
   Sun,
-  Moon
+  Moon,
+  Zap
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -101,7 +102,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         '6': 'bot',
         '7': 'finances',
         '8': 'notifications',
-        '9': 'brief'
+        '9': 'brief',
+        '0': 'war-room'
       };
 
       if (keyMap[e.key]) {
@@ -114,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [setActiveTab]);
 
   const NAV_ITEMS: {
-    id: 'projects' | 'calendar' | 'hours' | 'dsr' | 'skills' | 'bot' | 'finances' | 'notifications' | 'brief';
+    id: 'projects' | 'calendar' | 'hours' | 'dsr' | 'skills' | 'bot' | 'finances' | 'notifications' | 'brief' | 'war-room';
     label: string;
     shortLabel: string;
     shortcut: string;
@@ -127,6 +129,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       shortLabel: 'Projects',
       shortcut: '1',
       icon: Kanban
+    },
+    {
+      id: 'war-room',
+      label: '🎯 Monday War-Room',
+      shortLabel: 'War-Room',
+      shortcut: '0',
+      icon: Zap
     },
     {
       id: 'calendar',

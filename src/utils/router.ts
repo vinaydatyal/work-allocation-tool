@@ -10,6 +10,7 @@ export type AppRoute =
   | 'finances'
   | 'notifications'
   | 'brief'
+  | 'war-room'
   | 'wizard'
   | 'testing'
   | 'macro'
@@ -17,6 +18,8 @@ export type AppRoute =
   | 'backlog'
   | 'kanban'
   | 'roster'
+  | 'matrix'
+  | 'hiring'
   | 'member'
   | 'unknown';
 
@@ -39,6 +42,13 @@ const ROUTE_MAP: Record<string, AppRoute> = {
   'finances': 'finances',
   'notifications': 'notifications',
   'brief': 'brief',
+  'war-room': 'war-room',
+  'planning': 'war-room',
+  'cockpit': 'war-room',
+  'matrix': 'matrix',
+  'hiring': 'matrix',
+  'skill-gap': 'matrix',
+  'skills-matrix': 'matrix',
   'wizard': 'wizard',
   'testing': 'testing',
   'macro': 'macro',

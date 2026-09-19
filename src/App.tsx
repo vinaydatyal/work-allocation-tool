@@ -11,6 +11,8 @@ import { TaskBacklog } from './components/TaskBacklog';
 import { ResourceTimeline } from './components/ResourceTimeline';
 import { SprintKanban } from './components/SprintKanban';
 import { TeamRosterStudio } from './components/TeamRosterStudio';
+import { MondayAllocationWarRoom } from './components/MondayAllocationWarRoom';
+import { SkillGapHiringMatrix } from './components/SkillGapHiringMatrix';
 import { SkillEvaluationCenter } from './components/SkillEvaluationCenter';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { initialTeamMembers, initialTasks } from './data/mockData';
@@ -82,6 +84,8 @@ export function App() {
         navigate('/notifications');
       } else if (e.key === '9') {
         navigate('/brief');
+      } else if (e.key === '0') {
+        navigate('/war-room');
       } else if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
         handleNavigateTab('projects');
@@ -350,6 +354,17 @@ export function App() {
                   />
                 )}
 
+                {activeTab === 'war-room' && (
+                  <MondayAllocationWarRoom
+                    teamMembers={teamMembers}
+                    tasks={tasks}
+                    onDispatchTask={handleDispatchTask}
+                    onAddTask={handleAddTask}
+                    onUpdateTaskStatus={handleUpdateTaskStatus}
+                    isWhiteTheme={isWhiteTheme}
+                  />
+                )}
+
                 {activeTab === 'wizard' && (
                   <ProjectAllocationWizard
                     teamMembers={teamMembers}
@@ -399,6 +414,14 @@ export function App() {
                     currentProfile={currentProfile}
                     onAddMember={handleAddMember}
                     onUpdateMemberScores={handleUpdateMemberScores}
+                  />
+                )}
+
+                {(activeTab === 'matrix' || activeTab === 'hiring') && (
+                  <SkillGapHiringMatrix
+                    teamMembers={teamMembers}
+                    tasks={tasks}
+                    isWhiteTheme={isWhiteTheme}
                   />
                 )}
                   </>
