@@ -5892,6 +5892,30 @@ Implemented and verified the requested usability and layout improvements:
    - `npm run build` (`tsc -b && vite build`) passed with 0 errors.
    - Updated `TECHNICAL_DEVELOPER_NOTES.md` and `CHAT_EXPORT.md`.
 
+---
+
+## 👤 User (Turn #178)
+
+<USER_REQUEST>
+A & B
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Implemented and verified the following usability features:
+1. **Idea A: Accordion Focus Mode (`VisualAgencyHub.tsx`)**:
+   - Added `accordionFocusMode` state persisted in `localStorage` (`agency_accordion_focus_mode`).
+   - Added interactive `⚡ Focus: ON / OFF` toggle button in the project toolbar.
+   - Automatically collapses other expanded project cards when opening an account, maintaining clean vertical discipline.
+2. **Idea B: Drag-and-Drop & Quick-Swap Lead Reassignment**:
+   - Made specialist cards in the Squad Workload section HTML5 `draggable`.
+   - Equipped project card preview bars with drop targets on Squad Lead (`ring-2 ring-cyan-400`) and Call Lead (`ring-2 ring-purple-400`).
+   - Added 1-click **`+ Lead`** and **`+ Calls`** quick-swap chips when a specialist is in Spotlight mode.
+3. **Validation & Git Sync**:
+   - `npm run build` (`tsc -b && vite build`) passed with 0 errors in 536ms.
+   - Updated `TECHNICAL_DEVELOPER_NOTES.md` (Section 30) and `CHAT_EXPORT.md`.
+
+
 
 
 

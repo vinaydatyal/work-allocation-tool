@@ -783,3 +783,14 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Triage Hotkeys: Pressing `1` (All), `2` (On-Track), `3` (Needs Attention), `4` (High Margin), `5` (Low Margin) triggers instant filtering.
       - Quick Reset: Pressing `Escape` clears active specialist spotlight, resets filters to all, or blurs input.
       - Filter buttons and reset actions display subtle hotkey tags (`[1]`, `[2]`, `[3]`, `[4]`, `[5]`, `[Esc]`).
+
+  30. **Accordion Focus Mode & Tactical Drag-and-Drop Lead Reassignment**:
+    - **Idea A: Accordion Focus Mode (`VisualAgencyHub.tsx`)**:
+      - Added `accordionFocusMode` state with persistent client memory via `localStorage` (`agency_accordion_focus_mode`).
+      - Added interactive toggle button directly in the project toolbar adjacent to the Table/Grid switcher (`⚡ Focus: ON` / `Focus: OFF`).
+      - When active, opening any project card's details automatically collapses all other open cards, eliminating vertical page sprawl and keeping the manager focused on one account at a time.
+    - **Idea B: Drag-and-Drop & 1-Click Quick-Swap Reassignment**:
+      - Specialist cards in the Squad Workload section are now HTML5 `draggable` (`cursor-grab active:cursor-grabbing`).
+      - Squad Lead and Call Lead preview slots on each project card act as drag-and-drop drop targets with active pulsing border highlights (`ring-2 ring-cyan-400` / `ring-2 ring-purple-400`).
+      - Managers can simply drag any specialist avatar or card onto a project card to instantly reassign Squad Lead or Call Lead without clicking through dropdowns.
+      - In Spotlight mode, project cards where the spotlighted specialist is not yet assigned surface 1-click **`+ Lead`** and **`+ Calls`** quick-swap chips for instantaneous single-tap role assignment.

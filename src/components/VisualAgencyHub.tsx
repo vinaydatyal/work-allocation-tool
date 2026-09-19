@@ -908,8 +908,27 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [spotlightSpecialistId, searchQuery, everydayQuickFilter, filterLeadId]);
 
+  // Item A: Accordion Focus Mode State (Auto-collapse previous cards on new card open)
+  const [accordionFocusMode, setAccordionFocusMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('agency_accordion_focus_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Item B: Drag-and-Drop Reassign State
+  const [draggedSpecialistId, setDraggedSpecialistId] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<{ projId: string; role: 'lead' | 'call' } | null>(null);
+
   const toggleCardExpansion = (projId: string) => {
-    setExpandedCardIds((prev) => ({ ...prev, [projId]: !prev[projId] }));
+    setExpandedCardIds((prev) => {
+      const isCurrentlyExpanded = !!prev[projId];
+      if (accordionFocusMode) {
+        return isCurrentlyExpanded ? {} : { [projId]: true };
+      }
+      return { ...prev, [projId]: !isCurrentlyExpanded };
+    });
   };
 
   // Modal State for Adding New Project
@@ -3758,6 +3777,16 @@ Due Date: ${proj.paymentDueDate}
                         return (
                           <div
                             key={member.id}
+                            draggable
+                            onDragStart={(event) => {
+                              event.dataTransfer.setData('text/plain', member.id);
+                              event.dataTransfer.effectAllowed = 'copyMove';
+                              setDraggedSpecialistId(member.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedSpecialistId(null);
+                              setDragOverTarget(null);
+                            }}
                             onClick={() => {
                               setSpotlightSpecialistId(isSpotlighted ? null : member.id);
                             }}
@@ -3769,7 +3798,7 @@ Due Date: ${proj.paymentDueDate}
                             }}
                             role="button"
                             tabIndex={0}
-                            className={`p-3 rounded-xl text-left bg-slate-900/80 hover:bg-slate-800 transition-all cursor-pointer space-y-2 ${
+                            className={`p-3 rounded-xl text-left bg-slate-900/80 hover:bg-slate-800 transition-all cursor-grab active:cursor-grabbing space-y-2 ${
                               isSpotlighted
                                 ? 'ring-2 ring-cyan-400 bg-cyan-950/40 shadow-lg shadow-cyan-500/20 scale-[1.02]'
                                 : isFiltered
@@ -3777,6 +3806,7 @@ Due Date: ${proj.paymentDueDate}
                                 : ''
                             }`}
                             aria-pressed={isSpotlighted || isFiltered}
+                            title={`Click to spotlight accounts • Drag to any project to reassign Lead/Calls`}
                           >
                             <div className="flex items-center gap-3">
                               <img src={member.avatar} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
@@ -3806,9 +3836,9 @@ Due Date: ${proj.paymentDueDate}
                                 <div className={`h-full rounded-full ${status.bar}`} style={{ width: `${Math.min(100, utilization)}%` }} />
                               </div>
                               <div className="flex items-center justify-between text-[10px] text-slate-400">
-                                <span>{isSpotlighted ? '✨ Spotlight active' : 'Click to spotlight'}</span>
+                                <span>{isSpotlighted ? '✨ Spotlight active' : 'Click spotlight · Drag assign'}</span>
                                 <span className={isSpotlighted ? 'text-cyan-300 font-bold' : 'text-slate-400 font-bold'}>
-                                  {isSpotlighted ? 'Clustered ⚡' : 'Spotlight'}
+                                  {isSpotlighted ? 'Clustered ⚡' : '⠿ Drag'}
                                 </span>
                               </div>
                             </div>
@@ -4162,6 +4192,34 @@ Due Date: ${proj.paymentDueDate}
                       Compact Table
                     </button>
                   </div>
+
+                  {/* Item A: Accordion Focus Mode Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !accordionFocusMode;
+                      setAccordionFocusMode(next);
+                      try { localStorage.setItem('agency_accordion_focus_mode', String(next)); } catch {}
+                      if (next) {
+                        const openKeys = Object.keys(expandedCardIds).filter((k) => expandedCardIds[k]);
+                        if (openKeys.length > 1) {
+                          setExpandedCardIds({ [openKeys[0]]: true });
+                        }
+                      }
+                      sonnerToast(next ? '⚡ Accordion Focus Mode Enabled' : 'Standard Expansion Mode Enabled', {
+                        description: next ? 'Opening a project automatically collapses other cards' : 'Multiple projects can remain expanded simultaneously'
+                      });
+                    }}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ml-2 ${
+                      accordionFocusMode
+                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
+                        : 'bg-slate-900/80 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                    title="Accordion Focus Mode: automatically collapse other cards when opening an account"
+                  >
+                    <span className={`w-2 h-2 rounded-full ${accordionFocusMode ? 'bg-cyan-400 animate-pulse' : 'bg-slate-600'}`} />
+                    <span>{accordionFocusMode ? '⚡ Focus: ON' : 'Focus: OFF'}</span>
+                  </button>
                 </div>
               </div>
 
@@ -4929,8 +4987,33 @@ Due Date: ${proj.paymentDueDate}
                             )}
                           </div>
                           <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-300 min-w-0">
-                            {/* Quick Lead Reassign Popover */}
-                            <div className="relative">
+                            {/* Quick Lead Reassign Popover & Drag-Drop Target */}
+                            <div
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'copy';
+                                setDragOverTarget({ projId: proj.id, role: 'lead' });
+                              }}
+                              onDragLeave={() => setDragOverTarget(null)}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const memberId = e.dataTransfer.getData('text/plain') || draggedSpecialistId;
+                                if (memberId) {
+                                  handleQuickUpdateLead(proj.id, memberId);
+                                  const m = customMembers.find((mem) => mem.id === memberId);
+                                  sonnerToast.success(`Assigned ${m ? m.name : 'specialist'} as Squad Lead on ${proj.name}`);
+                                }
+                                setDragOverTarget(null);
+                                setDraggedSpecialistId(null);
+                              }}
+                              className={`relative transition-all rounded-lg px-1 py-0.5 flex items-center gap-1.5 ${
+                                dragOverTarget?.projId === proj.id && dragOverTarget?.role === 'lead'
+                                  ? 'ring-2 ring-cyan-400 bg-cyan-500/25 scale-105 shadow-md shadow-cyan-500/20'
+                                  : draggedSpecialistId
+                                  ? 'ring-1 ring-dashed ring-cyan-500/50 bg-cyan-950/20 animate-pulse'
+                                  : ''
+                              }`}
+                            >
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -4942,10 +5025,27 @@ Due Date: ${proj.paymentDueDate}
                                   );
                                 }}
                                 className="truncate hover:text-cyan-300 cursor-pointer transition-colors text-left"
-                                title="Click to quickly reassign Team Lead"
+                                title="Click to quickly reassign Team Lead (or drag specialist here)"
                               >
                                 Lead: <strong className={leadMember ? "text-white font-bold ml-1 underline decoration-dotted" : "text-slate-400 italic ml-1 underline decoration-dotted"}>{leadMember ? leadMember.name.split(' ')[0] : 'Unassigned'}</strong>
                               </button>
+
+                              {/* Item B: Quick-Swap Lead Chip when a specialist is spotlighted */}
+                              {spotlightSpecialistId && proj.projectLeadId !== spotlightSpecialistId && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleQuickUpdateLead(proj.id, spotlightSpecialistId);
+                                    const m = customMembers.find((mem) => mem.id === spotlightSpecialistId);
+                                    sonnerToast.success(`⚡ Quick Swapped: ${m?.name} is now Squad Lead`);
+                                  }}
+                                  className="px-1.5 py-0.2 rounded bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/70 text-[10px] font-bold cursor-pointer transition-all hover:scale-105 flex items-center gap-0.5 shrink-0"
+                                  title={`Assign ${customMembers.find((m) => m.id === spotlightSpecialistId)?.name} as Squad Lead`}
+                                >
+                                  <span>+ Lead</span>
+                                </button>
+                              )}
 
                               {quickLeadMenuProjId?.projId === proj.id && quickLeadMenuProjId?.role === 'lead' && (
                                 <div
@@ -5013,8 +5113,33 @@ Due Date: ${proj.paymentDueDate}
 
                             <span className="w-px h-4 bg-slate-700" aria-hidden="true" />
 
-                            {/* Quick Call Lead Reassign Popover */}
-                            <div className="relative">
+                            {/* Quick Call Lead Reassign Popover & Drag-Drop Target */}
+                            <div
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'copy';
+                                setDragOverTarget({ projId: proj.id, role: 'call' });
+                              }}
+                              onDragLeave={() => setDragOverTarget(null)}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const memberId = e.dataTransfer.getData('text/plain') || draggedSpecialistId;
+                                if (memberId) {
+                                  handleQuickUpdateCallLead(proj.id, memberId);
+                                  const m = customMembers.find((mem) => mem.id === memberId);
+                                  sonnerToast.success(`Assigned ${m ? m.name : 'specialist'} as Call Lead on ${proj.name}`);
+                                }
+                                setDragOverTarget(null);
+                                setDraggedSpecialistId(null);
+                              }}
+                              className={`relative transition-all rounded-lg px-1 py-0.5 flex items-center gap-1.5 ${
+                                dragOverTarget?.projId === proj.id && dragOverTarget?.role === 'call'
+                                  ? 'ring-2 ring-purple-400 bg-purple-500/25 scale-105 shadow-md shadow-purple-500/20'
+                                  : draggedSpecialistId
+                                  ? 'ring-1 ring-dashed ring-purple-500/50 bg-purple-950/20 animate-pulse'
+                                  : ''
+                              }`}
+                            >
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -5027,10 +5152,27 @@ Due Date: ${proj.paymentDueDate}
                                   );
                                 }}
                                 className="truncate hover:text-purple-300 cursor-pointer transition-colors text-left"
-                                title="Click to quickly reassign Call Lead"
+                                title="Click to quickly reassign Call Lead (or drag specialist here)"
                               >
                                 Calls: <strong className={callMember ? "text-white font-bold ml-1 underline decoration-dotted" : "text-slate-400 italic ml-1 underline decoration-dotted"}>{callMember ? callMember.name.split(' ')[0] : 'Unassigned'}</strong>
                               </button>
+
+                              {/* Item B: Quick-Swap Call Lead Chip when a specialist is spotlighted */}
+                              {spotlightSpecialistId && proj.clientCallAssigneeId !== spotlightSpecialistId && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleQuickUpdateCallLead(proj.id, spotlightSpecialistId);
+                                    const m = customMembers.find((mem) => mem.id === spotlightSpecialistId);
+                                    sonnerToast.success(`⚡ Quick Swapped: ${m?.name} is now Call Lead`);
+                                  }}
+                                  className="px-1.5 py-0.2 rounded bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-700/70 text-[10px] font-bold cursor-pointer transition-all hover:scale-105 flex items-center gap-0.5 shrink-0"
+                                  title={`Assign ${customMembers.find((m) => m.id === spotlightSpecialistId)?.name} as Call Lead`}
+                                >
+                                  <span>+ Calls</span>
+                                </button>
+                              )}
 
                               {quickLeadMenuProjId?.projId === proj.id && quickLeadMenuProjId?.role === 'call' && (
                                 <div
