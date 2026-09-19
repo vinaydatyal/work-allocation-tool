@@ -2823,6 +2823,7 @@ Due Date: ${proj.paymentDueDate}
         proj.serviceLabels?.some((lbl) => lbl.toLowerCase().includes(q));
       if (!match) return false;
     }
+    return true;
   }).sort((a, b) => {
     // Dynamic Spotlight Clustering: place projects matching the selected specialist first and snug together
     if (spotlightSpecialistId) {

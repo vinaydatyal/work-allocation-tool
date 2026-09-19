@@ -802,3 +802,8 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - On milestone delivery projects, automatically updates `milestonesCompleted` count in real-time.
       - Completed items in the collapsible drawer feature a checked emerald button (`✓`) allowing managers to reopen or revert a task back to active in a single tap.
 
+  32. **Filter Predicate Return Value Fix (`VisualAgencyHub.tsx`)**:
+    - **Issue**: The project card list was rendering `0 matching projects` (`Showing 0 of 68 master projects`) even when the "All" filter was selected.
+    - **Root Cause**: An accidental omission of `return true;` at the end of the `filteredProjectsList = projectsList.filter(...)` predicate caused JavaScript to return `undefined` (falsy) for accounts when no negative filter criteria matched.
+    - **Resolution**: Restored explicit `return true;` at line 2825, restoring full visibility of all master projects across all filter presets.
+
