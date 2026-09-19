@@ -1019,21 +1019,36 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const shortcuts = [
-    { key: '1', label: '1. Active Projects Tracker', desc: '56 retainers, lead allocations & yields' },
-    { key: '2', label: '2. Employee Hours Tracker', desc: 'Weekly allocations, utilization & capacity' },
-    { key: '3', label: '3. DSR Tracker & Plan', desc: 'Daily status reports, blockers & weekly plans' },
-    { key: '4', label: '4. Employee Skills Roster', desc: 'Competency index, test banks & calibration' },
-    { key: '5', label: '5. Job Delivery Bot', desc: 'Automated ClickUp task & client delivery pack' },
-    { key: '6', label: '6. Finances & Payments', desc: 'Gross margin %, invoices & retainer yields' },
-    { key: '7', label: '7. Notifications Hub', desc: 'ClickUp logs, budget alerts & milestone sync' },
-    { key: '?', label: 'Toggle Shortcuts Help', desc: 'Show or hide this keyboard reference' },
-    { key: 'Esc', label: 'Close Modals / Overlays', desc: 'Quickly dismiss active modals and drawers' }
+  const shortcutGroups = [
+    {
+      group: 'Global & Power Actions',
+      items: [
+        { key: 'Ctrl + K', label: 'Universal Command Palette', desc: 'Search projects, team members, actions & quick jump' },
+        { key: '?', label: 'Shortcuts Guide & Cheatsheet', desc: 'Open this interactive keyboard shortcuts reference' },
+        { key: 'N', label: 'Create New Project', desc: 'Open new project creation wizard from anywhere' },
+        { key: 'D', label: 'Toggle Dark / Light Theme', desc: 'Switch between dark workspace and crisp white theme' },
+        { key: 'Esc', label: 'Close Active Modal / Overlay', desc: 'Dismiss any open dialog, modal, or drawer' }
+      ]
+    },
+    {
+      group: 'Instant Tab Navigation (1–9)',
+      items: [
+        { key: '1', label: 'Active Projects Dashboard', desc: 'All client retainers, health status & squads' },
+        { key: '2', label: 'Activity & Sprint Calendar', desc: 'Sprint timeline, deliverables & milestones' },
+        { key: '3', label: 'Employee Workload & Capacity', desc: 'Weekly allocations, utilization % & capacity caps' },
+        { key: '4', label: 'DSR Daily Status Reports', desc: 'Daily logs, blockers, plans & hours' },
+        { key: '5', label: 'Employee Skills Matrix', desc: 'Competency radar, test scores & skill calibration' },
+        { key: '6', label: 'Job Delivery Bot', desc: 'Automated ClickUp task & client delivery pack' },
+        { key: '7', label: 'Finances & Retainer Billing', desc: 'Invoices, margins, yields & payment status' },
+        { key: '8', label: 'Notifications Hub', desc: 'ClickUp logs, budget alerts & delivery pings' },
+        { key: '9', label: 'Project Brief Analyzer', desc: 'Claude AI brief parsing & work slice estimator' }
+      ]
+    }
   ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in">
-      <div className="relative w-full max-w-lg rounded-3xl bg-[#111827] border border-indigo-500/40 p-6 sm:p-7 shadow-2xl shadow-indigo-500/20 text-white space-y-5">
+      <div className="relative w-full max-w-xl rounded-3xl bg-[#111827] border border-indigo-500/40 p-6 sm:p-7 shadow-2xl shadow-indigo-500/20 text-white space-y-5">
         {/* Glowing Top Accent */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-cyan-400 via-indigo-500 to-purple-500 rounded-t-3xl" />
 
@@ -1044,8 +1059,8 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
               <Keyboard className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-white tracking-tight">Executive Keyboard Shortcuts</h3>
-              <p className="text-xs text-slate-400">High-speed instant navigation (1-7)</p>
+              <h3 className="text-base font-extrabold text-white tracking-tight">Executive Keyboard Shortcuts Guide</h3>
+              <p className="text-xs text-slate-400">High-speed keyboard navigation and instant productivity commands</p>
             </div>
           </div>
           <button
@@ -1058,26 +1073,35 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         </div>
 
         {/* Shortcuts List */}
-        <div className="grid grid-cols-1 gap-2 max-h-[60vh] overflow-y-auto pr-1">
-          {shortcuts.map((s, idx) => (
-            <div
-              key={idx}
-              className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all"
-            >
-              <div className="min-w-0 flex-1 pr-3">
-                <span className="text-xs font-bold text-white block">{s.label}</span>
-                <span className="text-[11px] text-slate-400 truncate block">{s.desc}</span>
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+          {shortcutGroups.map((group, gIdx) => (
+            <div key={gIdx} className="space-y-2">
+              <div className="text-[11px] font-black uppercase tracking-wider text-cyan-400">
+                {group.group}
               </div>
-              <kbd className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-cyan-300 font-mono text-xs font-black shadow-inner shrink-0">
-                {s.key}
-              </kbd>
+              <div className="grid grid-cols-1 gap-1.5">
+                {group.items.map((s, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all"
+                  >
+                    <div className="min-w-0 flex-1 pr-3">
+                      <span className="text-xs font-bold text-white block">{s.label}</span>
+                      <span className="text-[11px] text-slate-400 truncate block">{s.desc}</span>
+                    </div>
+                    <kbd className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-cyan-300 font-mono text-xs font-black shadow-inner shrink-0">
+                      {s.key}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
 
         {/* Footer info */}
         <div className="pt-2 text-center text-xs text-slate-400 border-t border-slate-800 flex items-center justify-between">
-          <span>Press any number (1-7) anytime to jump directly to that tab.</span>
+          <span>Press <kbd className="px-1 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[10px]">Ctrl+K</kbd> anytime for Command Palette.</span>
           <button
             type="button"
             onClick={onClose}
@@ -1090,5 +1114,3 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
     </div>
   );
 };
-
-

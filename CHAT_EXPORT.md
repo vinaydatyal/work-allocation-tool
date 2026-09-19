@@ -5626,7 +5626,54 @@ Investigated and resolved the task assignment and synchronization pipeline on th
 
 ---
 
+## 👤 User (Turn #180)
 
+<USER_REQUEST>
+1. ⚡ 1-Click "Assign to Project" Directly from Member Profiles - do the same for tasks as well
 
+2. 🧠 Smart "Overload Rebalancer" (1-Click Teammate Swap) - done
 
+3. 🔍 Universal Command Palette (Ctrl + K / Cmd + K)
+ - Done, add more shortcuts and a guide to use them
 
+4. 🔄 "Sync This Project" Single-Card ClickUp Refresh - Or tasks as well
+
+5. 💳 Fast In-Place Payment Status & Invoice Quick-Tagger - Done
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Implemented all remaining capabilities across Member Profiles, ClickUp Single-Card Sync, and the Universal Shortcuts System:
+
+1. **⚡ 1-Click "Assign to Project" Directly from Member Profiles**:
+   - Added **`+ Assign to Project`** action button in the Active Projects sub-tab header on `/member/:id`.
+   - Opens a dedicated modal dialog allowing selection of any active agency project, assignment of roles (**Specialist**, **Team Lead**, **Call Lead**), and allocation of weekly hours.
+   - Automatically recalibrates member capacity and updates `vat_projects_list_v1` in `localStorage`.
+
+2. **⚡ 1-Click "Assign Task" Directly from Member Profiles**:
+   - Added **`+ Assign Task`** action button in the Active Tasks sub-tab header on `/member/:id`.
+   - Opens a dedicated modal dialog to dispatch deliverables directly to the member with fields for Task Title, Client, Project, Est. Hours, Priority (`Urgent`, `High`, `Medium`, `Low`), Due Date, and optional ClickUp Task ID.
+   - Persists immediately to `vat_clickup_member_tasks_${member.id}` and updates the member's task list and workload.
+
+3. **🔄 "Sync This Project" & "Sync This Task" Single-Card ClickUp Refresh**:
+   - Added individual **`🔄`** refresh buttons on every project card and task card on member profiles.
+   - Calls `fetchClickUpTask(token, taskId)` to retrieve fresh ClickUp status, title, and details on demand without full workspace refetches.
+   - Visual loading spinner on the active item and instant Sonner toast notifications.
+
+4. **🔍 Universal Command Palette (`Ctrl+K` / `Cmd+K` & `/`)**:
+   - Built `src/components/CommandPaletteModal.tsx` providing fuzzy search across all navigation tabs, active projects, and team members.
+   - Hotkeys wired in `App.tsx` responding globally to `Ctrl+K`, `Cmd+K`, and `/`.
+
+5. **⌨️ Categorized Keyboard Shortcuts & Command Guide (`?`)**:
+   - Enhanced `KeyboardShortcutsModal` in `src/components/TopTierUI.tsx` with clear categorized sections:
+     - **Tab Navigation**: Number keys `1` through `9` for direct tab switching.
+     - **Search & Commands**: `Ctrl + K` / `Cmd + K` for Command Palette, `/` for Quick Search.
+     - **Quick Actions**: `D` (Toggle Dark Mode), `N` (Quick Notes), `?` (Shortcuts Guide).
+     - **General**: `Esc` (Dismiss active modal/palette).
+
+**Validation & Documentation**:
+- `npm run build` (`tsc -b && vite build`) passed with 0 errors.
+- Updated Section 24 of `TECHNICAL_DEVELOPER_NOTES.md`.
+- Synchronized chat log in `CHAT_EXPORT.md`.
+
+---

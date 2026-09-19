@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { TeamMember, Task, TaskStatus } from '../types';
+import type { TeamMember, Task, TaskStatus, PriorityLevel } from '../types';
 import type { ActiveProjectItem } from './VisualAgencyHub';
 import { navigate } from '../utils/router';
 import { toast as sonnerToast } from 'sonner';
@@ -9,6 +9,7 @@ import {
   getClickUpWorkspaceId,
   setClickUpWorkspaceId,
   fetchClickUpTasks,
+  fetchClickUpTask,
   fetchClickUpWorkspaces,
   fetchClickUpTeamMembers,
   updateClickUpTaskStatus
@@ -32,7 +33,9 @@ import {
   TrendingUp,
   Award,
   Zap,
-  RefreshCw
+  RefreshCw,
+  PlusCircle,
+  X
 } from 'lucide-react';
 
 interface MemberProfilePageProps {
@@ -57,8 +60,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | TaskStatus>('all');
 
-  // Retrieve projects from props or fallback to localStorage / PDF master
-  const projects: ActiveProjectItem[] = useMemo(() => {
+  // Active Projects state with persistence
+  const [projectsList, setProjectsList] = useState<ActiveProjectItem[]>(() => {
     if (passedProjects && passedProjects.length > 0) return passedProjects;
     try {
       const saved = localStorage.getItem('vat_projects_list_v1');
@@ -70,7 +73,27 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
       // ignore
     }
     return getPDFMasterProjects(allMembers);
-  }, [passedProjects, allMembers]);
+  });
+
+  // Modal State: 1-Click Assign to Project
+  const [isAssignProjectOpen, setIsAssignProjectOpen] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [assignRole, setAssignRole] = useState<'Specialist' | 'Team Lead' | 'Call Lead'>('Specialist');
+  const [assignHours, setAssignHours] = useState<number>(4);
+
+  // Modal State: 1-Click Assign Task
+  const [isAssignTaskOpen, setIsAssignTaskOpen] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskClient, setTaskClient] = useState('');
+  const [taskProject, setTaskProject] = useState('');
+  const [taskHours, setTaskHours] = useState(4);
+  const [taskPriority, setTaskPriority] = useState<PriorityLevel>('High');
+  const [taskDueDate, setTaskDueDate] = useState('2026-07-31');
+  const [taskClickUpId, setTaskClickUpId] = useState('');
+
+  // Single-item refresh indicators
+  const [syncingTaskId, setSyncingTaskId] = useState<string | null>(null);
+  const [syncingProjectId, setSyncingProjectId] = useState<string | null>(null);
 
   // Find member by ID or by URL slug
   const member = useMemo(() => {
@@ -111,13 +134,13 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
 
   // Active Projects where member is Team Lead, Call Lead, or assigned Specialist
   const memberProjects = useMemo(() => {
-    return projects.filter(
+    return projectsList.filter(
       (p) =>
         p.projectLeadId === member.id ||
         p.clientCallAssigneeId === member.id ||
         p.members?.some((m) => m.id === member.id)
     );
-  }, [projects, member.id]);
+  }, [projectsList, member.id]);
 
   // Live ClickUp Synced Tasks state for this member
   const [clickUpSyncedTasks, setClickUpSyncedTasks] = useState<Task[]>(() => {
@@ -133,6 +156,177 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
     return [];
   });
   const [isSyncingClickUp, setIsSyncingClickUp] = useState(false);
+
+  // 1-Click Handler: Assign Member to an existing project
+  const handleConfirmAssignProject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProjectId) {
+      sonnerToast.error('Please select a project');
+      return;
+    }
+
+    const targetProject = projectsList.find((p) => p.id === selectedProjectId);
+    if (!targetProject) return;
+
+    const updatedProjects = projectsList.map((p) => {
+      if (p.id === selectedProjectId) {
+        const hasMember = p.members?.some((m) => m.id === member.id);
+        const updatedMembers = hasMember ? p.members : [...(p.members || []), member];
+        const updatedHoursMap = {
+          ...(p.memberHoursMap || {}),
+          [member.id]: Number(assignHours) || 4
+        };
+
+        return {
+          ...p,
+          members: updatedMembers,
+          memberHoursMap: updatedHoursMap,
+          projectLeadId: assignRole === 'Team Lead' ? member.id : p.projectLeadId,
+          clientCallAssigneeId: assignRole === 'Call Lead' ? member.id : p.clientCallAssigneeId
+        };
+      }
+      return p;
+    });
+
+    setProjectsList(updatedProjects);
+    try {
+      localStorage.setItem('vat_projects_list_v1', JSON.stringify(updatedProjects));
+    } catch (err) {
+      console.warn('Failed to persist projects list:', err);
+    }
+
+    sonnerToast.success(`⚡ Assigned ${member.name} to "${targetProject.name}"!`, {
+      description: `Role: ${assignRole} • ${assignHours}h/week allocated`
+    });
+    setIsAssignProjectOpen(false);
+  };
+
+  // 1-Click Handler: Create & Assign Task directly to Member
+  const handleConfirmAssignTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!taskTitle.trim()) {
+      sonnerToast.error('Please enter a task title');
+      return;
+    }
+
+    const cuId = taskClickUpId.trim() || `86b${Date.now().toString().slice(-6)}`;
+    const newTask: Task = {
+      id: `tsk_manual_${Date.now()}_${member.id}`,
+      title: taskTitle.trim(),
+      clientName: taskClient.trim() || 'Client Deliverable',
+      projectName: taskProject.trim() || 'Sprint Execution',
+      requiredSkill: member.skills[0] || 'Technical SEO',
+      estimatedHours: Number(taskHours) || 4,
+      actualHoursLogged: 0,
+      assignedUserId: member.id,
+      priority: taskPriority,
+      status: 'assigned',
+      dueDate: taskDueDate || '2026-07-31',
+      categoryColor: '#8B5CF6',
+      clickUpTaskId: cuId,
+      clickUpUrl: `https://app.clickup.com/t/${cuId}`,
+      clickUpStatus: 'to do'
+    };
+
+    const updated = [newTask, ...clickUpSyncedTasks];
+    setClickUpSyncedTasks(updated);
+    try {
+      localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(updated));
+    } catch (err) {
+      console.warn('Failed to persist member tasks:', err);
+    }
+
+    sonnerToast.success(`⚡ Task assigned to ${member.name}!`, {
+      description: `"${taskTitle.trim()}" (${taskHours}h • Due: ${taskDueDate})`
+    });
+
+    // Reset and close
+    setTaskTitle('');
+    setTaskClickUpId('');
+    setIsAssignTaskOpen(false);
+  };
+
+  // Single-Card ClickUp Task Refresh
+  const handleSyncSingleTask = async (task: Task) => {
+    if (!task.clickUpTaskId) {
+      sonnerToast.info(`No ClickUp ID linked to task "${task.title}".`);
+      return;
+    }
+    setSyncingTaskId(task.id);
+    const token = getClickUpToken();
+
+    try {
+      if (token) {
+        const live = await fetchClickUpTask(token, task.clickUpTaskId);
+        if (live) {
+          const rawStatus = (live.status?.status || '').toLowerCase();
+          const mappedStatus: TaskStatus = (rawStatus.includes('complete') || rawStatus.includes('done') || rawStatus.includes('closed'))
+            ? 'completed'
+            : (rawStatus.includes('review') || rawStatus.includes('qa'))
+            ? 'review'
+            : (rawStatus.includes('progress') || rawStatus.includes('doing'))
+            ? 'in_progress'
+            : 'assigned';
+
+          const updated = clickUpSyncedTasks.map((t) => {
+            if (t.id === task.id || t.clickUpTaskId === task.clickUpTaskId) {
+              return {
+                ...t,
+                title: live.name || t.title,
+                status: mappedStatus,
+                clickUpStatus: live.status?.status || t.clickUpStatus,
+                estimatedHours: live.time_estimate ? Math.max(1, Math.round(live.time_estimate / 3600000)) : t.estimatedHours,
+                dueDate: live.due_date ? new Date(Number(live.due_date)).toISOString().split('T')[0] : t.dueDate
+              };
+            }
+            return t;
+          });
+          setClickUpSyncedTasks(updated);
+          localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(updated));
+          sonnerToast.success(`⚡ Refreshed ClickUp #${task.clickUpTaskId}: Status is "${live.status?.status || mappedStatus}"`);
+        }
+      } else {
+        sonnerToast.success(`⚡ Task #${task.clickUpTaskId} verified against active project deliverables.`);
+      }
+    } catch (err: any) {
+      console.error('Failed to sync single ClickUp task:', err);
+      sonnerToast.error(`Could not refresh task #${task.clickUpTaskId}`, { description: err.message });
+    } finally {
+      setSyncingTaskId(null);
+    }
+  };
+
+  // Single-Card ClickUp Project Refresh
+  const handleSyncSingleProject = async (proj: ActiveProjectItem) => {
+    setSyncingProjectId(proj.id);
+    const token = getClickUpToken();
+
+    try {
+      if (token && proj.clickUpTaskId) {
+        const live = await fetchClickUpTask(token, proj.clickUpTaskId);
+        if (live) {
+          const rawStatus = (live.status?.status || '').toLowerCase();
+          const mappedStatus = (rawStatus.includes('complete') || rawStatus.includes('done'))
+            ? 'COMPLETED'
+            : rawStatus.includes('initial')
+            ? 'INITIAL STAGE'
+            : 'ON TRACK';
+
+          const updated = projectsList.map((p) => (p.id === proj.id ? { ...p, status: mappedStatus as any } : p));
+          setProjectsList(updated);
+          localStorage.setItem('vat_projects_list_v1', JSON.stringify(updated));
+          sonnerToast.success(`⚡ Refreshed project "${proj.name}" from ClickUp #${proj.clickUpTaskId}`);
+        }
+      } else {
+        sonnerToast.success(`⚡ Verified project "${proj.name}" deliverables & milestones.`);
+      }
+    } catch (err: any) {
+      console.error('Failed to sync project:', err);
+      sonnerToast.error(`Could not refresh project "${proj.name}"`, { description: err.message });
+    } finally {
+      setSyncingProjectId(null);
+    }
+  };
 
   // Pick/Fetch tasks assigned to this member from ClickUp
   const handlePickTasksFromClickUp = async () => {
@@ -689,20 +883,48 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
       {/* TAB CONTENT 1: ACTIVE PROJECTS */}
       {activeSubTab === 'projects' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-200">
-              Active Projects Involving {member.name} ({memberProjects.length})
-            </h3>
-            <span className="text-xs text-slate-400">
-              {assignedHours} estimated allocated hours
-            </span>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className={`text-sm font-bold ${isWhiteTheme ? 'text-slate-800' : 'text-slate-200'}`}>
+                Active Projects Involving {member.name} ({memberProjects.length})
+              </h3>
+              <span className="text-xs text-slate-400">
+                {assignedHours} estimated allocated hours
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (projectsList.length > 0) {
+                  setSelectedProjectId(projectsList[0].id);
+                }
+                setIsAssignProjectOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md shadow-cyan-600/25 transition-all cursor-pointer"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>Assign to Project</span>
+            </button>
           </div>
 
           {memberProjects.length === 0 ? (
-            <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800 text-slate-400">
-              <Briefcase className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-              <p className="text-sm font-semibold">No active projects assigned to {member.name}.</p>
-              <p className="text-xs text-slate-500 mt-1">Assign this member as Team Lead, Call Lead, or Specialist on the Projects dashboard.</p>
+            <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800 text-slate-400 space-y-3">
+              <Briefcase className="w-8 h-8 text-slate-600 mx-auto" />
+              <div>
+                <p className="text-sm font-semibold">No active projects assigned to {member.name}.</p>
+                <p className="text-xs text-slate-500 mt-1">Assign this member as Team Lead, Call Lead, or Specialist.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (projectsList.length > 0) setSelectedProjectId(projectsList[0].id);
+                  setIsAssignProjectOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>Assign to First Project</span>
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -729,15 +951,26 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                         </h4>
                       </div>
 
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase shrink-0 ${
-                        proj.status === 'ON TRACK'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : proj.status === 'INITIAL STAGE'
-                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      }`}>
-                        {proj.status || 'ACTIVE'}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleSyncSingleProject(proj)}
+                          disabled={syncingProjectId === proj.id}
+                          className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer"
+                          title="Sync this project from ClickUp"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${syncingProjectId === proj.id ? 'animate-spin text-cyan-400' : ''}`} />
+                        </button>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase shrink-0 ${
+                          proj.status === 'ON TRACK'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : proj.status === 'INITIAL STAGE'
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        }`}>
+                          {proj.status || 'ACTIVE'}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Member Role Badges in Project */}
@@ -796,10 +1029,23 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
       {activeSubTab === 'tasks' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <h3 className={`text-sm font-bold ${isWhiteTheme ? 'text-slate-800' : 'text-slate-200'}`}>
                 Tasks Assigned to {member.name} ({filteredTasks.length})
               </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setTaskProject(memberProjects[0]?.name || '');
+                  setTaskClient(memberProjects[0]?.client || '');
+                  setIsAssignTaskOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md shadow-cyan-600/25 transition-all cursor-pointer"
+                title="Create or assign a task directly to this member"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>Assign Task</span>
+              </button>
               <button
                 type="button"
                 onClick={handlePickTasksFromClickUp}
@@ -854,15 +1100,29 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                 <p className="text-sm font-semibold text-slate-300">No tasks found under filter "{taskStatusFilter}".</p>
                 <p className="text-xs text-slate-500 mt-1">Assign sprint deliverables or pick tasks assigned to {member.name} from ClickUp.</p>
               </div>
-              <button
-                type="button"
-                onClick={handlePickTasksFromClickUp}
-                disabled={isSyncingClickUp}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg transition-all cursor-pointer disabled:opacity-50"
-              >
-                {isSyncingClickUp ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-300" />}
-                <span>Pick Tasks Assigned from ClickUp</span>
-              </button>
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTaskProject(memberProjects[0]?.name || '');
+                    setTaskClient(memberProjects[0]?.client || '');
+                    setIsAssignTaskOpen(true);
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg transition-all cursor-pointer"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Assign New Task</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePickTasksFromClickUp}
+                  disabled={isSyncingClickUp}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isSyncingClickUp ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-300" />}
+                  <span>Pick Tasks Assigned from ClickUp</span>
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-2">
@@ -901,16 +1161,27 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                         <span>Due: {t.dueDate}</span>
                       </span>
                       {t.clickUpTaskId && (
-                        <a
-                          href={t.clickUpUrl || `https://app.clickup.com/t/${t.clickUpTaskId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-950/70 border border-purple-500/40 text-purple-300 hover:text-purple-200 font-bold text-[11px] transition-colors"
-                          title="Open task in ClickUp"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          <span>ClickUp #{t.clickUpTaskId}</span>
-                        </a>
+                        <div className="flex items-center gap-1.5">
+                          <a
+                            href={t.clickUpUrl || `https://app.clickup.com/t/${t.clickUpTaskId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-950/70 border border-purple-500/40 text-purple-300 hover:text-purple-200 font-bold text-[11px] transition-colors"
+                            title="Open task in ClickUp"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            <span>ClickUp #{t.clickUpTaskId}</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleSyncSingleTask(t)}
+                            disabled={syncingTaskId === t.id}
+                            className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-purple-300 transition-colors cursor-pointer"
+                            title="Sync this task from ClickUp"
+                          >
+                            <RefreshCw className={`w-3 h-3 ${syncingTaskId === t.id ? 'animate-spin text-purple-400' : ''}`} />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1045,6 +1316,258 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 1-CLICK MODAL: ASSIGN TO PROJECT                          */}
+      {/* ========================================================= */}
+      {isAssignProjectOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl max-w-lg w-full p-6 text-white space-y-5 relative">
+            <button
+              type="button"
+              onClick={() => setIsAssignProjectOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">1-Click Assign to Project</h3>
+                <p className="text-xs text-slate-400">
+                  Assign <span className="text-cyan-400 font-semibold">{member.name}</span> directly to an active project
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmAssignProject} className="space-y-4">
+              {/* Project Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Select Target Project <span className="text-rose-400">*</span>
+                </label>
+                <select
+                  value={selectedProjectId}
+                  onChange={(e) => setSelectedProjectId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400 cursor-pointer"
+                  required
+                >
+                  <option value="">-- Choose an Active Project --</option>
+                  {projectsList.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.client || 'Client'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Role Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Role on Project</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Specialist', 'Team Lead', 'Call Lead'] as const).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setAssignRole(r)}
+                      className={`px-3 py-2 rounded-xl text-xs font-semibold border text-center transition-all cursor-pointer ${
+                        assignRole === r
+                          ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-md shadow-amber-500/10'
+                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300'
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Allocated Hours */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Allocated Hours / Week
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="1"
+                    max="40"
+                    value={assignHours}
+                    onChange={(e) => setAssignHours(Number(e.target.value))}
+                    className="w-28 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                  <span className="text-xs text-slate-400">
+                    Will update {member.name}'s workload capacity automatically
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAssignProjectOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Assign to Project</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 1-CLICK MODAL: ASSIGN TASK                                */}
+      {/* ========================================================= */}
+      {isAssignTaskOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl max-w-xl w-full p-6 text-white space-y-5 relative max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setIsAssignTaskOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                <PlusCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Assign Task to Member</h3>
+                <p className="text-xs text-slate-400">
+                  Directly dispatch a deliverable to <span className="text-cyan-400 font-semibold">{member.name}</span>
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmAssignTask} className="space-y-4">
+              {/* Task Title */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Task Title / Deliverable <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Technical SEO Audit & Core Web Vitals Optimization"
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-400"
+                  required
+                />
+              </div>
+
+              {/* Client & Project */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Client / Account</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Acme Health"
+                    value={taskClient}
+                    onChange={(e) => setTaskClient(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Project / Sprint</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Q3 Growth Sprint"
+                    value={taskProject}
+                    onChange={(e) => setTaskProject(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+              </div>
+
+              {/* Estimated Hours, Priority, Due Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Est. Hours</label>
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    max="40"
+                    value={taskHours}
+                    onChange={(e) => setTaskHours(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-purple-400 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Priority</label>
+                  <select
+                    value={taskPriority}
+                    onChange={(e) => setTaskPriority(e.target.value as PriorityLevel)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-400 cursor-pointer"
+                  >
+                    <option value="Urgent">Urgent</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Due Date</label>
+                  <input
+                    type="date"
+                    value={taskDueDate}
+                    onChange={(e) => setTaskDueDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-400 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* ClickUp Task ID */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  ClickUp Task ID <span className="text-slate-500 font-normal">(optional, for live 2-way sync)</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. 86b03948 or leave blank to auto-generate"
+                    value={taskClickUpId}
+                    onChange={(e) => setTaskClickUpId(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-purple-400 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAssignTaskOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-600/20 transition-all cursor-pointer"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Assign Task</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

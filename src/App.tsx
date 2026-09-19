@@ -12,6 +12,7 @@ import { ResourceTimeline } from './components/ResourceTimeline';
 import { SprintKanban } from './components/SprintKanban';
 import { TeamRosterStudio } from './components/TeamRosterStudio';
 import { SkillEvaluationCenter } from './components/SkillEvaluationCenter';
+import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { initialTeamMembers, initialTasks } from './data/mockData';
 import { appUserProfiles } from './data/userProfiles';
 import type { TeamMember, Task, SkillCategory, TaskStatus, AppUserProfile, ProjectResourceBlock, ClientReadyTier } from './types';
@@ -31,6 +32,7 @@ export function App() {
   const activeTab = router.route === 'member' ? 'projects' : (router.route || 'projects');
   const [isWhiteTheme, setIsWhiteTheme] = useState<boolean>(true);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
+  const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [triggerAddProjectModal, setTriggerAddProjectModal] = useState<boolean>(false);
 
   const handleNavigateTab = (tab: string) => {
@@ -47,12 +49,22 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Global hotkey: Ctrl + K or Cmd + K opens Command Palette everywhere
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+        return;
+      }
+
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
       }
 
-      if (e.key === '1') {
+      if (e.key === '/') {
+        e.preventDefault();
+        setShowCommandPalette(true);
+      } else if (e.key === '1') {
         navigate('/projects');
       } else if (e.key === '2') {
         navigate('/calendar');
@@ -68,10 +80,20 @@ export function App() {
         navigate('/finances');
       } else if (e.key === '8') {
         navigate('/notifications');
+      } else if (e.key === '9') {
+        navigate('/brief');
+      } else if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        handleNavigateTab('projects');
+        setTriggerAddProjectModal(true);
+      } else if (e.key === 'd' || e.key === 'D') {
+        e.preventDefault();
+        setIsWhiteTheme((prev) => !prev);
       } else if (e.key === '?' || (e.shiftKey && e.key === '/')) {
         setShowShortcutsModal((prev) => !prev);
       } else if (e.key === 'Escape') {
         setShowShortcutsModal(false);
+        setShowCommandPalette(false);
       }
     };
 
@@ -408,6 +430,21 @@ export function App() {
       <KeyboardShortcutsModal
         isOpen={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}
+      />
+
+      {/* Universal Command Palette (Ctrl+K) */}
+      <CommandPaletteModal
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        teamMembers={teamMembers}
+        tasks={tasks}
+        isWhiteTheme={isWhiteTheme}
+        onToggleTheme={() => setIsWhiteTheme((prev) => !prev)}
+        onOpenShortcutsGuide={() => setShowShortcutsModal(true)}
+        onTriggerAddProject={() => {
+          handleNavigateTab('projects');
+          setTriggerAddProjectModal(true);
+        }}
       />
     </ToastProvider>
   );

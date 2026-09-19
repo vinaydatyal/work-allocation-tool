@@ -624,3 +624,28 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - **Mock Data Expansion (`src/data/mockData.ts`)**:
         - Added `clickUpUserId: 864201` and `clickUpEmail: 'vivek@rankharvest.com'` to Vivek Kumar.
         - Added initial sprint tasks `tsk_06`, `tsk_07`, `tsk_08`, `tsk_09` for Vivek Kumar with ClickUp task linkages and estimated hours.
+  24. **Member Profile 1-Click Assignment, Universal Command Palette, Shortcuts Guide & Single-Card Refresh**:
+    - **1-Click "Assign to Project" Directly from Member Profiles**:
+      - Added `+ Assign to Project` button in the Active Projects sub-tab header on `/member/:id`.
+      - Opens an interactive modal allowing instant assignment of the member to any active agency project from `projectsList`.
+      - Configurable role (`Specialist`, `Team Lead`, `Call Lead`) and custom allocated hours/week.
+      - Automatically recalculates member weekly workload and updates `vat_projects_list_v1` in `localStorage`.
+    - **1-Click "Assign Task" Directly from Member Profiles**:
+      - Added `+ Assign Task` button in the Active Tasks sub-tab header on `/member/:id`.
+      - Opens an interactive modal to dispatch deliverables directly to the member with fields for Task Title, Client, Project, Est. Hours, Priority (`Urgent`, `High`, `Medium`, `Low`), Due Date, and optional ClickUp Task ID.
+      - Immediately updates `clickUpSyncedTasks` state and persists to `vat_clickup_member_tasks_${member.id}` in `localStorage`.
+    - **Single-Card ClickUp Refresh for Projects & Tasks**:
+      - Integrated individual refresh buttons (`🔄`) on every project card and task card on member profiles.
+      - Calls `fetchClickUpTask(token, taskId)` to retrieve fresh status, title, and details on demand without triggering full workspace refetches.
+      - Provides immediate spinner animations and Sonner toast confirmations for each synced item.
+    - **Universal Command Palette (`Ctrl + K` / `Cmd + K` & `/`)**:
+      - Created `src/components/CommandPaletteModal.tsx` providing universal spotlight search across all tabs, active projects, and team members.
+      - Global hotkey listener mounted in `App.tsx` responding to `Ctrl+K`, `Cmd+K`, and `/`.
+      - Offers quick keyboard navigation with instant query filtering, highlighting, and route navigation.
+    - **Interactive Keyboard Shortcuts & Command Guide (`?`)**:
+      - Enhanced `KeyboardShortcutsModal` in `src/components/TopTierUI.tsx` with clear, categorized sections:
+        - **Tab Navigation**: Number keys `1` through `9` for direct tab switching.
+        - **Search & Commands**: `Ctrl + K` / `Cmd + K` for Command Palette, `/` for Quick Search.
+        - **Quick Actions**: `D` (Toggle Dark Mode), `N` (Quick Notes), `?` (Shortcuts Guide).
+        - **General**: `Esc` (Dismiss active modal/palette).
+
