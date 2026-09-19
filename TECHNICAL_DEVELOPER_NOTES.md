@@ -807,3 +807,30 @@ Agencies frequently maintain their complete client roster inside a specific Clic
     - **Root Cause**: An accidental omission of `return true;` at the end of the `filteredProjectsList = projectsList.filter(...)` predicate caused JavaScript to return `undefined` (falsy) for accounts when no negative filter criteria matched.
     - **Resolution**: Restored explicit `return true;` at line 2825, restoring full visibility of all master projects across all filter presets.
 
+  33. **Vitest Automated Test Suite Implementation**:
+    - Configured native Vite test runner via `vitest.config.ts` and updated `package.json` with `npm test` (`vitest run`) and `npm run test:watch`.
+    - Implemented 5 test suites covering 22 core unit tests across all business-critical engines:
+      1. **`tests/projectFinancials.test.ts` (6 tests)**:
+         - Seniority loaded hourly cost rates (`Senior: $58`, `Mid: $36`, `Junior: $22`).
+         - `getMemberCostPerHour` resolution for client-ready tiers and seniority roles.
+         - Exact gross margin percent and gross profit calculation.
+         - Margin tier classification (`high`, `standard`, `low`).
+         - Payment hold status identification.
+      2. **`tests/matchingEngine.test.ts` (4 tests)**:
+         - Active vs. completed task hours allocation.
+         - Candidate ranking with skill match and speed/quality weights.
+         - VIP Talent Guard scoring bonus for Senior Tier 1 specialists on VIP accounts.
+      3. **`tests/projectAllocationEngine.test.ts` (2 tests)**:
+         - Multi-block intake proposal squad composition.
+         - Automated overload risk detection when tasks exceed specialist weekly capacity.
+      4. **`tests/dateUtils.test.ts` (5 tests)**:
+         - Local calendar date formatting (`YYYY-MM-DD`).
+         - Relative date calculations (`daysFromToday`).
+         - First day of month and month offset selector IDs.
+      5. **`tests/router.test.ts` (5 tests)**:
+         - Hash/Path route parsing and default fallback to `projects`.
+         - Dynamic member profile route extraction (`/member/:id/:tab`).
+         - Search query parameter preservation.
+    - Test execution speed: **22/22 tests passing in 265ms**.
+
+
