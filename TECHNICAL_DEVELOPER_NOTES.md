@@ -745,6 +745,24 @@ Agencies frequently maintain their complete client roster inside a specific Clic
         - `"✨ High Margin (≥60%)"`
         - `"🩺 At-Risk (<65 Health)"`
       - Allows leadership to instantly isolate margin leaks or celebrate high-margin accounts without navigating away from the project hub.
-
-
-
+  28. **Retainer Hour Banking & Managerial Workflow Smoothness Suite**:
+    - **Feature 6: Retainer Hour Banking & Rollover Tracker (`ActiveProjectItem` & `VisualAgencyHub.tsx`)**:
+      - Added `bankedRolloverHours?: number` state to `ActiveProjectItem`.
+      - On Monthly Retainer accounts with unutilized hours and healthy burn, renders an in-card rollover banking control (`📦 Bank Rollover`).
+      - Managers can bank unused hours with 1 click, rolling them into the next billing cycle, or release them with a single click (`✕`).
+      - Prevents surprise hours loss and preserves agency-client trust during contract reconciliation.
+    - **Workflow Smoothness: Unified Manager Action Strip**:
+      - Eliminated fragmented, stacked alert banners (Payment Hold, Scope Creep, Seniority Mismatch) that previously bloated card heights.
+      - Consolidated all urgent signals into a single compact, high-contrast action strip located directly below the Retainer Burn Meter.
+      - Integrates instant 1-click action triggers:
+        - `Rebalance ⚡`: Directly launches the Client P&L & Staffing Optimizer.
+        - `Draft Upsell ✉️`: Opens the Scope Upsell email template generator.
+        - `🛑 Hold`: Displays pulsing payment alert.
+    - **UI Polish: Segmented Toolbar Pill Groups**:
+      - Reorganized project toolbar buttons into clear visual segments:
+        - **Segment 1 (Account Overview)**: `All Projects`, `🔥 Retainers`, `🚨 Needs Attention`.
+        - **Segment 2 (Financial Triage)**: `✨ High Margin (≥60%)`, `💰 Low Margin (<45%)`.
+        - **Reset Trigger**: `↺ Reset` button dynamically appears whenever active filters deviate from default.
+    - **Search & Bandwidth in Quick Lead Reassign Popovers**:
+      - Added instant search input (`Search specialist...`) to the Squad Lead and Call Lead reassign popovers.
+      - Displays real-time free bandwidth badge (`🟢 Xh free`) next to each candidate's name to ensure managers never assign an overbooked specialist.

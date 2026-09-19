@@ -160,6 +160,7 @@ export interface ActiveProjectItem {
   clientCallAssigneeId?: string;
   memberHoursMap?: Record<string, number>;
   taskBreakdown?: ProjectTaskAllocation[];
+  bankedRolloverHours?: number;
   // Financial & Payment Tracker fields
   paymentStatus: 'Paid' | 'Overdue' | 'Due Soon' | 'Pending';
   paymentDueDate: string;
@@ -314,6 +315,24 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
 
   // Client P&L & Staffing Optimizer Modal State (Ideas 1, 2, 3)
   const [activePnLProject, setActivePnLProject] = useState<ActiveProjectItem | null>(null);
+
+  // Quick Search for Lead & Call reassign popovers
+  const [reassignSearchQuery, setReassignSearchQuery] = useState('');
+
+  // Retainer Hour Banking handlers (Feature 6)
+  const handleBankRolloverHours = (projectId: string, hours: number) => {
+    setProjectsList((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, bankedRolloverHours: hours } : p))
+    );
+    sonnerToast.success(`📦 Banked ${hours} unused retainer hours for next billing cycle!`);
+  };
+
+  const handleClearBankedHours = (projectId: string) => {
+    setProjectsList((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, bankedRolloverHours: undefined } : p))
+    );
+    sonnerToast.info('Released banked rollover hours.');
+  };
 
   const handleOptimizeSquad = (projectId: string, oldMemberId: string, newMemberId: string) => {
     setProjectsList((prev) =>
@@ -3867,104 +3886,110 @@ Due Date: ${proj.paymentDueDate}
                   >
                     📍 Local ({projectsList.filter(p => (p.clientTier || classifyClientTier(p)) === 'TIER_B_LOCAL').length})
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setEverydayQuickFilter('on_track')}
-                    className={`px-4 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-                      everydayQuickFilter === 'on_track'
-                        ? 'bg-emerald-500/20 text-emerald-200 font-bold border border-emerald-500/40'
-                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
-                    }`}
-                  >
-                    🟢 On-Track ({projectsList.filter(p => p.status === 'ON TRACK').length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEverydayQuickFilter('milestones')}
-                    className={`hidden px-4 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-                      everydayQuickFilter === 'milestones'
-                        ? 'bg-purple-500/20 text-purple-200 font-bold border border-purple-500/40'
-                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
-                    }`}
-                  >
-                    🏁 Milestones
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEverydayQuickFilter('needs_attention')}
-                    className={`px-4 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-                      everydayQuickFilter === 'needs_attention'
-                        ? 'bg-rose-500/20 text-rose-200 font-bold border border-rose-500/40'
-                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
-                    }`}
-                  >
-                    🚨 Needs Attention
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEverydayQuickFilter('scope_creep_risk')}
-                    className={`px-4 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
-                      everydayQuickFilter === 'scope_creep_risk'
-                        ? 'bg-amber-500/25 text-amber-200 font-bold border border-amber-500/50 shadow-md shadow-amber-500/20'
-                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
-                    }`}
-                  >
-                    <span>🔥 Scope Creep / High Burn</span>
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300">
-                      {projectsList.filter(p => {
-                        const budget = Math.max(1, p.activeHours || p.totalHours || 1);
-                        const logged = p.actualHoursLogged || 0;
-                        const ratio = logged > 0 ? (logged / budget) : (p.progress / 100);
-                        return ratio >= 0.85;
-                      }).length}
-                    </span>
-                  </button>
+                  {/* Streamlined Manager Filter Segments */}
+                  {/* Segment 1: Delivery & Status */}
+                  <div className="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEverydayQuickFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        everydayQuickFilter === 'all'
+                          ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      All ({projectsList.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEverydayQuickFilter('on_track')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        everydayQuickFilter === 'on_track'
+                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      🟢 On-Track ({projectsList.filter(p => p.status === 'ON TRACK').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEverydayQuickFilter('needs_attention')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        everydayQuickFilter === 'needs_attention'
+                          ? 'bg-rose-500 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>🚨 Needs Attention</span>
+                    </button>
+                  </div>
 
-                  {/* Executive Triage Quick-Filters (Idea 8) */}
-                  <button
-                    type="button"
-                    onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'low_margin' ? 'all' : 'low_margin')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      everydayQuickFilter === 'low_margin'
-                        ? 'bg-rose-500/25 text-rose-200 font-bold border border-rose-500/50 shadow-md shadow-rose-500/20'
-                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
-                    }`}
-                  >
-                    <span>💰 Low Margin (&lt;45%)</span>
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300">
-                      {projectsList.filter(p => calculateProjectFinancials(p, customMembers).grossMarginPercent < 45).length}
-                    </span>
-                  </button>
+                  {/* Segment 2: Financial & Margin Triage */}
+                  <div className="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'high_margin' ? 'all' : 'high_margin')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        everydayQuickFilter === 'high_margin'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Filter high-margin accounts (≥60%)"
+                    >
+                      <span>✨ High Margin</span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300">
+                        {projectsList.filter(p => calculateProjectFinancials(p, customMembers).grossMarginPercent >= 60).length}
+                      </span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'high_margin' ? 'all' : 'high_margin')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      everydayQuickFilter === 'high_margin'
-                        ? 'bg-emerald-500/25 text-emerald-200 font-bold border border-emerald-500/50 shadow-md shadow-emerald-500/20'
-                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
-                    }`}
-                  >
-                    <span>✨ High Margin (≥60%)</span>
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300">
-                      {projectsList.filter(p => calculateProjectFinancials(p, customMembers).grossMarginPercent >= 60).length}
-                    </span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'low_margin' ? 'all' : 'low_margin')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        everydayQuickFilter === 'low_margin'
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Filter low-margin accounts (<45%)"
+                    >
+                      <span>💰 Low Margin</span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300">
+                        {projectsList.filter(p => calculateProjectFinancials(p, customMembers).grossMarginPercent < 45).length}
+                      </span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'at_risk_health' ? 'all' : 'at_risk_health')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      everydayQuickFilter === 'at_risk_health'
-                        ? 'bg-amber-500/25 text-amber-200 font-bold border border-amber-500/50 shadow-md shadow-amber-500/20'
-                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-700/80'
-                    }`}
-                  >
-                    <span>🩺 At-Risk (&lt;65 Health)</span>
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300">
-                      {projectsList.filter(p => computeProjectHealthScore(p).score < 65).length}
-                    </span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setEverydayQuickFilter(everydayQuickFilter === 'scope_creep_risk' ? 'all' : 'scope_creep_risk')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        everydayQuickFilter === 'scope_creep_risk'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Filter accounts exceeding 85% retainer hours"
+                    >
+                      <span>🔥 High Burn</span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300">
+                        {projectsList.filter(p => {
+                          const budget = Math.max(1, p.activeHours || p.totalHours || 1);
+                          const logged = p.actualHoursLogged || 0;
+                          const ratio = logged > 0 ? (logged / budget) : (p.progress / 100);
+                          return ratio >= 0.85;
+                        }).length}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Reset Filter Action */}
+                  {everydayQuickFilter !== 'all' && (
+                    <button
+                      type="button"
+                      onClick={() => setEverydayQuickFilter('all')}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold cursor-pointer transition-all flex items-center gap-1 shrink-0 shadow-sm"
+                    >
+                      <span>✕ Reset Filter</span>
+                    </button>
+                  )}
 
                   <div className="h-4 w-px bg-slate-700 hidden sm:block mx-1" />
 
@@ -4752,35 +4777,63 @@ Due Date: ${proj.paymentDueDate}
                               {quickLeadMenuProjId?.projId === proj.id && quickLeadMenuProjId?.role === 'lead' && (
                                 <div
                                   onClick={(e) => e.stopPropagation()}
-                                  className="absolute left-0 bottom-full mb-2 z-50 rounded-xl shadow-2xl p-2 w-64 border bg-slate-900/95 border-slate-700 backdrop-blur-xl space-y-1 animate-fade-in text-left max-h-56 overflow-y-auto no-scrollbar"
+                                  className="absolute left-0 bottom-full mb-2 z-50 rounded-xl shadow-2xl p-2 w-64 border bg-slate-900/95 border-slate-700 backdrop-blur-xl space-y-1 animate-fade-in text-left max-h-60 overflow-y-auto no-scrollbar"
                                 >
-                                  <div className="text-[9px] font-black text-slate-400 uppercase px-1 pb-1 border-b border-slate-800">Quick Assign Lead</div>
+                                  <div className="text-[9px] font-black text-slate-400 uppercase px-1 pb-1 border-b border-slate-800 flex items-center justify-between">
+                                    <span>Assign Lead Specialist</span>
+                                    <span className="text-cyan-400">By Free Hours</span>
+                                  </div>
+
+                                  {/* Mini search input */}
+                                  <div className="pt-1 pb-0.5">
+                                    <input
+                                      type="text"
+                                      placeholder="Filter specialist..."
+                                      value={reassignSearchQuery}
+                                      onChange={(e) => setReassignSearchQuery(e.target.value)}
+                                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                                      autoFocus
+                                    />
+                                  </div>
+
                                   <button
                                     type="button"
-                                    onClick={() => handleQuickUpdateLead(proj.id, '')}
+                                    onClick={() => {
+                                      handleQuickUpdateLead(proj.id, '');
+                                      setQuickLeadMenuProjId(null);
+                                      setReassignSearchQuery('');
+                                    }}
                                     className="w-full text-left px-2 py-1 rounded-lg text-xs font-semibold hover:bg-slate-800 text-slate-400 italic cursor-pointer"
                                   >
                                     -- Unassigned (Leave Blank) --
                                   </button>
-                                  {customMembers.map((m) => {
-                                    const assigned = calculateMemberAssignedHours(m.id);
-                                    const cap = m.weeklyCapacityHours || 40;
-                                    const pct = Math.round((assigned / cap) * 100);
-                                    const badge = pct >= 100 ? '🔴' : pct >= 85 ? '⚠️' : '✅';
-                                    return (
-                                      <button
-                                        key={m.id}
-                                        type="button"
-                                        onClick={() => handleQuickUpdateLead(proj.id, m.id)}
-                                        className={`w-full text-left px-2 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-between ${
-                                          proj.projectLeadId === m.id ? 'bg-cyan-500/20 text-cyan-300' : 'hover:bg-slate-800 text-slate-300 hover:text-white'
-                                        }`}
-                                      >
-                                        <span className="truncate">{m.name}</span>
-                                        <span className="text-[10px] text-slate-400 font-mono ml-2 shrink-0">{badge} {pct}%</span>
-                                      </button>
-                                    );
-                                  })}
+
+                                  {customMembers
+                                    .filter((m) => !reassignSearchQuery || m.name.toLowerCase().includes(reassignSearchQuery.toLowerCase()) || m.role.toLowerCase().includes(reassignSearchQuery.toLowerCase()))
+                                    .map((m) => {
+                                      const assigned = calculateMemberAssignedHours(m.id);
+                                      const cap = m.weeklyCapacityHours || 40;
+                                      const free = cap - assigned;
+                                      const pct = Math.round((assigned / cap) * 100);
+                                      const badge = pct >= 100 ? '🔴' : pct >= 85 ? '⚠️' : '✅';
+                                      return (
+                                        <button
+                                          key={m.id}
+                                          type="button"
+                                          onClick={() => {
+                                            handleQuickUpdateLead(proj.id, m.id);
+                                            setQuickLeadMenuProjId(null);
+                                            setReassignSearchQuery('');
+                                          }}
+                                          className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-between ${
+                                            proj.projectLeadId === m.id ? 'bg-cyan-500/20 text-cyan-300' : 'hover:bg-slate-800 text-slate-300 hover:text-white'
+                                          }`}
+                                        >
+                                          <span className="truncate">{m.name}</span>
+                                          <span className="text-[10px] text-slate-400 font-mono ml-2 shrink-0">{badge} {free}h free</span>
+                                        </button>
+                                      );
+                                    })}
                                 </div>
                               )}
                             </div>
@@ -4793,6 +4846,7 @@ Due Date: ${proj.paymentDueDate}
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  setReassignSearchQuery('');
                                   setQuickLeadMenuProjId(
                                     quickLeadMenuProjId?.projId === proj.id && quickLeadMenuProjId?.role === 'call'
                                       ? null
@@ -4808,35 +4862,63 @@ Due Date: ${proj.paymentDueDate}
                               {quickLeadMenuProjId?.projId === proj.id && quickLeadMenuProjId?.role === 'call' && (
                                 <div
                                   onClick={(e) => e.stopPropagation()}
-                                  className="absolute left-0 bottom-full mb-2 z-50 rounded-xl shadow-2xl p-2 w-64 border bg-slate-900/95 border-slate-700 backdrop-blur-xl space-y-1 animate-fade-in text-left max-h-56 overflow-y-auto no-scrollbar"
+                                  className="absolute left-0 bottom-full mb-2 z-50 rounded-xl shadow-2xl p-2 w-64 border bg-slate-900/95 border-slate-700 backdrop-blur-xl space-y-1 animate-fade-in text-left max-h-60 overflow-y-auto no-scrollbar"
                                 >
-                                  <div className="text-[9px] font-black text-slate-400 uppercase px-1 pb-1 border-b border-slate-800">Quick Assign Call Lead</div>
+                                  <div className="text-[9px] font-black text-slate-400 uppercase px-1 pb-1 border-b border-slate-800 flex items-center justify-between">
+                                    <span>Assign Call Lead</span>
+                                    <span className="text-purple-400">Client Facing</span>
+                                  </div>
+
+                                  {/* Mini search input */}
+                                  <div className="pt-1 pb-0.5">
+                                    <input
+                                      type="text"
+                                      placeholder="Filter specialist..."
+                                      value={reassignSearchQuery}
+                                      onChange={(e) => setReassignSearchQuery(e.target.value)}
+                                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                                      autoFocus
+                                    />
+                                  </div>
+
                                   <button
                                     type="button"
-                                    onClick={() => handleQuickUpdateCallLead(proj.id, '')}
+                                    onClick={() => {
+                                      handleQuickUpdateCallLead(proj.id, '');
+                                      setQuickLeadMenuProjId(null);
+                                      setReassignSearchQuery('');
+                                    }}
                                     className="w-full text-left px-2 py-1 rounded-lg text-xs font-semibold hover:bg-slate-800 text-slate-400 italic cursor-pointer"
                                   >
                                     -- Unassigned (Leave Blank) --
                                   </button>
-                                  {customMembers.map((m) => {
-                                    const assigned = calculateMemberAssignedHours(m.id);
-                                    const cap = m.weeklyCapacityHours || 40;
-                                    const pct = Math.round((assigned / cap) * 100);
-                                    const badge = pct >= 100 ? '🔴' : pct >= 85 ? '⚠️' : '✅';
-                                    return (
-                                      <button
-                                        key={m.id}
-                                        type="button"
-                                        onClick={() => handleQuickUpdateCallLead(proj.id, m.id)}
-                                        className={`w-full text-left px-2 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-between ${
-                                          proj.clientCallAssigneeId === m.id ? 'bg-purple-500/20 text-purple-300' : 'hover:bg-slate-800 text-slate-300 hover:text-white'
-                                        }`}
-                                      >
-                                        <span className="truncate">{m.name}</span>
-                                        <span className="text-[10px] text-slate-400 font-mono ml-2 shrink-0">{badge} {pct}%</span>
-                                      </button>
-                                    );
-                                  })}
+
+                                  {customMembers
+                                    .filter((m) => !reassignSearchQuery || m.name.toLowerCase().includes(reassignSearchQuery.toLowerCase()) || m.role.toLowerCase().includes(reassignSearchQuery.toLowerCase()))
+                                    .map((m) => {
+                                      const assigned = calculateMemberAssignedHours(m.id);
+                                      const cap = m.weeklyCapacityHours || 40;
+                                      const free = cap - assigned;
+                                      const pct = Math.round((assigned / cap) * 100);
+                                      const badge = pct >= 100 ? '🔴' : pct >= 85 ? '⚠️' : '✅';
+                                      return (
+                                        <button
+                                          key={m.id}
+                                          type="button"
+                                          onClick={() => {
+                                            handleQuickUpdateCallLead(proj.id, m.id);
+                                            setQuickLeadMenuProjId(null);
+                                            setReassignSearchQuery('');
+                                          }}
+                                          className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-between ${
+                                            proj.clientCallAssigneeId === m.id ? 'bg-purple-500/20 text-purple-300' : 'hover:bg-slate-800 text-slate-300 hover:text-white'
+                                          }`}
+                                        >
+                                          <span className="truncate">{m.name}</span>
+                                          <span className="text-[10px] text-slate-400 font-mono ml-2 shrink-0">{badge} {free}h free</span>
+                                        </button>
+                                      );
+                                    })}
                                 </div>
                               )}
                             </div>
@@ -4870,7 +4952,7 @@ Due Date: ${proj.paymentDueDate}
                         </div>
                       </div>
 
-                      {/* Retainer Consumption & Scope Creep Burn Meter */}
+                      {/* Retainer Consumption, Scope Creep & Hour Banking Meter */}
                       {(() => {
                         const budget = Math.max(1, proj.activeHours || proj.totalHours || 1);
                         const logged = proj.actualHoursLogged || 0;
@@ -4878,6 +4960,7 @@ Due Date: ${proj.paymentDueDate}
                         const burnPercent = Math.round(burnRatio * 100);
                         const isScopeCreep = burnPercent >= 100;
                         const isHighBurn = burnPercent >= 85 && burnPercent < 100;
+                        const unusedHours = Math.max(0, budget - logged);
 
                         return (
                           <div className="pt-2.5 pb-1 space-y-1.5 border-t border-slate-800/70 min-w-0 w-full">
@@ -4918,60 +5001,116 @@ Due Date: ${proj.paymentDueDate}
                               />
                             </div>
 
-                            {/* Quick Action: Scope Upsell Draft for High Burn / Over Budget accounts */}
-                            {(isHighBurn || isScopeCreep) && (
-                              <div className="flex items-center justify-between pt-1">
-                                <span className="text-[10px] text-slate-400 italic truncate">
-                                  {isScopeCreep ? 'Free agency labor leaking' : 'Buffer nearly exhausted'}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setScopeUpsellModalProj(proj);
-                                    setCopiedUpsellDraft(false);
-                                  }}
-                                  className="text-[10px] font-bold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 shrink-0"
-                                >
-                                  <span>✉️ Draft Upsell</span>
-                                </button>
+                            {/* Feature 6: Retainer Hour Banking & Rollover Tracker */}
+                            {proj.billingType === 'Monthly Retainer' && !isHighBurn && !isScopeCreep && (
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 font-mono">
+                                {proj.bankedRolloverHours && proj.bankedRolloverHours > 0 ? (
+                                  <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                                    <span>📦 {proj.bankedRolloverHours}h Banked Rollover</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleClearBankedHours(proj.id);
+                                      }}
+                                      className="text-[9px] text-slate-500 hover:text-rose-400 cursor-pointer"
+                                      title="Release banked hours"
+                                    >
+                                      ✕
+                                    </button>
+                                  </span>
+                                ) : unusedHours > 0 ? (
+                                  <div className="flex items-center justify-between w-full">
+                                    <span className="text-slate-400">{unusedHours}h unutilized</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleBankRolloverHours(proj.id, Math.round(unusedHours));
+                                      }}
+                                      className="text-cyan-400 hover:text-cyan-300 font-bold bg-cyan-950/60 hover:bg-cyan-900/60 px-1.5 py-0.5 rounded border border-cyan-800/50 cursor-pointer transition-colors flex items-center gap-1"
+                                      title="Bank unused hours for next billing cycle"
+                                    >
+                                      <span>📦 Bank Rollover</span>
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
+                            )}
+
+                            {/* Unified Manager Action Strip: Consolidated Alert & Quick-Action Tray */}
+                            {(projectFin.paymentHoldActive || isScopeCreep || isHighBurn || projectFin.seniorityMismatch.hasMismatch) && (
+                              <div className="mt-2 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 flex items-center justify-between gap-2 shadow-sm min-w-0">
+                                {/* Left: Consolidated Status Signals */}
+                                <div className="flex items-center gap-2 text-xs font-bold truncate min-w-0">
+                                  {projectFin.paymentHoldActive && (
+                                    <span className="inline-flex items-center gap-1 text-rose-300 font-extrabold shrink-0" title="Retainer payment invoice overdue">
+                                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                                      🛑 Hold
+                                    </span>
+                                  )}
+
+                                  {isScopeCreep ? (
+                                    <span className="text-rose-400 font-extrabold truncate" title="Hours exceed retainer budget">
+                                      🚨 Scope Creep (+{logged > budget ? Math.round(logged - budget) : 0}h)
+                                    </span>
+                                  ) : isHighBurn ? (
+                                    <span className="text-amber-300 font-bold shrink-0" title="Over 85% retainer hours utilized">
+                                      ⚠️ High Burn ({burnPercent}%)
+                                    </span>
+                                  ) : null}
+
+                                  {projectFin.seniorityMismatch.hasMismatch && (
+                                    <span
+                                      className="text-amber-300/90 text-[11px] font-semibold truncate cursor-pointer hover:text-amber-200"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActivePnLProject(proj);
+                                      }}
+                                      title={projectFin.seniorityMismatch.recommendation}
+                                    >
+                                      ⚠️ Seniority Leak (-${projectFin.seniorityMismatch.marginLeakDollars}/mo)
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Right: Instant 1-Click Action Buttons */}
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {projectFin.seniorityMismatch.hasMismatch && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActivePnLProject(proj);
+                                      }}
+                                      className="px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-[10px] font-bold transition-all cursor-pointer"
+                                      title="Open P&L & Staffing Optimizer to swap lead"
+                                    >
+                                      Rebalance ⚡
+                                    </button>
+                                  )}
+
+                                  {(isHighBurn || isScopeCreep) && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setScopeUpsellModalProj(proj);
+                                        setCopiedUpsellDraft(false);
+                                      }}
+                                      className="px-2 py-0.5 rounded-md bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                      title="Draft retainer extension or upsell email"
+                                    >
+                                      <span>Draft Upsell</span>
+                                      <span>✉️</span>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>
                         );
                       })()}
-
-                      {/* Idea 4: Cash-Flow Risk & "Deliverable Hold" Guardrail */}
-                      {projectFin.paymentHoldActive && (
-                        <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-rose-500/15 border border-rose-500/35 flex items-center justify-between gap-2 animate-pulse">
-                          <div className="flex items-center gap-1.5 text-xs text-rose-300 font-bold">
-                            <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-rose-400" />
-                            <span>🛑 Payment Hold: Retainer Invoice Overdue</span>
-                          </div>
-                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 bg-rose-500/25 text-rose-200 rounded">
-                            Pause Sprints
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Idea 2: Seniority Misalignment Warning Chip */}
-                      {projectFin.seniorityMismatch.hasMismatch && (
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActivePnLProject(proj);
-                          }}
-                          className="mt-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-1.5 cursor-pointer hover:bg-amber-500/25 transition-all text-xs text-amber-200"
-                        >
-                          <div className="flex items-center gap-1.5 truncate">
-                            <span className="text-amber-400 text-xs">⚠️</span>
-                            <span className="font-semibold text-[11px] truncate">Seniority Mismatch: {projectFin.seniorityMismatch.recommendation}</span>
-                          </div>
-                          <span className="text-[10px] font-black text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded shrink-0">
-                            Rebalance ⚡
-                          </span>
-                        </div>
-                      )}
 
                       {/* Expandable Pocket Section */}
                       {isExpanded && (
