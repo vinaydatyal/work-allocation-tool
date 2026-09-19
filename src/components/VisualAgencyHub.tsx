@@ -2249,6 +2249,56 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     sonnerToast.success('Call Lead updated successfully');
   };
 
+  // Item 3: 1-Click Quick Toggle Deliverable Completion
+  const handleToggleDeliverableStatus = (projId: string, taskAllocationId: string) => {
+    let taskName = '';
+    let releasedHours = 0;
+    let becameDone = false;
+
+    setProjectsList((prev) =>
+      prev.map((p) => {
+        if (p.id !== projId) return p;
+        const updatedBreakdown = (p.taskBreakdown || []).map((tb) => {
+          if (tb.id !== taskAllocationId) return tb;
+          taskName = tb.taskType;
+          releasedHours = tb.hours || 0;
+          const isCurrentlyDone =
+            (tb.clickUpStatus || tb.status || '').toLowerCase().includes('done') ||
+            (tb.clickUpStatus || tb.status || '').toLowerCase().includes('complete') ||
+            (tb.clickUpStatus || tb.status || '').toLowerCase().includes('closed');
+
+          becameDone = !isCurrentlyDone;
+          const nextStatus = becameDone ? 'completed' : 'in progress';
+          return {
+            ...tb,
+            status: nextStatus,
+            clickUpStatus: nextStatus
+          };
+        });
+
+        // Recalculate completed milestones count if on milestone billing
+        const completedCount = updatedBreakdown.filter((tb) => {
+          const s = (tb.clickUpStatus || tb.status || '').toLowerCase();
+          return s.includes('done') || s.includes('complete') || s.includes('closed');
+        }).length;
+
+        return {
+          ...p,
+          taskBreakdown: updatedBreakdown,
+          milestonesCompleted: p.billingType === 'Milestone Delivery' ? completedCount : p.milestonesCompleted
+        };
+      })
+    );
+
+    if (becameDone) {
+      sonnerToast.success(`✓ "${taskName}" marked as completed`, {
+        description: releasedHours > 0 ? `${releasedHours}h freed up in sprint bandwidth` : undefined
+      });
+    } else {
+      sonnerToast.info(`Reverted "${taskName}" back to active sprint`);
+    }
+  };
+
   const handleSaveInlinePrice = (projId: string) => {
     if (!inlinePriceValue.trim()) {
       setInlineEditingPriceId(null);
@@ -5590,6 +5640,18 @@ Due Date: ${proj.paymentDueDate}
                                         key={tb.id}
                                         className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 hover:border-cyan-500/40 text-xs font-medium transition-all max-w-full min-w-0"
                                       >
+                                        {/* 1-Click Quick Done Checkbox */}
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleDeliverableStatus(proj.id, tb.id);
+                                          }}
+                                          className="w-3.5 h-3.5 rounded border border-slate-600 hover:border-emerald-400 bg-slate-950/80 hover:bg-emerald-500/20 flex items-center justify-center text-[9px] text-slate-500 hover:text-emerald-300 transition-colors cursor-pointer shrink-0"
+                                          title="Click to mark deliverable as completed"
+                                        >
+                                          ✓
+                                        </button>
                                         <span className="text-cyan-300 font-bold truncate max-w-[120px] sm:max-w-[160px]">{tb.taskType}</span>
                                         {tb.clickUpUrl && (
                                           <a
@@ -5653,9 +5715,20 @@ Due Date: ${proj.paymentDueDate}
                                         return (
                                           <span
                                             key={tb.id}
-                                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-900/50 border border-slate-800 text-xs font-medium text-slate-400 max-w-full min-w-0"
+                                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-900/50 border border-slate-800 text-xs font-medium text-slate-400 max-w-full min-w-0 group/done"
                                           >
-                                            <span className="text-emerald-400 font-bold">✓</span>
+                                            {/* Revert to Active Checkbox */}
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleDeliverableStatus(proj.id, tb.id);
+                                              }}
+                                              className="w-3.5 h-3.5 rounded border border-emerald-500/60 bg-emerald-500/20 hover:border-amber-400 hover:bg-amber-500/20 flex items-center justify-center text-[9px] text-emerald-400 hover:text-amber-300 transition-colors cursor-pointer shrink-0"
+                                              title="Click to reopen / mark as in progress"
+                                            >
+                                              ✓
+                                            </button>
                                             <span className="truncate max-w-[120px] line-through">{tb.taskType}</span>
                                             {assignee && (
                                               <span className="text-[10px] text-slate-500 font-mono">({assignee.name.split(' ')[0]})</span>

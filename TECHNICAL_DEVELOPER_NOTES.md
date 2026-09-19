@@ -794,3 +794,11 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Squad Lead and Call Lead preview slots on each project card act as drag-and-drop drop targets with active pulsing border highlights (`ring-2 ring-cyan-400` / `ring-2 ring-purple-400`).
       - Managers can simply drag any specialist avatar or card onto a project card to instantly reassign Squad Lead or Call Lead without clicking through dropdowns.
       - In Spotlight mode, project cards where the spotlighted specialist is not yet assigned surface 1-click **`+ Lead`** and **`+ Calls`** quick-swap chips for instantaneous single-tap role assignment.
+
+  31. **Instant 1-Click Pocket Deliverable Completion Toggle**:
+    - **1-Click Done Checkbox (`VisualAgencyHub.tsx`)**:
+      - Added `handleToggleDeliverableStatus(projId, taskAllocationId)` to toggle deliverable completion directly from the project card without opening ClickUp or editing the account.
+      - In-flight active deliverables feature an inline checkmark button (`✓`) that instantly moves the deliverable to completed status and triggers an immediate celebratory toast showing freed bandwidth hours (`+Xh freed up in sprint bandwidth`).
+      - On milestone delivery projects, automatically updates `milestonesCompleted` count in real-time.
+      - Completed items in the collapsible drawer feature a checked emerald button (`✓`) allowing managers to reopen or revert a task back to active in a single tap.
+
