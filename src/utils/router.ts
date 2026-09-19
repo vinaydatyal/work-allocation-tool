@@ -20,6 +20,8 @@ export type AppRoute =
   | 'roster'
   | 'matrix'
   | 'hiring'
+  | 'sla'
+  | 'radar'
   | 'member'
   | 'unknown';
 
@@ -49,6 +51,8 @@ const ROUTE_MAP: Record<string, AppRoute> = {
   'hiring': 'matrix',
   'skill-gap': 'matrix',
   'skills-matrix': 'matrix',
+  'sla': 'sla',
+  'radar': 'sla',
   'wizard': 'wizard',
   'testing': 'testing',
   'macro': 'macro',

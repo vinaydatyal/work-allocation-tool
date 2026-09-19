@@ -17,7 +17,9 @@ import {
   Plus,
   X,
   ShieldCheck,
-  BarChart3
+  BarChart3,
+  Flame,
+  RefreshCw
 } from 'lucide-react';
 
 interface MondayAllocationWarRoomProps {
@@ -28,6 +30,7 @@ interface MondayAllocationWarRoomProps {
   onUpdateTaskStatus?: (taskId: string, newStatus: TaskStatus) => void;
   isWhiteTheme?: boolean;
   projects?: ActiveProjectItem[];
+  onOpenBatchSync?: () => void;
 }
 
 export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = ({
@@ -37,7 +40,8 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
   onAddTask,
   onUpdateTaskStatus,
   isWhiteTheme: _isWhiteTheme = false,
-  projects: _projects = []
+  projects: _projects = [],
+  onOpenBatchSync
 }) => {
   const [selectedDept, setSelectedDept] = useState<string>('all');
   const [taskFilterSkill, setTaskFilterSkill] = useState<string>('all');
@@ -60,6 +64,19 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
         teamMembers.every((m) => m.id !== t.assignedUserId)
     );
   }, [tasks, teamMembers]);
+
+  // Derive count of deliverables with impending SLA risk (<48h)
+  const atRiskCount = useMemo(() => {
+    const now = Date.now();
+    return tasks.filter((t) => {
+      if (t.status === 'completed') return false;
+      const due = t.dueDate ? new Date(t.dueDate).getTime() : now + 24 * 3600000;
+      const diffHours = (due - now) / 3600000;
+      const est = Number(t.estimatedHours) || 1;
+      const log = Number(t.actualHoursLogged) || 0;
+      return diffHours <= 48 && (log / est) < 0.5;
+    }).length;
+  }, [tasks]);
 
   // Aggregate Agency Capacity Metrics
   const totalCapacityHours = useMemo(() => {
@@ -339,6 +356,37 @@ export const MondayAllocationWarRoom: React.FC<MondayAllocationWarRoomProps> = (
             <BarChart3 className="w-3.5 h-3.5 text-purple-400" />
             <span>Skill Matrix</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/sla')}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              atRiskCount > 0
+                ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 shadow-sm'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+            }`}
+            title="Open Deliverable Deadline & SLA Risk Radar"
+          >
+            <Flame className={`w-3.5 h-3.5 ${atRiskCount > 0 ? 'text-rose-400' : 'text-slate-400'}`} />
+            <span>SLA Radar</span>
+            {atRiskCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-[10px] text-white font-black">
+                {atRiskCount}
+              </span>
+            )}
+          </button>
+
+          {onOpenBatchSync && (
+            <button
+              type="button"
+              onClick={onOpenBatchSync}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all cursor-pointer"
+              title="1-Click Batch Sync All ClickUp Tasks"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-blue-400" />
+              <span>Sync ClickUp</span>
+            </button>
+          )}
 
           <button
             type="button"

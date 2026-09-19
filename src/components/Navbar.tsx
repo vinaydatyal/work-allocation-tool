@@ -19,7 +19,9 @@ import {
   CalendarCheck,
   Sun,
   Moon,
-  Zap
+  Zap,
+  Flame,
+  RefreshCw
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -33,6 +35,8 @@ interface NavbarProps {
   onSwitchProfile: (profile: AppUserProfile) => void;
   isWhiteTheme?: boolean;
   onToggleTheme?: () => void;
+  onOpenBatchSync?: () => void;
+  slaRiskCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -45,7 +49,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   allProfiles,
   onSwitchProfile,
   isWhiteTheme,
-  onToggleTheme
+  onToggleTheme,
+  onOpenBatchSync,
+  slaRiskCount = 0
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
@@ -367,6 +373,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             })}
           </div>
 
+          {/* SLA Risk Alert Badge */}
+          {slaRiskCount > 0 && (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.1, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/sla')}
+              className="px-2.5 py-1 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-black flex items-center gap-1.5 shadow-sm shadow-rose-500/20 cursor-pointer"
+              title={`${slaRiskCount} Deliverables at Risk of SLA Breach! Click to view.`}
+            >
+              <Flame className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+              <span>{slaRiskCount} SLA Risk</span>
+            </motion.button>
+          )}
+
           {/* SECTION 3: DIVIDER */}
           <div 
             className="h-6 w-px mx-1"
@@ -375,18 +396,42 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* SECTION 4: ACTIONS & UTILITIES */}
           <div className="flex items-center gap-1">
+            {/* 1-Click Agency Batch Sync Button */}
+            {onOpenBatchSync && (
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.15, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onOpenBatchSync}
+                className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                  isWhiteTheme
+                    ? 'border-slate-200 hover:bg-slate-100 text-blue-600'
+                    : 'border-slate-800 hover:bg-slate-800 text-blue-400'
+                }`}
+                title="1-Click Batch Sync All ClickUp Tasks Across Agency"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </motion.button>
+            )}
+
             {/* ClickUp Sync Trigger */}
             <motion.button
               type="button"
               whileHover={{ scale: 1.15, y: -2 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setShowClickUpModal(true)}
+              onClick={() => {
+                if (onOpenBatchSync) {
+                  onOpenBatchSync();
+                } else {
+                  setShowClickUpModal(true);
+                }
+              }}
               className={`relative p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
                 clickupConnected
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
                   : 'bg-purple-900/30 border-purple-500/30 text-purple-300 hover:border-purple-400/50'
               }`}
-              title={clickupConnected ? `ClickUp Connected (${clickupUser || 'Synced'})` : 'Connect ClickUp'}
+              title={clickupConnected ? `ClickUp Connected (${clickupUser || 'Synced'}) - Click to Batch Sync` : 'Connect & Sync ClickUp'}
             >
               <div className={`w-4 h-4 rounded text-[10px] font-black text-white flex items-center justify-center ${
                 clickupConnected ? 'bg-emerald-600' : 'bg-gradient-to-br from-purple-600 to-pink-600'

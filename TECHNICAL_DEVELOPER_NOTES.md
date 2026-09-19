@@ -676,5 +676,38 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Highlights sales surplus headroom indicating how many new client accounts can be pitched in high-margin domains.
       - Surfaces candidate upskilling pathways to cross-train internal specialists to bridge gaps before hiring.
       - Direct routing added to `AppRoute`, `ROUTE_MAP`, Command Palette (`Ctrl + K`), and header navigation in the Monday War-Room.
+  26. **Deliverable Deadline & SLA Risk Radar and 1-Click ClickUp Bi-Directional Batch Sync**:
+    - **Deliverable Deadline & SLA Risk Radar (`/sla`, `/radar`)**:
+      - Implemented `src/components/SlaRiskRadarModal.tsx` as an operational watchdog monitoring all client deliverables for impending due-date breaches.
+      - **Predictive Risk Algorithm**:
+        - Calculates `hoursRemaining = (dueDate - now) / 3600000` and `progressPercent = (logged / estimated) * 100`.
+        - Categorizes tasks into 🔴 **Critical Breach Risk** (`<24h` remaining with `<40%` logged or past due), 🟡 **High Risk** (`<48h` with `<50%` logged), 🟠 **Moderate Risk** (`<72h` with `<20%` logged), and 🟢 **Safe**.
+      - **Interactive Triage Center**:
+        - Summary KPI metrics for critical breaches, high-risk delays, total hours at risk, and deliverables on pace.
+        - Risk filtering (`All At-Risk`, `Critical`, `High Risk`) with visual countdown timer badges (`🚨 PAST DUE`, `⏳ Due in 14h`, `⚠️ Due in 2 days`).
+      - **⚡ 1-Click Rescue Reassignment**:
+        - Algorithmic matching identifies specialists with matching domain skills, high speed ratings, and free weekly capacity.
+        - 1-click reassigns deliverable to rescue specialist with instant capacity update and celebratory Sonner notification.
+      - **1-Click Slack/Client Escalation Draft**:
+        - Auto-generates structured Slack or client SLA alerts ready for clipboard copying.
+      - **Universal Access & Alert Badging**:
+        - Live animated flame indicator on Navbar displaying real-time count of SLA-threatened deliverables (`🔥 X SLA Risk`).
+        - Header button in Monday Allocation War-Room with live badge count.
+        - Command Palette item (`nav-sla-radar`).
+    - **1-Click Full Agency ClickUp Bi-Directional Batch Sync**:
+      - Implemented `src/components/ClickUpBatchSyncModal.tsx` providing agency-wide sprint synchronization.
+      - **Batched Execution Engine**:
+        - Sweeps all deliverables across active agency projects in batches of 3 to prevent API rate-limit throttling.
+        - Interfaces with `fetchClickUpTask(token, taskId)` when OAuth token is present, mapping ClickUp statuses (`closed`, `in progress`, `review`) to local statuses.
+        - Features high-fidelity offline/demo simulation for frictionless development and workspace previews.
+      - **Interactive Sync Audit Dialog**:
+        - Live animated progress bar (`0% -> 100%`) with item-by-item activity stream.
+        - Audit cards displaying total status updates applied, specialist capacity hours restored from completed deliverables, and ClickUp API health.
+        - Applied transitions diff list highlighting old vs. new statuses.
+      - **Trigger Points**:
+        - Dedicated `RefreshCw` quick sync icon and ClickUp pill button in the top Navbar.
+        - "Sync ClickUp" action button in the Monday Allocation War-Room header.
+        - Universal Command Palette shortcut (`action-sync-all-clickup`).
+
 
 

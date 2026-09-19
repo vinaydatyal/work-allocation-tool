@@ -20,7 +20,9 @@ import {
   Keyboard,
   Briefcase,
   ChevronRight,
-  Zap
+  Zap,
+  Flame,
+  RefreshCw
 } from 'lucide-react';
 
 export interface CommandPaletteModalProps {
@@ -33,6 +35,7 @@ export interface CommandPaletteModalProps {
   onToggleTheme: () => void;
   onOpenShortcutsGuide: () => void;
   onTriggerAddProject: () => void;
+  onTriggerBatchSync?: () => void;
 }
 
 interface CommandItem {
@@ -54,7 +57,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   isWhiteTheme,
   onToggleTheme,
   onOpenShortcutsGuide,
-  onTriggerAddProject
+  onTriggerAddProject,
+  onTriggerBatchSync
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -204,11 +208,33 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
           navigate('/matrix');
           onClose();
         }
+      },
+      {
+        id: 'nav-sla-radar',
+        title: 'Go to SLA Risk Radar',
+        category: 'Navigation',
+        subtitle: 'Watchdog for impending deadlines (<48h) & 1-click rescue',
+        icon: Flame,
+        action: () => {
+          navigate('/sla');
+          onClose();
+        }
       }
     );
 
     // Quick Actions
     items.push(
+      {
+        id: 'action-sync-all-clickup',
+        title: 'Sync All ClickUp Deliverables (Batch)',
+        category: 'Quick Actions',
+        subtitle: 'Fetch live remote task statuses and reconcile specialist hours',
+        icon: RefreshCw,
+        action: () => {
+          onClose();
+          if (onTriggerBatchSync) onTriggerBatchSync();
+        }
+      },
       {
         id: 'action-add-project',
         title: 'Create New Project',

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ToastProvider, QuickFAB, KeyboardShortcutsModal } from './components/TopTierUI';
 import { Navbar } from './components/Navbar';
@@ -14,6 +14,8 @@ import { TeamRosterStudio } from './components/TeamRosterStudio';
 import { MondayAllocationWarRoom } from './components/MondayAllocationWarRoom';
 import { SkillGapHiringMatrix } from './components/SkillGapHiringMatrix';
 import { SkillEvaluationCenter } from './components/SkillEvaluationCenter';
+import { SlaRiskRadar } from './components/SlaRiskRadarModal';
+import { ClickUpBatchSyncModal } from './components/ClickUpBatchSyncModal';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { initialTeamMembers, initialTasks } from './data/mockData';
 import { appUserProfiles } from './data/userProfiles';
@@ -35,7 +37,21 @@ export function App() {
   const [isWhiteTheme, setIsWhiteTheme] = useState<boolean>(true);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
+  const [showBatchSyncModal, setShowBatchSyncModal] = useState<boolean>(false);
   const [triggerAddProjectModal, setTriggerAddProjectModal] = useState<boolean>(false);
+
+  // Compute live count of deliverables with impending SLA risk (<48h)
+  const slaRiskCount = useMemo(() => {
+    const now = Date.now();
+    return tasks.filter((t) => {
+      if (t.status === 'completed') return false;
+      const due = t.dueDate ? new Date(t.dueDate).getTime() : now + 24 * 3600000;
+      const diffHours = (due - now) / 3600000;
+      const est = Number(t.estimatedHours) || 1;
+      const log = Number(t.actualHoursLogged) || 0;
+      return diffHours <= 48 && (log / est) < 0.5;
+    }).length;
+  }, [tasks]);
 
   const handleNavigateTab = (tab: string) => {
     navigate('/' + tab);
@@ -283,6 +299,8 @@ export function App() {
           onSwitchProfile={setCurrentProfile}
           isWhiteTheme={isWhiteTheme}
           onToggleTheme={() => setIsWhiteTheme(!isWhiteTheme)}
+          onOpenBatchSync={() => setShowBatchSyncModal(true)}
+          slaRiskCount={slaRiskCount}
         />
 
         <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
@@ -362,6 +380,7 @@ export function App() {
                     onAddTask={handleAddTask}
                     onUpdateTaskStatus={handleUpdateTaskStatus}
                     isWhiteTheme={isWhiteTheme}
+                    onOpenBatchSync={() => setShowBatchSyncModal(true)}
                   />
                 )}
 
@@ -424,6 +443,14 @@ export function App() {
                     isWhiteTheme={isWhiteTheme}
                   />
                 )}
+
+                {(activeTab === 'sla' || activeTab === 'radar') && (
+                  <SlaRiskRadar
+                    tasks={tasks}
+                    teamMembers={teamMembers}
+                    onReassignTask={handleDispatchTask}
+                  />
+                )}
                   </>
                 )}
               </motion.div>
@@ -468,6 +495,15 @@ export function App() {
           handleNavigateTab('projects');
           setTriggerAddProjectModal(true);
         }}
+        onTriggerBatchSync={() => setShowBatchSyncModal(true)}
+      />
+
+      {/* 1-Click Full Agency ClickUp Bi-Directional Batch Sync Modal */}
+      <ClickUpBatchSyncModal
+        isOpen={showBatchSyncModal}
+        onClose={() => setShowBatchSyncModal(false)}
+        tasks={tasks}
+        onUpdateTasks={(updated) => setTasks(updated)}
       />
     </ToastProvider>
   );
