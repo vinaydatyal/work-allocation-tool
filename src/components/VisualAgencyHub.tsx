@@ -56,7 +56,8 @@ import {
   List,
   Building2,
   Tag,
-  User
+  User,
+  StickyNote
 } from 'lucide-react';
 import { ClickUpOAuthModal } from './ClickUpOAuthModal';
 import { ClickUpTaskActivityModal } from './ClickUpTaskActivityModal';
@@ -207,6 +208,8 @@ export interface ActiveProjectItem {
   weeklyHoursOffPage?: number;
   weeklyHoursOnPage?: number;
   weeklyHoursTech?: number;
+  quickMemo?: string;
+  quickMemoUpdatedAt?: string;
 }
 
 export interface ArchivedProjectItem extends ActiveProjectItem {
@@ -2215,6 +2218,48 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   const [quickStatusMenuProjId, setQuickStatusMenuProjId] = useState<string | null>(null);
   const [quickLeadMenuProjId, setQuickLeadMenuProjId] = useState<{ projId: string; role: 'lead' | 'call' } | null>(null);
 
+  // State: 1-Click Quick Memo on Project Cards (Feature 3)
+  const [editingMemoProjId, setEditingMemoProjId] = useState<string | null>(null);
+  const [memoInputText, setMemoInputText] = useState<string>('');
+
+  // Handlers: Quick Memo with Date and Time
+  const handleSaveQuickMemo = (projId: string, text: string) => {
+    const trimmed = text.trim();
+    const now = new Date();
+    const datePart = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const timePart = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const timestamp = `${datePart}, ${timePart}`;
+
+    setProjectsList((prev) =>
+      prev.map((p) => {
+        if (p.id !== projId) return p;
+        if (!trimmed) {
+          const { quickMemo, quickMemoUpdatedAt, ...rest } = p;
+          return rest as ActiveProjectItem;
+        }
+        return {
+          ...p,
+          quickMemo: trimmed,
+          quickMemoUpdatedAt: timestamp
+        };
+      })
+    );
+    setEditingMemoProjId(null);
+    setMemoInputText('');
+    sonnerToast.success(trimmed ? '📝 Quick memo saved' : 'Memo cleared');
+  };
+
+  const handleClearQuickMemo = (projId: string) => {
+    setProjectsList((prev) =>
+      prev.map((p) => {
+        if (p.id !== projId) return p;
+        const { quickMemo, quickMemoUpdatedAt, ...rest } = p;
+        return rest as ActiveProjectItem;
+      })
+    );
+    sonnerToast.success('Memo removed');
+  };
+
   // In-line Edit Handlers
   const handleQuickUpdateStatus = (projId: string, newStatus: ActiveProjectItem['status']) => {
     setProjectsList((prev) =>
@@ -2820,6 +2865,7 @@ Due Date: ${proj.paymentDueDate}
         (proj.taskContent && proj.taskContent.toLowerCase().includes(q)) ||
         (proj.communicationChannel && proj.communicationChannel.toLowerCase().includes(q)) ||
         (proj.billingAccount && proj.billingAccount.toLowerCase().includes(q)) ||
+        (proj.quickMemo && proj.quickMemo.toLowerCase().includes(q)) ||
         proj.serviceLabels?.some((lbl) => lbl.toLowerCase().includes(q));
       if (!match) return false;
     }
@@ -4582,13 +4628,35 @@ Due Date: ${proj.paymentDueDate}
                               )}
                             </div>
                             <div className="text-[11px] font-semibold text-slate-300 mt-0.5">{proj.client}</div>
+                            {proj.quickMemo && (
+                              <div className="text-[11px] text-amber-300/90 font-medium flex items-center gap-1 mt-1 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md max-w-fit" title={`Memo: ${proj.quickMemo} (${proj.quickMemoUpdatedAt || ''})`}>
+                                <StickyNote className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                                <span className="truncate max-w-[220px]">{proj.quickMemo}</span>
+                              </div>
+                            )}
                           </td>
                           <td className="py-4 px-5" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
                               <div className="font-bold text-emerald-300 text-sm">{proj.price}</div>
                               <YieldGauge amount={proj.paymentAmountNumeric || 0} hours={proj.activeHours || proj.totalHours || 1} showLabel={false} />
                             </div>
-                            <div className="text-[11px] font-medium text-slate-300 mt-0.5">{proj.billingType}</div>
+                            <div className="text-[11px] font-medium text-slate-300 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                              <span>{proj.billingType}</span>
+                              {(() => {
+                                const b = Math.max(1, proj.activeHours || proj.totalHours || 1);
+                                const l = proj.actualHoursLogged || 0;
+                                if (l > b) {
+                                  const over = Math.round((l - b) * 10) / 10;
+                                  return (
+                                    <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[9px] font-black uppercase flex items-center gap-1">
+                                      <span className="w-1 h-1 rounded-full bg-rose-400 animate-ping" />
+                                      +{over}h over
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
                           </td>
                           <td className="py-4 px-5" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
@@ -4959,6 +5027,95 @@ Due Date: ${proj.paymentDueDate}
                         )}
                       </div>
 
+                      {/* Feature 3: 1-Click "Quick Memo" on Project Cards (with date and time) */}
+                      <div className="w-full mt-1" onClick={(e) => e.stopPropagation()}>
+                        {editingMemoProjId === proj.id ? (
+                          <div className="flex items-center gap-1.5 bg-slate-900/95 border border-amber-500/60 p-1.5 rounded-xl shadow-xl animate-fade-in">
+                            <StickyNote className="w-3.5 h-3.5 text-amber-400 shrink-0 ml-1" />
+                            <input
+                              type="text"
+                              value={memoInputText}
+                              onChange={(e) => setMemoInputText(e.target.value)}
+                              placeholder="Type memo (e.g., Client wants review Thursday, waiting on assets)..."
+                              className="flex-1 bg-transparent text-xs text-amber-100 placeholder:text-slate-500 focus:outline-none font-medium px-1"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveQuickMemo(proj.id, memoInputText);
+                                if (e.key === 'Escape') setEditingMemoProjId(null);
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveQuickMemo(proj.id, memoInputText)}
+                              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer shadow-sm transition-all"
+                              title="Save memo (Enter)"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingMemoProjId(null)}
+                              className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs cursor-pointer transition-all"
+                              title="Cancel (Esc)"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : proj.quickMemo ? (
+                          <div className="group/memo flex items-start justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 text-amber-200/90 text-xs transition-all shadow-sm">
+                            <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                              <StickyNote className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-amber-100 text-xs leading-relaxed break-words">
+                                  {proj.quickMemo}
+                                </p>
+                                {proj.quickMemoUpdatedAt && (
+                                  <span className="text-[10px] text-amber-400/70 font-mono block mt-0.5">
+                                    🕒 {proj.quickMemoUpdatedAt}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 opacity-80 group-hover/memo:opacity-100 transition-opacity shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingMemoProjId(proj.id);
+                                  setMemoInputText(proj.quickMemo || '');
+                                }}
+                                className="p-1 rounded hover:bg-amber-500/20 text-amber-300 hover:text-white transition-colors cursor-pointer"
+                                title="Edit Memo"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleClearQuickMemo(proj.id)}
+                                className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 transition-colors cursor-pointer"
+                                title="Clear Memo"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingMemoProjId(proj.id);
+                                setMemoInputText('');
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30 transition-all cursor-pointer group/addmemo"
+                              title="Add a 1-click quick memo with timestamp"
+                            >
+                              <StickyNote className="w-3 h-3 text-slate-500 group-hover/addmemo:text-amber-400 transition-colors" />
+                              <span>+ Memo</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
                       {/* AI Smart Health & Diagnostic Capsule (Appears when Smart Mode is active) */}
                       {smartMode && (
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-slate-900/80 border border-indigo-500/20 text-xs font-semibold animate-fade-in">
@@ -5324,27 +5481,48 @@ Due Date: ${proj.paymentDueDate}
                         const logged = proj.actualHoursLogged || 0;
                         const burnRatio = logged > 0 ? (logged / budget) : (proj.progress / 100);
                         const burnPercent = Math.round(burnRatio * 100);
-                        const isScopeCreep = burnPercent >= 100;
-                        const isHighBurn = burnPercent >= 85 && burnPercent < 100;
+                        const isScopeCreep = logged > budget || burnPercent >= 100;
+                        const isHighBurn = !isScopeCreep && burnPercent >= 85;
                         const unusedHours = Math.max(0, budget - logged);
+
+                        // Feature 5: Precise Retainer Overage Indicator (+Xh over scope)
+                        const overageHours = logged > budget
+                          ? Math.round((logged - budget) * 10) / 10
+                          : burnPercent > 100
+                          ? Math.round(((burnPercent - 100) / 100) * budget * 10) / 10
+                          : 0;
+
+                        const effectiveRate = (proj.paymentAmountNumeric || 0) > 0 && budget > 0
+                          ? Math.round((proj.paymentAmountNumeric || 0) / budget)
+                          : 85;
+                        const unbilledDollars = Math.round(overageHours * effectiveRate);
 
                         return (
                           <div className="pt-2.5 pb-1 space-y-1.5 border-t border-slate-800/70 min-w-0 w-full">
                             <div className="flex items-center justify-between text-[11px]">
                               <span className="text-slate-400 font-semibold flex items-center gap-1">
                                 <span>Retainer Burn:</span>
-                                <strong className={isScopeCreep ? 'text-rose-400 font-mono' : isHighBurn ? 'text-amber-400 font-mono' : 'text-slate-200 font-mono'}>
+                                <strong className={isScopeCreep ? 'text-rose-400 font-mono font-bold' : isHighBurn ? 'text-amber-400 font-mono font-bold' : 'text-slate-200 font-mono'}>
                                   {logged > 0 ? `${logged}h / ${budget}h` : `${burnPercent}%`}
                                 </strong>
                               </span>
 
                               {isScopeCreep ? (
-                                <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[9px] font-black uppercase flex items-center gap-1 animate-pulse">
-                                  🚨 Scope Creep (+{logged > budget ? Math.round(logged - budget) : 0}h)
+                                <span className="px-2 py-0.5 rounded-lg bg-rose-500/25 text-rose-300 border border-rose-500/50 text-[10px] font-black uppercase flex items-center gap-1.5 shadow-sm">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
+                                  <span>+{overageHours}h over scope</span>
+                                  {unbilledDollars > 0 && (
+                                    <span className="text-rose-400/90 font-mono font-bold lowercase text-[9px] hidden sm:inline-block">
+                                      (~${unbilledDollars} unbilled)
+                                    </span>
+                                  )}
                                 </span>
                               ) : isHighBurn ? (
-                                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-black uppercase flex items-center gap-1">
-                                  ⚠️ High Burn (85%+)
+                                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black uppercase flex items-center gap-1">
+                                  <span>⚠️ High Burn ({burnPercent}%)</span>
+                                  <span className="text-amber-200/90 font-mono text-[9px] font-bold">
+                                    ({unusedHours.toFixed(1)}h left)
+                                  </span>
                                 </span>
                               ) : (
                                 <span className="text-[10px] text-slate-500 font-mono">
@@ -5354,13 +5532,13 @@ Due Date: ${proj.paymentDueDate}
                             </div>
 
                             {/* Meter Bar */}
-                            <div className="w-full h-1.5 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
+                            <div className="w-full h-2 rounded-full bg-slate-950 border border-slate-800 overflow-hidden relative">
                               <div
                                 className={`h-full rounded-full transition-all duration-300 ${
                                   isScopeCreep
-                                    ? 'bg-rose-500'
+                                    ? 'bg-gradient-to-r from-rose-500 via-rose-600 to-amber-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]'
                                     : isHighBurn
-                                    ? 'bg-amber-400'
+                                    ? 'bg-gradient-to-r from-amber-500 to-amber-400'
                                     : 'bg-emerald-400'
                                 }`}
                                 style={{ width: `${Math.min(100, burnPercent)}%` }}
@@ -5417,8 +5595,14 @@ Due Date: ${proj.paymentDueDate}
                                   )}
 
                                   {isScopeCreep ? (
-                                    <span className="text-rose-400 font-extrabold truncate" title="Hours exceed retainer budget">
-                                      🚨 Scope Creep (+{logged > budget ? Math.round(logged - budget) : 0}h)
+                                    <span className="text-rose-400 font-extrabold truncate flex items-center gap-1" title={`Hours exceed retainer budget (+${overageHours}h)`}>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+                                      <span>🚨 +{overageHours}h over scope</span>
+                                      {unbilledDollars > 0 && (
+                                        <span className="text-rose-300/80 font-mono font-normal text-[10px] hidden sm:inline">
+                                          (~${unbilledDollars})
+                                        </span>
+                                      )}
                                     </span>
                                   ) : isHighBurn ? (
                                     <span className="text-amber-300 font-bold shrink-0" title="Over 85% retainer hours utilized">

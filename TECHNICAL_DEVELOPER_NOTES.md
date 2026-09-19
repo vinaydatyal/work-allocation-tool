@@ -833,4 +833,24 @@ Agencies frequently maintain their complete client roster inside a specific Clic
          - Search query parameter preservation.
     - Test execution speed: **22/22 tests passing in 265ms**.
 
+  34. **1-Click Quick Memo on Project Cards & Precise Retainer Overage Indicator**:
+    - **1-Click "Quick Memo" on Project Cards (with Date & Time)**:
+      - Added `quickMemo?: string` and `quickMemoUpdatedAt?: string` to `ActiveProjectItem`.
+      - Implemented inline 1-click memo editor directly below project cards' title rows in `VisualAgencyHub.tsx` with `editingMemoProjId` and `memoInputText` state.
+      - Auto-timestamps notes upon save: `e.g. Sep 20, 2:37 AM`.
+      - Sleek amber badge display (`📝 [memo] · 🕒 [timestamp]`) with inline edit pencil and clear (`✕`) button.
+      - Integrated into universal search query filter so managers can search projects by memo contents.
+      - Added compact memo indicator badge to Compact Table view.
+    - **Precise Retainer Overage Indicator (+Xh over scope)**:
+      - Upgraded Retainer Burn Meter in `VisualAgencyHub.tsx` to compute exact overage hours: `overageHours = logged > budget ? Math.round((logged - budget) * 10) / 10 : ...`.
+      - Computes unbilled revenue value based on effective retainer hourly rate (or $85/h agency fallback): `unbilledDollars = Math.round(overageHours * effectiveRate)`.
+      - Replaced generic scope creep pill with high-contrast alert badge: `+{overageHours}h over scope (~$X unbilled)` with pulsing indicator.
+      - High Burn state (85%–99%) now displays exact remaining bandwidth hours: `⚠️ High Burn (X%) (Y.Yh left)`.
+      - Meter bar applies vibrant overage gradient glow: `bg-gradient-to-r from-rose-500 via-rose-600 to-amber-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]`.
+      - Synchronized with the Unified Manager Action Strip to display `🚨 +{overageHours}h over scope (~$X)`.
+      - Added `+{over}h over` indicator in Compact Table view.
+    - **Vitest Unit Test Suite Expansion (`tests/retainerAndMemo.test.ts`)**:
+      - Added 6 automated unit tests validating overage hours calculations, unbilled dollar computation, healthy/high burn boundary conditions, and quick memo timestamping/clearing.
+      - Full test suite now features **28/28 tests passing in ~280ms**.
+
 
