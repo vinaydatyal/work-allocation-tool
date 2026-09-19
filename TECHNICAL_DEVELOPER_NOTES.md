@@ -876,4 +876,22 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Expanded `tests/retainerAndMemo.test.ts` with 4 new tests covering deliverable due calculation, overdue math, near-term alert thresholds, and specialist squad re-allocation.
       - Total test suite now stands at **32/32 tests passing across 6 test suites in ~300ms**.
 
+  36. **Daily "Morning Huddle" Command Drawer & Comprehensive Attention Analysis**:
+    - **Feature 3: Daily Morning Huddle Command & Attention Engine (`src/utils/projectFinancials.ts` & `VisualAgencyHub.tsx`)**:
+      - Created `checkProjectNeedsAttention` in `src/utils/projectFinancials.ts` returning `{ needsAttention, isOverScope, isHighBurn, hasOverdueDeliverable, hasPaymentHold, isCriticalHealth, overageHours, reasons }`.
+      - Comprehensive multi-vector triage:
+        1. **Retainer Scope Creep**: Logged hours exceeding budget or burn percent > 100%.
+        2. **Deliverables Overdue / Due Today**: Evaluates in-flight deliverables using `getNextDeliverableDueInfo`.
+        3. **Cashflow Holds**: Unpaid or overdue invoices (`paymentStatus === 'Overdue'`).
+        4. **High Burn Warning**: Retainers exceeding 85% utilization before month-end.
+        5. **Critical Account Health**: Proactive alert overrides.
+      - **Interactive Morning Huddle Command Drawer**:
+        - Toggleable with prominent header button: `🌅 Morning Huddle` showing live count badge.
+        - Triage summary bar with instant breakdown badges: `🚨 X Scope Creep` · `⚠️ Y Deliverables Due/Overdue` · `🛑 Z Invoices Overdue` · `🔥 W High Burn`.
+        - 1-Click **"📋 Copy Huddle Agenda"**: Automatically compiles flagged accounts, team leads, active blockers, and latest quick memos into a formatted Slack / Teams / WhatsApp Markdown briefing.
+      - Upgraded `everydayQuickFilter === 'needs_attention'` (Hotkey: 3) to filter accounts dynamically against the comprehensive attention engine.
+    - **Automated Vitest Test Suite Expansion**:
+      - Added 4 unit tests in `tests/retainerAndMemo.test.ts` validating scope creep detection, deliverable urgency alerts, invoice holds, and healthy account pass-through.
+      - Full test suite now features **36/36 tests passing in 313ms**.
+
 

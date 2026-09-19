@@ -282,3 +282,54 @@ export function calculateMemberROI(
     billableUtilizationPercent
   };
 }
+
+import { getNextDeliverableDueInfo } from './dateUtils';
+
+export interface ProjectAttentionAnalysis {
+  needsAttention: boolean;
+  isOverScope: boolean;
+  isHighBurn: boolean;
+  hasOverdueDeliverable: boolean;
+  hasPaymentHold: boolean;
+  isCriticalHealth: boolean;
+  overageHours: number;
+  reasons: string[];
+}
+
+export function checkProjectNeedsAttention(project: any): ProjectAttentionAnalysis {
+  const budget = Math.max(1, project.activeHours || project.totalHours || 1);
+  const logged = project.actualHoursLogged || 0;
+  const isOverScope = logged > budget || (project.progress || 0) > 100;
+  const burnPercent = logged > 0 ? Math.round((logged / budget) * 100) : (project.progress || 0);
+  const isHighBurn = !isOverScope && burnPercent >= 85;
+  const overageHours = logged > budget
+    ? Math.round((logged - budget) * 10) / 10
+    : burnPercent > 100
+    ? Math.round(((burnPercent - 100) / 100) * budget * 10) / 10
+    : 0;
+
+  const dueInfo = getNextDeliverableDueInfo(project);
+  const hasOverdueDeliverable = dueInfo.urgency === 'overdue' || dueInfo.urgency === 'due_today';
+  const hasPaymentHold = project.paymentStatus === 'Overdue';
+  const isCriticalHealth =
+    (project.projectHealthEmoji || '').includes('Critical') ||
+    project.projectHealthEmoji === '☺☺☺';
+
+  const reasons: string[] = [];
+  if (isOverScope) reasons.push(`+${overageHours}h over scope`);
+  if (hasOverdueDeliverable) reasons.push(dueInfo.label);
+  if (hasPaymentHold) reasons.push(`Invoice ${project.paymentInvoiceId || 'payment'} overdue`);
+  if (isHighBurn) reasons.push(`High burn (${burnPercent}%)`);
+  if (isCriticalHealth) reasons.push('Critical health alert');
+
+  return {
+    needsAttention: isOverScope || hasOverdueDeliverable || hasPaymentHold || isCriticalHealth || isHighBurn,
+    isOverScope,
+    isHighBurn,
+    hasOverdueDeliverable,
+    hasPaymentHold,
+    isCriticalHealth,
+    overageHours,
+    reasons
+  };
+}

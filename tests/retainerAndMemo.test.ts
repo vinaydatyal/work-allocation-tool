@@ -225,3 +225,64 @@ describe('Feature 4: Specialist Reassignment on Deliverables', () => {
   });
 });
 
+import { checkProjectNeedsAttention } from '../src/utils/projectFinancials';
+
+describe('Feature 3: Morning Huddle Attention Analysis', () => {
+  it('flags accounts in scope creep with exact overage', () => {
+    const project = {
+      activeHours: 20,
+      actualHoursLogged: 24,
+      status: 'ON TRACK'
+    };
+    const analysis = checkProjectNeedsAttention(project);
+    expect(analysis.needsAttention).toBe(true);
+    expect(analysis.isOverScope).toBe(true);
+    expect(analysis.overageHours).toBe(4);
+    expect(analysis.reasons).toContain('+4h over scope');
+  });
+
+  it('flags accounts with overdue deliverables', () => {
+    const project = {
+      activeHours: 20,
+      actualHoursLogged: 10,
+      dueDateOrRenewal: daysFromToday(-2),
+      taskBreakdown: [
+        { taskType: 'Link Audit', status: 'In Progress' }
+      ]
+    };
+    const analysis = checkProjectNeedsAttention(project);
+    expect(analysis.needsAttention).toBe(true);
+    expect(analysis.hasOverdueDeliverable).toBe(true);
+  });
+
+  it('flags accounts with overdue payment invoice holds', () => {
+    const project = {
+      activeHours: 20,
+      actualHoursLogged: 10,
+      paymentStatus: 'Overdue',
+      paymentInvoiceId: 'INV-2024-88'
+    };
+    const analysis = checkProjectNeedsAttention(project);
+    expect(analysis.needsAttention).toBe(true);
+    expect(analysis.hasPaymentHold).toBe(true);
+    expect(analysis.reasons).toContain('Invoice INV-2024-88 overdue');
+  });
+
+  it('passes healthy accounts with no alerts', () => {
+    const project = {
+      activeHours: 40,
+      actualHoursLogged: 20,
+      progress: 50,
+      paymentStatus: 'Paid',
+      dueDateOrRenewal: daysFromToday(15),
+      taskBreakdown: [
+        { taskType: 'Content Brief', status: 'In Progress' }
+      ]
+    };
+    const analysis = checkProjectNeedsAttention(project);
+    expect(analysis.needsAttention).toBe(false);
+    expect(analysis.reasons).toHaveLength(0);
+  });
+});
+
+

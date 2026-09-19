@@ -6074,6 +6074,41 @@ Executed automated test suite (`npm test`):
    - Total test suite now stands at **32/32 tests passing across 6 test suites in 306ms**.
    - Production bundle compiled with zero errors via `tsc -b && vite build`.
 
+---
+
+## 👤 User (Turn #185)
+
+<USER_REQUEST>
+3, and more ideas
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+### 1. Implemented Features
+1. **🌅 Daily "Morning Huddle" Command Drawer & Comprehensive Attention Analysis**:
+   - **Triage Engine (`src/utils/projectFinancials.ts`)**:
+     - Implemented `checkProjectNeedsAttention(project)` providing multi-factor risk diagnostics:
+       - Scope Creep (`logged > budget` or `burnPercent > 100`)
+       - Overdue / Due Today deliverables via `getNextDeliverableDueInfo`
+       - Cashflow & Invoice holds (`paymentStatus === 'Overdue'`)
+       - High Burn warning (≥85% budget utilization)
+       - Critical account health overrides
+     - Returns `{ needsAttention, isOverScope, isHighBurn, hasOverdueDeliverable, hasPaymentHold, isCriticalHealth, overageHours, reasons }`.
+   - **Interactive Morning Huddle Command Drawer (`VisualAgencyHub.tsx`)**:
+     - Prominent toggle button: `🌅 Morning Huddle` with pulsing badge showing total flagged accounts count.
+     - Triage summary bar with dynamic drill-down pills:
+       - `🚨 X Scope Creep`
+       - `⚠️ Y Deliverables Due/Overdue`
+       - `🛑 Z Invoices Overdue`
+       - `🔥 W High Burn (85%+)`
+     - 1-Click **"📋 Copy Huddle Agenda"**: Automatically formats all flagged accounts, assigned squad leads, active blockers, and latest quick memos into a formatted Markdown briefing ready to paste into Slack, Microsoft Teams, or WhatsApp.
+     - Upgraded `everydayQuickFilter === 'needs_attention'` (Hotkey: 3) to filter accounts based on the comprehensive attention analysis engine.
+2. **Automated Vitest Test Suite Expansion**:
+   - Added 4 unit tests in `tests/retainerAndMemo.test.ts` covering scope creep detection, overdue deliverable matching, invoice hold flagging, and healthy account pass-through.
+   - Total test suite now features **36/36 tests passing in 313ms**.
+   - Production bundle verified with zero errors via `tsc -b && vite build`.
+
+
 
 
 

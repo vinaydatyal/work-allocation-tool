@@ -57,7 +57,8 @@ import {
   Building2,
   Tag,
   User,
-  StickyNote
+  StickyNote,
+  ClipboardList
 } from 'lucide-react';
 import { ClickUpOAuthModal } from './ClickUpOAuthModal';
 import { ClickUpTaskActivityModal } from './ClickUpTaskActivityModal';
@@ -92,7 +93,7 @@ import { getPDFMasterProjects, classifyClientTier } from '../data/pdfMasterProje
 import { DSRTrackerStudio } from './DSRTrackerStudio';
 import { ActivityCalendar } from './ActivityCalendar';
 import { AnimatedCounter, ClientTierBadge, DonutChart, EmptyState, GraphicSectionHeader, MiniSparkline, SpotlightCard, VIPPriorityBanner, YieldGauge, useToast } from './TopTierUI';
-import { calculateProjectFinancials } from '../utils/projectFinancials';
+import { calculateProjectFinancials, checkProjectNeedsAttention } from '../utils/projectFinancials';
 import { ClientPnLModal } from './ClientPnLModal';
 
 export interface AgencyNotificationItem {
@@ -293,6 +294,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   const [smartMode, setSmartMode] = useState<boolean>(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
   const [showSquadWorkload, setShowSquadWorkload] = useState<boolean>(false);
+  const [showMorningHuddleDrawer, setShowMorningHuddleDrawer] = useState<boolean>(false);
   const [everydayQuickFilter, setEverydayQuickFilter] = useState<
     | 'all'
     | 'on_track'
@@ -2778,6 +2780,39 @@ Due Date: ${proj.paymentDueDate}
     setEditingFinancesProject(null);
   };
 
+  // Feature 3: Daily Morning Huddle Attention Analysis
+  const attentionProjects = React.useMemo(() => {
+    return projectsList
+      .map((p) => ({ project: p, ...checkProjectNeedsAttention(p) }))
+      .filter((item) => item.needsAttention);
+  }, [projectsList, customMembers]);
+
+  const overdueDeliverablesCount = attentionProjects.filter((p) => p.hasOverdueDeliverable).length;
+  const overScopeCount = attentionProjects.filter((p) => p.isOverScope).length;
+  const paymentHoldCount = attentionProjects.filter((p) => p.hasPaymentHold).length;
+  const highBurnCount = attentionProjects.filter((p) => p.isHighBurn).length;
+
+  const handleCopyHuddleAgenda = () => {
+    const dateStr = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    let text = `🌅 Morning Huddle Agenda — ${dateStr}\n`;
+    text += `🚨 ${attentionProjects.length} Accounts Need Management Action Today:\n\n`;
+
+    attentionProjects.forEach((item, idx) => {
+      const lead = customMembers.find((m) => m.id === item.project.projectLeadId);
+      text += `${idx + 1}. **${item.project.name}** (${item.project.client}) — Lead: ${lead ? lead.name : 'Unassigned'}\n`;
+      item.reasons.forEach((r) => {
+        text += `   • ${r}\n`;
+      });
+      if (item.project.quickMemo) {
+        text += `   • 📝 Memo: "${item.project.quickMemo}"\n`;
+      }
+      text += '\n';
+    });
+
+    navigator.clipboard.writeText(text);
+    sonnerToast.success(`📋 Morning Huddle Agenda copied (${attentionProjects.length} accounts)!`);
+  };
+
   // Filter projects based on visual filter bar, service category pills, and instant search across all PDF fields
   const filteredProjectsList = projectsList.filter((proj) => {
     const hoursRatio = proj.totalHours > 0 ? proj.activeHours / proj.totalHours : 0;
@@ -2786,12 +2821,10 @@ Due Date: ${proj.paymentDueDate}
 
     if (everydayQuickFilter === 'on_track' && proj.status !== 'ON TRACK' && proj.status !== 'COMPLETED') return false;
     if (everydayQuickFilter === 'milestones' && proj.billingType !== 'Milestone Delivery') return false;
-    if (
-      everydayQuickFilter === 'needs_attention' &&
-      proj.projectHealthEmoji !== '🚨 Critical' &&
-      proj.projectHealthEmoji !== '☺☺☺'
-    )
-      return false;
+    if (everydayQuickFilter === 'needs_attention') {
+      const attention = checkProjectNeedsAttention(proj);
+      if (!attention.needsAttention) return false;
+    }
     if (
       everydayQuickFilter === 'ai_high_risk' &&
       hoursRatio < 0.85 &&
@@ -4120,6 +4153,30 @@ Due Date: ${proj.paymentDueDate}
                   >
                     📍 Local ({projectsList.filter(p => (p.clientTier || classifyClientTier(p)) === 'TIER_B_LOCAL').length})
                   </button>
+                  {/* Morning Huddle Executive Triage Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMorningHuddleDrawer((prev) => !prev);
+                      if (!showMorningHuddleDrawer) {
+                        setEverydayQuickFilter('needs_attention');
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 border shrink-0 ${
+                      showMorningHuddleDrawer || everydayQuickFilter === 'needs_attention'
+                        ? 'bg-gradient-to-r from-rose-500/25 via-amber-500/20 to-rose-500/25 text-rose-300 border-rose-500/60 shadow-lg shadow-rose-950/40 ring-1 ring-rose-500/40'
+                        : 'bg-slate-900/90 text-slate-300 hover:text-white border-slate-700 hover:border-slate-600'
+                    }`}
+                    title="Toggle Daily Morning Huddle Triage Drawer"
+                  >
+                    <span>🌅 Morning Huddle</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      attentionProjects.length > 0 ? 'bg-rose-500 text-white animate-pulse' : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {attentionProjects.length}
+                    </span>
+                  </button>
+
                   {/* Streamlined Manager Filter Segments */}
                   {/* Segment 1: Delivery & Status */}
                   <div className="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 shrink-0">
@@ -4151,7 +4208,10 @@ Due Date: ${proj.paymentDueDate}
                     </button>
                     <button
                       type="button"
-                      onClick={() => setEverydayQuickFilter('needs_attention')}
+                      onClick={() => {
+                        setEverydayQuickFilter(everydayQuickFilter === 'needs_attention' ? 'all' : 'needs_attention');
+                        if (everydayQuickFilter !== 'needs_attention') setShowMorningHuddleDrawer(true);
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                         everydayQuickFilter === 'needs_attention'
                           ? 'bg-rose-500 text-white shadow-sm'
@@ -4160,6 +4220,11 @@ Due Date: ${proj.paymentDueDate}
                       title="Show accounts needing attention (Hotkey: 3)"
                     >
                       <span>🚨 Needs Attention</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                        everydayQuickFilter === 'needs_attention' ? 'bg-black/30 text-white' : 'bg-rose-500/20 text-rose-300'
+                      }`}>
+                        {attentionProjects.length}
+                      </span>
                       <kbd className="text-[9px] font-mono opacity-70 px-1 rounded bg-black/20">3</kbd>
                     </button>
                   </div>
@@ -4330,6 +4395,87 @@ Due Date: ${proj.paymentDueDate}
                   </button>
                 </div>
               </div>
+
+              {/* Feature 3: Interactive Morning Huddle Triage Drawer */}
+              {showMorningHuddleDrawer && (
+                <div className="w-full mt-3 p-4 rounded-2xl bg-gradient-to-r from-slate-900/98 via-slate-900/95 to-rose-950/40 border border-rose-500/50 shadow-2xl backdrop-blur-xl animate-fade-in flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500/20 to-amber-500/20 border border-rose-500/40 flex items-center justify-center text-lg shadow-inner">
+                        🌅
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-white flex items-center gap-2">
+                          <span>Morning Huddle Command</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-sm">
+                            {attentionProjects.length} Needs Action
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-medium">
+                          Deliverable blockers, retainer creep & overdue cashflow triage
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Triage Badges / Quick Filter Drills */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setEverydayQuickFilter('needs_attention')}
+                        className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                        title="Filter accounts in scope creep"
+                      >
+                        <span>🚨 {overScopeCount} Scope Creep</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEverydayQuickFilter('needs_attention')}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                        title="Filter deliverables overdue or due today"
+                      >
+                        <span>⚠️ {overdueDeliverablesCount} Deliverables Due/Overdue</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEverydayQuickFilter('needs_attention')}
+                        className="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                        title="Filter overdue client invoices"
+                      >
+                        <span>🛑 {paymentHoldCount} Invoices Overdue</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEverydayQuickFilter('needs_attention')}
+                        className="px-2.5 py-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/40 text-orange-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                        title="Filter accounts with high burn ≥85%"
+                      >
+                        <span>🔥 {highBurnCount} High Burn (85%+)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleCopyHuddleAgenda}
+                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-slate-950 text-xs font-black transition-all cursor-pointer shadow-lg shadow-rose-950/40 flex items-center gap-1.5"
+                      title="Copy formatted markdown briefing to clipboard for Slack / Teams"
+                    >
+                      <ClipboardList className="w-3.5 h-3.5" />
+                      <span>Copy Huddle Agenda</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowMorningHuddleDrawer(false)}
+                      className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white text-xs cursor-pointer transition-colors border border-slate-700/60"
+                      title="Close Huddle Drawer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Row 2: Search Box + Dropdown Filters */}
               <div className="pt-5 border-t border-slate-700/50 flex flex-wrap items-center justify-between gap-4">
