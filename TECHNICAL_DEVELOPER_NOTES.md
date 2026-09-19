@@ -766,3 +766,20 @@ Agencies frequently maintain their complete client roster inside a specific Clic
     - **Search & Bandwidth in Quick Lead Reassign Popovers**:
       - Added instant search input (`Search specialist...`) to the Squad Lead and Call Lead reassign popovers.
       - Displays real-time free bandwidth badge (`🟢 Xh free`) next to each candidate's name to ensure managers never assign an overbooked specialist.
+
+  29. **Specialist Spotlight Clustering, Collapsible Deliverables & High-Velocity Hotkeys**:
+    - **Specialist Spotlight & Dynamic Reactive Clustering (`VisualAgencyHub.tsx`)**:
+      - Implemented `spotlightSpecialistId` state connected to the Squad Workload & Bandwidth Heatmap and project cards.
+      - Dynamic React Sorting & Clustering: When a specialist is spotlighted, all projects involving that specialist (as Squad Lead, Call Lead, or assigned in `taskBreakdown`) are sorted to the front of `filteredProjectsList`. Framer Motion's `layout` prop dynamically glides matching project cards right next to each other in row 1, 2, etc., clustering them snugly.
+      - Non-matching projects are dimmed (`opacity-35 grayscale-[35%]`) with smooth hover recovery.
+      - Added `items-start` to the project card grid container (`grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 items-start`) so each card sizes to its natural content without stretching adjacent column rows.
+      - Surfaces a vibrant executive Spotlight Banner above the project roster showing the specialist's avatar, matching account count, and an instant `[Clear Spotlight ✕]` or `[Esc]` button.
+    - **Collapsible Deliverables Pocket Section**:
+      - Automatically partitions `taskBreakdown` into active deliverables (`!isDone`) and completed deliverables (`isDone`).
+      - Only active deliverables are displayed by default, keeping cards compact and avoiding tall vertical scroll bloat on projects with 10+ deliverables.
+      - Features an inline collapsible drawer (`+X done ▾` / `Hide completed ▴`) allowing managers to reveal completed items on demand with muted, line-through styling.
+    - **High-Velocity Keyboard Shortcuts (Hotkeys)**:
+      - Quick Search: Pressing `/` instantly focuses the project search bar with autofocus and a visible `<kbd>/</kbd>` cue.
+      - Triage Hotkeys: Pressing `1` (All), `2` (On-Track), `3` (Needs Attention), `4` (High Margin), `5` (Low Margin) triggers instant filtering.
+      - Quick Reset: Pressing `Escape` clears active specialist spotlight, resets filters to all, or blurs input.
+      - Filter buttons and reset actions display subtle hotkey tags (`[1]`, `[2]`, `[3]`, `[4]`, `[5]`, `[Esc]`).

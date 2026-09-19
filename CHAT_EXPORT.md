@@ -5863,5 +5863,35 @@ Implemented and verified the following:
    - `npm run build` (`tsc -b && vite build`) passed with 0 errors.
    - Updated `TECHNICAL_DEVELOPER_NOTES.md` and `CHAT_EXPORT.md`.
 
+---
+
+## 👤 User (Turn #177)
+
+<USER_REQUEST>
+2, 4 - use react to dynimically place the projects close to each other as well, 5. and give me more same ideas to improve existing app ui and usability
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Implemented and verified the requested usability and layout improvements:
+1. **Item 4: Specialist Spotlight & Dynamic Reactive Clustering (`VisualAgencyHub.tsx`)**:
+   - Added `spotlightSpecialistId` state connected to the Squad Workload & Bandwidth Heatmap and project cards.
+   - Dynamic React Sorting & Clustering: Projects involving the spotlighted specialist (as Squad Lead, Call Lead, or assigned in `taskBreakdown`) are sorted to the front of `filteredProjectsList`. Framer Motion's `layout` prop smoothly animates and clusters matching project cards close together into rows 1, 2, etc.
+   - Non-matching projects are dimmed (`opacity-35 grayscale-[35%]`) with smooth hover recovery.
+   - Added `items-start` to the project grid container (`grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 items-start`) so each card sizes naturally without stretching adjacent column rows.
+   - Surfaces a high-visibility executive Spotlight Banner above the project roster showing the specialist's avatar, matching account count, and an instant `[Clear Spotlight ✕]` or `[Esc]` trigger.
+2. **Item 2: Collapsible Deliverables Pocket Section**:
+   - Automatically groups `taskBreakdown` into active deliverables and completed deliverables.
+   - Active deliverables show by default, keeping cards compact and uniform.
+   - An inline collapsible drawer (`+X done ▾` / `Hide completed ▴`) lets managers expand completed items on demand with muted, line-through styling.
+3. **Item 5: High-Velocity Keyboard Shortcuts (Hotkeys)**:
+   - `/`: Instantly focuses the project search bar (with `<kbd>/</kbd>` badge).
+   - `Escape`: Clears active specialist spotlight, resets filters to all, or blurs input.
+   - `1` to `5`: Quick filter switches (`All [1]`, `On-Track [2]`, `Needs Attention [3]`, `High Margin [4]`, `Low Margin [5]`).
+4. **Codebase Verification & Git Sync**:
+   - `npm run build` (`tsc -b && vite build`) passed with 0 errors.
+   - Updated `TECHNICAL_DEVELOPER_NOTES.md` and `CHAT_EXPORT.md`.
+
+
 
 

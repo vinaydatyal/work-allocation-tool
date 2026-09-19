@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { daysFromToday, firstDayOfCurrentMonth, monthOption, todayLocal } from '../utils/dateUtils';
 import { createPortal } from 'react-dom';
 import { navigate } from '../utils/router';
@@ -845,6 +845,68 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   const [diagnosingProject, setDiagnosingProject] = useState<any | null>(null);
   const [isSyncingDeliverables, setIsSyncingDeliverables] = useState(false);
   const [teamViewMode, setTeamViewMode] = useState<'roster' | 'heatmap'>('roster');
+
+  // Item 4 & Item 2 State: Specialist Spotlight & Collapsible Deliverables
+  const [spotlightSpecialistId, setSpotlightSpecialistId] = useState<string | null>(null);
+  const [expandedCompletedTasks, setExpandedCompletedTasks] = useState<Record<string, boolean>>({});
+  const searchBarRef = useRef<HTMLInputElement>(null);
+
+  // Item 5: High-Velocity Keyboard Navigation & Filter Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          target.closest('input') ||
+          target.closest('textarea'))
+      ) {
+        if (e.key === 'Escape') {
+          target.blur();
+        }
+        return;
+      }
+
+      // Quick Search Hotkey: '/'
+      if (e.key === '/') {
+        e.preventDefault();
+        searchBarRef.current?.focus();
+        return;
+      }
+
+      // Quick Reset Hotkey: 'Escape'
+      if (e.key === 'Escape') {
+        if (spotlightSpecialistId) {
+          setSpotlightSpecialistId(null);
+        } else if (searchQuery) {
+          setSearchQuery('');
+        } else if (everydayQuickFilter !== 'all') {
+          setEverydayQuickFilter('all');
+        } else if (filterLeadId !== 'ALL') {
+          setFilterLeadId('ALL');
+        }
+        return;
+      }
+
+      // Numbered Quick Triage Hotkeys: 1-5
+      if (e.key === '1') {
+        setEverydayQuickFilter('all');
+      } else if (e.key === '2') {
+        setEverydayQuickFilter('on_track');
+      } else if (e.key === '3') {
+        setEverydayQuickFilter('needs_attention');
+      } else if (e.key === '4') {
+        setEverydayQuickFilter('high_margin');
+      } else if (e.key === '5') {
+        setEverydayQuickFilter('low_margin');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [spotlightSpecialistId, searchQuery, everydayQuickFilter, filterLeadId]);
 
   const toggleCardExpansion = (projId: string) => {
     setExpandedCardIds((prev) => ({ ...prev, [projId]: !prev[projId] }));
@@ -2692,8 +2754,22 @@ Due Date: ${proj.paymentDueDate}
         proj.serviceLabels?.some((lbl) => lbl.toLowerCase().includes(q));
       if (!match) return false;
     }
-    return true;
   }).sort((a, b) => {
+    // Dynamic Spotlight Clustering: place projects matching the selected specialist first and snug together
+    if (spotlightSpecialistId) {
+      const isA =
+        a.projectLeadId === spotlightSpecialistId ||
+        a.clientCallAssigneeId === spotlightSpecialistId ||
+        a.taskBreakdown?.some((tb) => tb.assigneeId === spotlightSpecialistId) ||
+        a.members?.some((m) => m.id === spotlightSpecialistId);
+      const isB =
+        b.projectLeadId === spotlightSpecialistId ||
+        b.clientCallAssigneeId === spotlightSpecialistId ||
+        b.taskBreakdown?.some((tb) => tb.assigneeId === spotlightSpecialistId) ||
+        b.members?.some((m) => m.id === spotlightSpecialistId);
+      if (isA && !isB) return -1;
+      if (!isA && isB) return 1;
+    }
     if (everydayQuickFilter === 'tier_highest_yield') {
       const yieldA = (a.paymentAmountNumeric || 0) / Math.max(1, a.activeHours || a.totalHours || 1);
       const yieldB = (b.paymentAmountNumeric || 0) / Math.max(1, b.activeHours || b.totalHours || 1);
@@ -3618,6 +3694,15 @@ Due Date: ${proj.paymentDueDate}
                         <span className="text-emerald-300">● &lt;70%</span>
                         <span className="text-cyan-300">● 70–90%</span>
                         <span className="text-rose-300">● &gt;90%</span>
+                        {spotlightSpecialistId && (
+                          <button
+                            type="button"
+                            onClick={() => setSpotlightSpecialistId(null)}
+                            className="px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            Clear spotlight ✕
+                          </button>
+                        )}
                         {filterLeadId !== 'ALL' && (
                           <button
                             type="button"
@@ -3663,6 +3748,7 @@ Due Date: ${proj.paymentDueDate}
                         const capacity = member.weeklyCapacityHours || 35;
                         const utilization = Math.round((assigned / capacity) * 100);
                         const isFiltered = filterLeadId === member.id;
+                        const isSpotlighted = spotlightSpecialistId === member.id;
                         const status = utilization >= 90
                           ? { label: 'Bottleneck', text: 'text-rose-300', bar: 'bg-rose-500' }
                           : utilization >= 70
@@ -3672,17 +3758,25 @@ Due Date: ${proj.paymentDueDate}
                         return (
                           <div
                             key={member.id}
-                            onClick={() => setFilterLeadId(isFiltered ? 'ALL' : member.id)}
+                            onClick={() => {
+                              setSpotlightSpecialistId(isSpotlighted ? null : member.id);
+                            }}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                setFilterLeadId(isFiltered ? 'ALL' : member.id);
+                                setSpotlightSpecialistId(isSpotlighted ? null : member.id);
                               }
                             }}
                             role="button"
                             tabIndex={0}
-                            className={`p-3 rounded-xl text-left bg-slate-900/80 hover:bg-slate-800 transition-colors space-y-2 ${isFiltered ? 'ring-2 ring-cyan-400/40' : ''}`}
-                            aria-pressed={isFiltered}
+                            className={`p-3 rounded-xl text-left bg-slate-900/80 hover:bg-slate-800 transition-all cursor-pointer space-y-2 ${
+                              isSpotlighted
+                                ? 'ring-2 ring-cyan-400 bg-cyan-950/40 shadow-lg shadow-cyan-500/20 scale-[1.02]'
+                                : isFiltered
+                                ? 'ring-2 ring-cyan-400/40'
+                                : ''
+                            }`}
+                            aria-pressed={isSpotlighted || isFiltered}
                           >
                             <div className="flex items-center gap-3">
                               <img src={member.avatar} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
@@ -3712,8 +3806,10 @@ Due Date: ${proj.paymentDueDate}
                                 <div className={`h-full rounded-full ${status.bar}`} style={{ width: `${Math.min(100, utilization)}%` }} />
                               </div>
                               <div className="flex items-center justify-between text-[10px] text-slate-400">
-                                <span>{isFiltered ? 'Roster filtered' : 'View assigned projects'}</span>
-                                <span className="text-cyan-400 font-bold">{isFiltered ? 'Active' : 'Select'}</span>
+                                <span>{isSpotlighted ? '✨ Spotlight active' : 'Click to spotlight'}</span>
+                                <span className={isSpotlighted ? 'text-cyan-300 font-bold' : 'text-slate-400 font-bold'}>
+                                  {isSpotlighted ? 'Clustered ⚡' : 'Spotlight'}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -3892,35 +3988,41 @@ Due Date: ${proj.paymentDueDate}
                     <button
                       type="button"
                       onClick={() => setEverydayQuickFilter('all')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                         everydayQuickFilter === 'all'
                           ? 'bg-cyan-500 text-slate-950 shadow-sm'
                           : 'text-slate-400 hover:text-white'
                       }`}
+                      title="Show all projects (Hotkey: 1)"
                     >
-                      All ({projectsList.length})
+                      <span>All ({projectsList.length})</span>
+                      <kbd className="text-[9px] font-mono opacity-70 px-1 rounded bg-black/20">1</kbd>
                     </button>
                     <button
                       type="button"
                       onClick={() => setEverydayQuickFilter('on_track')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                         everydayQuickFilter === 'on_track'
                           ? 'bg-emerald-500 text-slate-950 shadow-sm'
                           : 'text-slate-400 hover:text-white'
                       }`}
+                      title="Show on-track projects (Hotkey: 2)"
                     >
-                      🟢 On-Track ({projectsList.filter(p => p.status === 'ON TRACK').length})
+                      <span>🟢 On-Track ({projectsList.filter(p => p.status === 'ON TRACK').length})</span>
+                      <kbd className="text-[9px] font-mono opacity-70 px-1 rounded bg-black/20">2</kbd>
                     </button>
                     <button
                       type="button"
                       onClick={() => setEverydayQuickFilter('needs_attention')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                         everydayQuickFilter === 'needs_attention'
                           ? 'bg-rose-500 text-white shadow-sm'
                           : 'text-slate-400 hover:text-white'
                       }`}
+                      title="Show accounts needing attention (Hotkey: 3)"
                     >
                       <span>🚨 Needs Attention</span>
+                      <kbd className="text-[9px] font-mono opacity-70 px-1 rounded bg-black/20">3</kbd>
                     </button>
                   </div>
 
@@ -3934,12 +4036,13 @@ Due Date: ${proj.paymentDueDate}
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-sm'
                           : 'text-slate-400 hover:text-white'
                       }`}
-                      title="Filter high-margin accounts (≥60%)"
+                      title="Filter high-margin accounts ≥60% (Hotkey: 4)"
                     >
                       <span>✨ High Margin</span>
                       <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300">
                         {projectsList.filter(p => calculateProjectFinancials(p, customMembers).grossMarginPercent >= 60).length}
                       </span>
+                      <kbd className="text-[9px] font-mono opacity-60 px-1 rounded bg-slate-800">4</kbd>
                     </button>
 
                     <button
@@ -3950,12 +4053,13 @@ Due Date: ${proj.paymentDueDate}
                           ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50 shadow-sm'
                           : 'text-slate-400 hover:text-white'
                       }`}
-                      title="Filter low-margin accounts (<45%)"
+                      title="Filter low-margin accounts <45% (Hotkey: 5)"
                     >
                       <span>💰 Low Margin</span>
                       <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300">
                         {projectsList.filter(p => calculateProjectFinancials(p, customMembers).grossMarginPercent < 45).length}
                       </span>
+                      <kbd className="text-[9px] font-mono opacity-60 px-1 rounded bg-slate-800">5</kbd>
                     </button>
 
                     <button
@@ -3985,9 +4089,11 @@ Due Date: ${proj.paymentDueDate}
                     <button
                       type="button"
                       onClick={() => setEverydayQuickFilter('all')}
-                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold cursor-pointer transition-all flex items-center gap-1 shrink-0 shadow-sm"
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 shadow-sm"
+                      title="Reset filter to all (Hotkey: Esc)"
                     >
-                      <span>✕ Reset Filter</span>
+                      <span>✕ Reset</span>
+                      <kbd className="text-[9px] font-mono text-slate-400 bg-slate-900 px-1 rounded border border-slate-700">Esc</kbd>
                     </button>
                   )}
 
@@ -4065,17 +4171,22 @@ Due Date: ${proj.paymentDueDate}
                 <div className="relative flex-1 min-w-[280px]">
                   <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
+                    ref={searchBarRef}
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder={
                       smartMode
-                        ? `✨ Smart Search across ${projectsList.length} retainers, invoices, squad capacity, or margin thresholds...`
-                        : `Search ${projectsList.length} projects by client, keyword, channel, invoice, or squad lead...`
+                        ? `✨ Smart Search across ${projectsList.length} retainers, invoices, squad capacity, or margin thresholds... [/]`
+                        : `Search ${projectsList.length} projects by client, keyword, channel, invoice, or squad lead... [/]`
                     }
-                    className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl pl-11 pr-10 py-2.5 text-sm font-medium text-white placeholder:text-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-500/30 transition-all"
+                    className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl pl-11 pr-14 py-2.5 text-sm font-medium text-white placeholder:text-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-500/30 transition-all"
                   />
-                  {searchQuery && (
+                  {!searchQuery ? (
+                    <kbd className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 font-mono bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/60 pointer-events-none hidden sm:inline-block">
+                      /
+                    </kbd>
+                  ) : (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
@@ -4243,6 +4354,52 @@ Due Date: ${proj.paymentDueDate}
             </div>
             <span className="text-xs text-slate-400">{viewMode === 'grid' ? 'Cards' : 'Table'}</span>
           </div>
+
+          {/* Item 4: Specialist Spotlight Bar */}
+          {spotlightSpecialistId && (() => {
+            const spec = customMembers.find(m => m.id === spotlightSpecialistId);
+            const matchCount = filteredProjectsList.filter(p => (
+              p.projectLeadId === spotlightSpecialistId ||
+              p.clientCallAssigneeId === spotlightSpecialistId ||
+              p.taskBreakdown?.some(tb => tb.assigneeId === spotlightSpecialistId) ||
+              p.members?.some(m => m.id === spotlightSpecialistId)
+            )).length;
+
+            return (
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-gradient-to-r from-cyan-950/90 via-slate-900/95 to-indigo-950/90 border border-cyan-500/50 text-cyan-200 text-xs shadow-xl backdrop-blur-md animate-in fade-in duration-200">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="relative flex h-3 w-3 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500" />
+                  </span>
+                  {spec && (
+                    <img src={spec.avatar} alt={spec.name} className="w-8 h-8 rounded-full object-cover ring-2 ring-cyan-400 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <span className="font-extrabold text-white text-sm truncate block">
+                      Spotlighting {spec ? spec.name : 'Specialist'} ({matchCount} associated account{matchCount === 1 ? '' : 's'})
+                    </span>
+                    <span className="text-[11px] text-cyan-300/80 truncate block">
+                      Matching accounts dynamically clustered to front · Other projects dimmed
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-cyan-400 font-mono bg-cyan-900/60 px-2 py-1 rounded border border-cyan-700/50 hidden sm:inline-block">
+                    Esc to clear
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSpotlightSpecialistId(null)}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 font-bold text-xs cursor-pointer transition-colors flex items-center gap-1"
+                  >
+                    <span>Clear Spotlight</span>
+                    <span>✕</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* View Mode Switching: Rich Visual Grid OR High-Density Executive Compact Table */}
           {viewMode === 'compact' ? (
@@ -4426,7 +4583,7 @@ Due Date: ${proj.paymentDueDate}
             </div>
           ) : (
             /* Neat, Clean High-Contrast Executive Project Cards Grid */
-            <motion.div layout className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 min-w-0 w-full">
+            <motion.div layout className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 min-w-0 w-full items-start">
               <AnimatePresence mode="popLayout">
               {clickUpSyncStatus === 'syncing' ? (
                 Array.from({ length: 6 }).map((_, idx) => (
@@ -4469,15 +4626,31 @@ Due Date: ${proj.paymentDueDate}
                     ? { label: '💎 AI Star: High Margin', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50' }
                     : { label: '🤖 AI Status: Optimal', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50' };
 
+                const isSpotlightMatch = spotlightSpecialistId ? (
+                  proj.projectLeadId === spotlightSpecialistId ||
+                  proj.clientCallAssigneeId === spotlightSpecialistId ||
+                  proj.taskBreakdown?.some(tb => tb.assigneeId === spotlightSpecialistId) ||
+                  proj.members?.some(m => m.id === spotlightSpecialistId)
+                ) : true;
+
                 return (
                   <motion.div
                     layout
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
                     key={proj.id}
-                    className="glass-panel border-slate-700/60 hover:border-cyan-500/40 rounded-3xl p-6 space-y-5 shadow-lg hover-lift flex flex-col justify-between group overflow-hidden min-w-0 max-w-full w-full relative"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ 
+                      opacity: spotlightSpecialistId ? (isSpotlightMatch ? 1 : 0.35) : 1, 
+                      scale: spotlightSpecialistId && !isSpotlightMatch ? 0.98 : 1,
+                    }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.25, layout: { duration: 0.35, ease: 'easeOut' } }}
+                    className={`glass-panel rounded-3xl p-6 space-y-5 shadow-lg hover-lift flex flex-col justify-between group overflow-hidden min-w-0 max-w-full w-full relative transition-all ${
+                      spotlightSpecialistId && isSpotlightMatch
+                        ? 'border-cyan-400/90 ring-2 ring-cyan-400/40 shadow-cyan-500/10'
+                        : spotlightSpecialistId && !isSpotlightMatch
+                        ? 'border-slate-800/60 grayscale-[35%] hover:grayscale-0 hover:opacity-90'
+                        : 'border-slate-700/60 hover:border-cyan-500/40'
+                    }`}
                   >
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     <div className="space-y-3 min-w-0 w-full relative z-10">
@@ -5230,72 +5403,130 @@ Due Date: ${proj.paymentDueDate}
                             </div>
                           </div>
 
-                          {/* Clean Deliverables & Assignee Capsules */}
-                          {proj.taskBreakdown && proj.taskBreakdown.length > 0 && (
-                            <div className="space-y-1 pt-1 min-w-0 w-full">
-                              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block truncate">
-                                Assigned Deliverables ({proj.taskBreakdown.length})
-                              </span>
-                              <div className="flex flex-wrap items-center gap-1 min-w-0 max-w-full">
-                                {proj.taskBreakdown.map((tb) => {
-                                  const assignee = customMembers.find((m) => m.id === tb.assigneeId);
-                                  return (
-                                    <span
-                                      key={tb.id}
-                                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 hover:border-slate-600 text-xs font-medium transition-all max-w-full min-w-0"
+                          {/* Clean Deliverables & Assignee Capsules (Item 2: Collapsible by Status) */}
+                          {proj.taskBreakdown && proj.taskBreakdown.length > 0 && (() => {
+                            const isDone = (tb: ProjectTaskAllocation) => {
+                              const s = (tb.clickUpStatus || tb.status || '').toLowerCase();
+                              return s.includes('done') || s.includes('complete') || s.includes('closed');
+                            };
+                            const activeDeliverables = proj.taskBreakdown.filter((tb) => !isDone(tb));
+                            const completedDeliverables = proj.taskBreakdown.filter((tb) => isDone(tb));
+                            const showCompleted = !!expandedCompletedTasks[proj.id];
+
+                            return (
+                              <div className="space-y-2 pt-1 min-w-0 w-full">
+                                <div className="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                                  <span className="flex items-center gap-1.5">
+                                    <span>Deliverables ({proj.taskBreakdown.length})</span>
+                                    {activeDeliverables.length > 0 && (
+                                      <span className="text-cyan-400 font-bold normal-case text-[10px] bg-cyan-950/60 px-1.5 py-0.2 rounded border border-cyan-800/40">
+                                        {activeDeliverables.length} active
+                                      </span>
+                                    )}
+                                  </span>
+                                  {completedDeliverables.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedCompletedTasks((prev) => ({ ...prev, [proj.id]: !prev[proj.id] }));
+                                      }}
+                                      className="text-slate-400 hover:text-cyan-300 text-[10px] font-semibold flex items-center gap-1 normal-case cursor-pointer transition-colors bg-slate-900 px-2 py-0.5 rounded border border-slate-800 hover:border-cyan-500/30"
                                     >
-                                      <span className="text-cyan-300 font-bold truncate max-w-[120px] sm:max-w-[160px]">{tb.taskType}</span>
-                                      {tb.clickUpUrl && (
-                                        <a
-                                          href={tb.clickUpUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          onClick={(e) => e.stopPropagation()}
-                                          title={`Open task in ClickUp${tb.clickUpStatus ? ` (${tb.clickUpStatus})` : ''}`}
-                                          className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-white border border-purple-700/60 text-[9px] font-extrabold transition-colors cursor-pointer shrink-0"
-                                        >
-                                          <span>CU</span>
-                                          <ExternalLink className="w-2 h-2" />
-                                        </a>
-                                      )}
-                                      {tb.clickUpTaskId && (
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleOpenClickUpTicketModal(
-                                              tb.clickUpTaskId!,
-                                              `[${proj.name}] ${tb.taskType}`,
-                                              {
-                                                taskUrl: tb.clickUpUrl,
-                                                projectName: proj.name,
-                                                clientName: proj.client,
-                                                status: tb.clickUpStatus || tb.status
-                                              }
-                                            );
-                                          }}
-                                          title={`💬 Discussion on ${tb.taskType}`}
-                                          className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-white border border-purple-700/60 text-[9px] font-extrabold transition-colors cursor-pointer shrink-0"
-                                        >
-                                          <MessageSquare className="w-2 h-2" />
-                                        </button>
-                                      )}
-                                      {assignee && (
-                                        <img
-                                          src={assignee.avatar}
-                                          alt={assignee.name}
-                                          style={{ width: '15px', height: '15px', minWidth: '15px', minHeight: '15px' }}
-                                          className="rounded-full object-cover shrink-0 block"
-                                        />
-                                      )}
-                                      <span className="text-white font-semibold truncate max-w-[100px]">{assignee ? assignee.name.split(' ')[0] : 'Unassigned'}</span>
-                                      <span className="text-slate-300 font-bold shrink-0">({tb.hours}h)</span>
+                                      <span>{showCompleted ? 'Hide completed' : `+${completedDeliverables.length} done`}</span>
+                                      <span className="text-xs">{showCompleted ? '▴' : '▾'}</span>
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Active Deliverables (In Flight) */}
+                                <div className="flex flex-wrap items-center gap-1 min-w-0 max-w-full">
+                                  {(activeDeliverables.length > 0 ? activeDeliverables : proj.taskBreakdown).map((tb) => {
+                                    const assignee = customMembers.find((m) => m.id === tb.assigneeId);
+                                    return (
+                                      <span
+                                        key={tb.id}
+                                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 hover:border-cyan-500/40 text-xs font-medium transition-all max-w-full min-w-0"
+                                      >
+                                        <span className="text-cyan-300 font-bold truncate max-w-[120px] sm:max-w-[160px]">{tb.taskType}</span>
+                                        {tb.clickUpUrl && (
+                                          <a
+                                            href={tb.clickUpUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            title={`Open task in ClickUp${tb.clickUpStatus ? ` (${tb.clickUpStatus})` : ''}`}
+                                            className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-white border border-purple-700/60 text-[9px] font-extrabold transition-colors cursor-pointer shrink-0"
+                                          >
+                                            <span>CU</span>
+                                            <ExternalLink className="w-2 h-2" />
+                                          </a>
+                                        )}
+                                        {tb.clickUpTaskId && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleOpenClickUpTicketModal(
+                                                tb.clickUpTaskId!,
+                                                `[${proj.name}] ${tb.taskType}`,
+                                                {
+                                                  taskUrl: tb.clickUpUrl,
+                                                  projectName: proj.name,
+                                                  clientName: proj.client,
+                                                  status: tb.clickUpStatus || tb.status
+                                                }
+                                              );
+                                            }}
+                                            title={`💬 Discussion on ${tb.taskType}`}
+                                            className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-white border border-purple-700/60 text-[9px] font-extrabold transition-colors cursor-pointer shrink-0"
+                                          >
+                                            <MessageSquare className="w-2 h-2" />
+                                          </button>
+                                        )}
+                                        {assignee && (
+                                          <img
+                                            src={assignee.avatar}
+                                            alt={assignee.name}
+                                            style={{ width: '15px', height: '15px', minWidth: '15px', minHeight: '15px' }}
+                                            className="rounded-full object-cover shrink-0 block"
+                                          />
+                                        )}
+                                        <span className="text-white font-semibold truncate max-w-[100px]">{assignee ? assignee.name.split(' ')[0] : 'Unassigned'}</span>
+                                        <span className="text-slate-300 font-bold shrink-0">({tb.hours}h)</span>
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Completed Deliverables Collapsible Drawer */}
+                                {showCompleted && completedDeliverables.length > 0 && (
+                                  <div className="pt-1.5 space-y-1 animate-in fade-in duration-150 border-t border-slate-800/60">
+                                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">
+                                      Completed Deliverables ({completedDeliverables.length})
                                     </span>
-                                  );
-                                })}
+                                    <div className="flex flex-wrap items-center gap-1 min-w-0 max-w-full opacity-75 hover:opacity-100 transition-opacity">
+                                      {completedDeliverables.map((tb) => {
+                                        const assignee = customMembers.find((m) => m.id === tb.assigneeId);
+                                        return (
+                                          <span
+                                            key={tb.id}
+                                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-900/50 border border-slate-800 text-xs font-medium text-slate-400 max-w-full min-w-0"
+                                          >
+                                            <span className="text-emerald-400 font-bold">✓</span>
+                                            <span className="truncate max-w-[120px] line-through">{tb.taskType}</span>
+                                            {assignee && (
+                                              <span className="text-[10px] text-slate-500 font-mono">({assignee.name.split(' ')[0]})</span>
+                                            )}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
 
                           <div className="space-y-3 pt-2 border-t border-slate-700/60">
                             {/* Clean Utilization Bar */}
