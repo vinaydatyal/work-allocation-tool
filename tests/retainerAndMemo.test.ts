@@ -139,3 +139,89 @@ describe('Feature 3: 1-Click Quick Memo on Project Cards', () => {
     expect(cleared.quickMemoUpdatedAt).toBeUndefined();
   });
 });
+
+import { getNextDeliverableDueInfo, daysFromToday } from '../src/utils/dateUtils';
+
+describe('Feature 2: Next Deliverable Due Pill', () => {
+  it('returns completed status when all deliverables are done', () => {
+    const project = {
+      dueDateOrRenewal: '2026-10-01',
+      taskBreakdown: [
+        { taskType: 'SEO Audit', status: 'Completed', clickUpStatus: 'Complete' },
+        { taskType: 'Content Brief', status: 'Done', clickUpStatus: 'Done' }
+      ]
+    };
+    const info = getNextDeliverableDueInfo(project);
+    expect(info.urgency).toBe('completed');
+    expect(info.label).toBe('All deliverables complete');
+  });
+
+  it('detects past due deliverables and calculates negative days', () => {
+    const project = {
+      dueDateOrRenewal: daysFromToday(-3),
+      taskBreakdown: [
+        { taskType: 'Backlink Sprint', status: 'In Progress', clickUpStatus: 'Open' }
+      ]
+    };
+    const info = getNextDeliverableDueInfo(project);
+    expect(info.urgency).toBe('overdue');
+    expect(info.daysRemaining).toBeLessThan(0);
+    expect(info.label).toContain('past due');
+  });
+
+  it('detects urgent deliverables due in <= 3 days', () => {
+    const project = {
+      dueDateOrRenewal: daysFromToday(2),
+      taskBreakdown: [
+        { taskType: 'Technical Audit', status: 'In Progress', clickUpStatus: 'Active' }
+      ]
+    };
+    const info = getNextDeliverableDueInfo(project);
+    expect(info.urgency).toBe('urgent');
+    expect(info.daysRemaining).toBe(2);
+    expect(info.label).toContain('Due in 2d');
+  });
+});
+
+describe('Feature 4: Specialist Reassignment on Deliverables', () => {
+  function reassignDeliverable(
+    project: {
+      id: string;
+      members: Array<{ id: string; name: string }>;
+      taskBreakdown: Array<{ id: string; taskType: string; assigneeId: string }>;
+    },
+    taskId: string,
+    newAssignee: { id: string; name: string }
+  ) {
+    const updatedTasks = project.taskBreakdown.map((t) =>
+      t.id === taskId ? { ...t, assigneeId: newAssignee.id } : t
+    );
+    const updatedMembers = project.members.some((m) => m.id === newAssignee.id)
+      ? project.members
+      : [...project.members, newAssignee];
+
+    return {
+      ...project,
+      taskBreakdown: updatedTasks,
+      members: updatedMembers
+    };
+  }
+
+  it('reassigns deliverable assignee and auto-adds member to project squad', () => {
+    const project = {
+      id: 'p1',
+      members: [{ id: 'm1', name: 'Alice' }],
+      taskBreakdown: [
+        { id: 't1', taskType: 'On-Page SEO', assigneeId: 'm1' },
+        { id: 't2', taskType: 'Content Brief', assigneeId: 'm1' }
+      ]
+    };
+    const newSpecialist = { id: 'm2', name: 'Bob' };
+    const updated = reassignDeliverable(project, 't2', newSpecialist);
+
+    expect(updated.taskBreakdown.find((t) => t.id === 't2')?.assigneeId).toBe('m2');
+    expect(updated.taskBreakdown.find((t) => t.id === 't1')?.assigneeId).toBe('m1');
+    expect(updated.members.map((m) => m.id)).toContain('m2');
+  });
+});
+

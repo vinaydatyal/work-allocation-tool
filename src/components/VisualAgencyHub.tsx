@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { daysFromToday, firstDayOfCurrentMonth, monthOption, todayLocal } from '../utils/dateUtils';
+import { daysFromToday, firstDayOfCurrentMonth, monthOption, todayLocal, getNextDeliverableDueInfo } from '../utils/dateUtils';
 import { createPortal } from 'react-dom';
 import { navigate } from '../utils/router';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -2071,6 +2071,13 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     }
   };
 
+  // State: Feature 4 - Deliverable Specialist Reassignment Popover & Search
+  const [quickDeliverableAssignee, setQuickDeliverableAssignee] = useState<{
+    projId: string;
+    taskAllocationId: string;
+  } | null>(null);
+  const [deliverableAssigneeSearch, setDeliverableAssigneeSearch] = useState('');
+
   const handleReassignDeliverable = (projectId: string, deliverableId: string, newAssigneeId: string) => {
     setProjectsList((prevList) => {
       return prevList.map((project) => {
@@ -2095,6 +2102,10 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         };
       });
     });
+    setQuickDeliverableAssignee(null);
+    setDeliverableAssigneeSearch('');
+    const m = customMembers.find((mem) => mem.id === newAssigneeId);
+    sonnerToast.success(`Assigned ${m ? m.name : 'specialist'} to deliverable`);
   };
 
   // ClickUp Ticket Discussion & Activity Modal State
@@ -4613,6 +4624,15 @@ Due Date: ${proj.paymentDueDate}
                                   {proj.priorityLevel}
                                 </span>
                               )}
+                              {(() => {
+                                const dueInfo = getNextDeliverableDueInfo(proj);
+                                if (dueInfo.urgency === 'none') return null;
+                                return (
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${dueInfo.badgeColor}`} title="Next deliverable due">
+                                    {dueInfo.label}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </td>
                           <td className="py-4 px-5">
@@ -5447,12 +5467,23 @@ Due Date: ${proj.paymentDueDate}
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-col items-end shrink-0 ml-auto">
-                          <span className="text-cyan-400 font-extrabold text-xs">
-                            {proj.billingType === 'Milestone Delivery'
-                              ? `${proj.milestonesCompleted}/${proj.milestonesTotal} Ms`
-                              : `${proj.activeHours}h / ${proj.totalHours}h`}
-                          </span>
+                        <div className="flex flex-col items-end shrink-0 ml-auto gap-1">
+                          <div className="flex items-center gap-1.5">
+                            {(() => {
+                              const dueInfo = getNextDeliverableDueInfo(proj);
+                              if (dueInfo.urgency === 'none') return null;
+                              return (
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${dueInfo.badgeColor} hidden sm:inline-block`} title="Next deliverable due">
+                                  {dueInfo.label}
+                                </span>
+                              );
+                            })()}
+                            <span className="text-cyan-400 font-extrabold text-xs">
+                              {proj.billingType === 'Milestone Delivery'
+                                ? `${proj.milestonesCompleted}/${proj.milestonesTotal} Ms`
+                                : `${proj.activeHours}h / ${proj.totalHours}h`}
+                            </span>
+                          </div>
                           {/* Idea 1: Interactive Real-Time Gross Margin & Profit Badge */}
                           <button
                             type="button"
@@ -5789,18 +5820,25 @@ Due Date: ${proj.paymentDueDate}
                             const activeDeliverables = proj.taskBreakdown.filter((tb) => !isDone(tb));
                             const completedDeliverables = proj.taskBreakdown.filter((tb) => isDone(tb));
                             const showCompleted = !!expandedCompletedTasks[proj.id];
+                            const dueInfo = getNextDeliverableDueInfo(proj);
 
                             return (
                               <div className="space-y-2 pt-1 min-w-0 w-full">
-                                <div className="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-                                  <span className="flex items-center gap-1.5">
+                                <div className="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-300 uppercase tracking-wider flex-wrap">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <span>Deliverables ({proj.taskBreakdown.length})</span>
                                     {activeDeliverables.length > 0 && (
                                       <span className="text-cyan-400 font-bold normal-case text-[10px] bg-cyan-950/60 px-1.5 py-0.2 rounded border border-cyan-800/40">
                                         {activeDeliverables.length} active
                                       </span>
                                     )}
-                                  </span>
+                                    {/* Feature 2: Next Deliverable Due Pill */}
+                                    {dueInfo.urgency !== 'none' && (
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold normal-case border shadow-sm flex items-center gap-1 ${dueInfo.badgeColor}`} title="Next deliverable due">
+                                        {dueInfo.label}
+                                      </span>
+                                    )}
+                                  </div>
                                   {completedDeliverables.length > 0 && (
                                     <button
                                       type="button"
@@ -5816,14 +5854,34 @@ Due Date: ${proj.paymentDueDate}
                                   )}
                                 </div>
 
-                                {/* Active Deliverables (In Flight) */}
-                                <div className="flex flex-wrap items-center gap-1 min-w-0 max-w-full">
+                                {/* Active Deliverables (In Flight) with Drag-Drop & 1-Click Reassignment */}
+                                <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
                                   {(activeDeliverables.length > 0 ? activeDeliverables : proj.taskBreakdown).map((tb) => {
                                     const assignee = customMembers.find((m) => m.id === tb.assigneeId);
+                                    const isTargeted = quickDeliverableAssignee?.taskAllocationId === tb.id;
                                     return (
-                                      <span
+                                      <div
                                         key={tb.id}
-                                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 hover:border-cyan-500/40 text-xs font-medium transition-all max-w-full min-w-0"
+                                        onDragOver={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          e.dataTransfer.dropEffect = 'copy';
+                                        }}
+                                        onDrop={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          const memberId = e.dataTransfer.getData('text/plain') || draggedSpecialistId;
+                                          if (memberId) {
+                                            handleReassignDeliverable(proj.id, tb.id, memberId);
+                                          }
+                                        }}
+                                        className={`relative inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-900 border transition-all max-w-full min-w-0 ${
+                                          draggedSpecialistId
+                                            ? 'border-cyan-400/80 bg-cyan-950/40 ring-1 ring-dashed ring-cyan-400 animate-pulse'
+                                            : isTargeted
+                                            ? 'border-cyan-400 ring-2 ring-cyan-500/30 bg-slate-900 shadow-md'
+                                            : 'border-slate-700 hover:border-cyan-500/40'
+                                        }`}
                                       >
                                         {/* 1-Click Quick Done Checkbox */}
                                         <button
@@ -5873,17 +5931,102 @@ Due Date: ${proj.paymentDueDate}
                                             <MessageSquare className="w-2 h-2" />
                                           </button>
                                         )}
-                                        {assignee && (
-                                          <img
-                                            src={assignee.avatar}
-                                            alt={assignee.name}
-                                            style={{ width: '15px', height: '15px', minWidth: '15px', minHeight: '15px' }}
-                                            className="rounded-full object-cover shrink-0 block"
-                                          />
-                                        )}
-                                        <span className="text-white font-semibold truncate max-w-[100px]">{assignee ? assignee.name.split(' ')[0] : 'Unassigned'}</span>
+
+                                        {/* Feature 4: Interactive Specialist Assignee Button + Popover */}
+                                        <div className="relative inline-flex items-center" onClick={(e) => e.stopPropagation()}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setQuickDeliverableAssignee(
+                                                quickDeliverableAssignee?.taskAllocationId === tb.id
+                                                  ? null
+                                                  : { projId: proj.id, taskAllocationId: tb.id }
+                                              );
+                                              setDeliverableAssigneeSearch('');
+                                            }}
+                                            className="inline-flex items-center gap-1 hover:bg-slate-800 px-1 py-0.5 rounded cursor-pointer transition-colors text-white hover:text-cyan-300 text-xs"
+                                            title="Click to reassign specialist or drag team member here"
+                                          >
+                                            {assignee ? (
+                                              <img
+                                                src={assignee.avatar}
+                                                alt={assignee.name}
+                                                style={{ width: '16px', height: '16px', minWidth: '16px', minHeight: '16px' }}
+                                                className="rounded-full object-cover shrink-0 block"
+                                              />
+                                            ) : (
+                                              <span className="w-4 h-4 rounded-full bg-slate-800 border border-slate-600 flex items-center justify-center text-[9px] text-slate-400 font-bold shrink-0">+</span>
+                                            )}
+                                            <span className="font-semibold truncate max-w-[90px]">{assignee ? assignee.name.split(' ')[0] : 'Assign'}</span>
+                                            <ChevronDown className="w-2.5 h-2.5 opacity-50 shrink-0" />
+                                          </button>
+
+                                          {/* Specialist Picker Floating Popover */}
+                                          {isTargeted && (
+                                            <div
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="absolute left-0 top-full mt-1.5 z-50 rounded-xl shadow-2xl p-2 w-60 border bg-slate-900/98 border-cyan-500/50 backdrop-blur-xl space-y-1.5 animate-fade-in text-left"
+                                            >
+                                              <div className="flex items-center justify-between px-1 text-[9px] font-black text-cyan-400 uppercase tracking-wider">
+                                                <span>Reassign Specialist</span>
+                                                <span className="text-slate-500 font-mono">[{tb.hours}h]</span>
+                                              </div>
+                                              <input
+                                                type="text"
+                                                value={deliverableAssigneeSearch}
+                                                onChange={(e) => setDeliverableAssigneeSearch(e.target.value)}
+                                                placeholder="Filter team member..."
+                                                className="w-full px-2 py-1 text-xs bg-slate-950 border border-slate-700 rounded-lg text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-400"
+                                                autoFocus
+                                              />
+                                              <div className="max-h-48 overflow-y-auto space-y-0.5 custom-scrollbar pr-0.5">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleReassignDeliverable(proj.id, tb.id, '')}
+                                                  className="w-full text-left px-2 py-1 rounded-lg text-xs font-semibold hover:bg-slate-800 text-slate-400 italic cursor-pointer"
+                                                >
+                                                  -- Unassigned --
+                                                </button>
+                                                {customMembers
+                                                  .filter((m) =>
+                                                    !deliverableAssigneeSearch ||
+                                                    m.name.toLowerCase().includes(deliverableAssigneeSearch.toLowerCase()) ||
+                                                    m.role.toLowerCase().includes(deliverableAssigneeSearch.toLowerCase())
+                                                  )
+                                                  .map((m) => {
+                                                    const assigned = calculateMemberAssignedHours(m.id);
+                                                    const cap = m.weeklyCapacityHours || 40;
+                                                    const free = cap - assigned;
+                                                    const pct = Math.round((assigned / cap) * 100);
+                                                    const badge = pct >= 100 ? '🔴' : pct >= 85 ? '⚠️' : '✅';
+                                                    const isSelected = tb.assigneeId === m.id;
+
+                                                    return (
+                                                      <button
+                                                        key={m.id}
+                                                        type="button"
+                                                        onClick={() => handleReassignDeliverable(proj.id, tb.id, m.id)}
+                                                        className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-between ${
+                                                          isSelected ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'hover:bg-slate-800 text-slate-300 hover:text-white'
+                                                        }`}
+                                                      >
+                                                        <div className="flex items-center gap-1.5 truncate">
+                                                          <img src={m.avatar} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
+                                                          <span className="truncate">{m.name}</span>
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 font-mono ml-2 shrink-0">
+                                                          {badge} {free}h free
+                                                        </span>
+                                                      </button>
+                                                    );
+                                                  })}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+
                                         <span className="text-slate-300 font-bold shrink-0">({tb.hours}h)</span>
-                                      </span>
+                                      </div>
                                     );
                                   })}
                                 </div>

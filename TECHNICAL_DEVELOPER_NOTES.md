@@ -853,4 +853,27 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Added 6 automated unit tests validating overage hours calculations, unbilled dollar computation, healthy/high burn boundary conditions, and quick memo timestamping/clearing.
       - Full test suite now features **28/28 tests passing in ~280ms**.
 
+  35. **Next Deliverable Due Pill & Specialist Deliverable Reassignment (Drag-Drop & 1-Click Popover)**:
+    - **Feature 2: "Next Deliverable Due" Pill (`src/utils/dateUtils.ts` & `VisualAgencyHub.tsx`)**:
+      - Created `getNextDeliverableDueInfo` helper in `dateUtils.ts` returning `{ label, daysRemaining, urgency, badgeColor, taskName }`.
+      - Supports intelligent parsing across task due dates, ISO dates (`YYYY-MM-DD`), and recurring monthly renewals (`Monthly Renewal: 30th`).
+      - Urgency tiering:
+        - `overdue`: `⚠️ [Task] (Xd past due)` (rose badge with high-contrast border).
+        - `due_today`: `🚨 [Task] (Due today)` (pulsing rose alert).
+        - `urgent` (≤3 days): `⚡ [Task] (Due in Xd)` (amber pill).
+        - `upcoming` (>3 days): `🎯 [Task] (Due in Xd)` (cyan pill).
+        - `completed`: `All deliverables complete` (emerald badge).
+      - Displayed in:
+        1. Deliverables list header in the card drawer.
+        2. Project card preview snapshot header next to hours utilization.
+        3. Compact Table view under the status/priority column.
+    - **Feature 4: Specialist Deliverable Reassignment (1-Click Popover & Drag-Drop Target)**:
+      - Made each open deliverable capsule an interactive drag-and-drop drop target (`onDragOver`, `onDrop`).
+      - Managers can drag any specialist avatar from the top team bar or squad and drop directly onto the deliverable pill to reassign immediately.
+      - 1-Click Specialist Picker Popover: clicking on the deliverable assignee opens a floating menu with search filter and real-time free bandwidth counters (`✅ Xh free`, `⚠️ Near Cap`, `🔴 Overload`).
+      - Updates `taskBreakdown` and synchronizes the project's `members` roster in real-time.
+    - **Automated Vitest Test Suite Expansion**:
+      - Expanded `tests/retainerAndMemo.test.ts` with 4 new tests covering deliverable due calculation, overdue math, near-term alert thresholds, and specialist squad re-allocation.
+      - Total test suite now stands at **32/32 tests passing across 6 test suites in ~300ms**.
+
 

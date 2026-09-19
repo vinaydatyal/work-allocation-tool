@@ -6040,6 +6040,41 @@ Executed automated test suite (`npm test`):
    - Test suite now has **28/28 tests passing in 286ms**.
    - `npm run build`: Verified 100% clean TypeScript build with zero errors.
 
+---
+
+## 👤 User (Turn #184)
+
+<USER_REQUEST>
+2 & 4, and more ideas
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+### 1. Implemented Features
+1. **📅 "Next Deliverable Due" Pill (Feature 2)**:
+   - Added `getNextDeliverableDueInfo` helper to `src/utils/dateUtils.ts` returning `{ label, daysRemaining, urgency, badgeColor, taskName }`.
+   - Parses active deliverables against due dates, calendar dates (`YYYY-MM-DD`), and recurring monthly renewals (`Monthly Renewal: 30th`).
+   - Categorizes urgency:
+     - `overdue`: `⚠️ [Deliverable] (Xd past due)` (high-contrast rose).
+     - `due_today`: `🚨 [Deliverable] (Due today)` (pulsing red alert).
+     - `urgent` (≤3 days): `⚡ [Deliverable] (Due in Xd)` (amber pill).
+     - `upcoming` (>3 days): `🎯 [Deliverable] (Due in Xd)` (cyan pill).
+     - `completed`: `All deliverables complete` (emerald).
+   - Displayed seamlessly in:
+     - The project card deliverable drawer header.
+     - The card preview snapshot bar beside utilization hours.
+     - The Compact Table view under the status/priority column.
+2. **👥 Specialist Reassignment on Deliverables (Feature 4)**:
+   - Deliverable Drag-and-Drop: Each deliverable pill in the drawer is now an interactive drop target (`onDragOver`, `onDrop`).
+   - Managers can drag any specialist avatar from the top team bar or squad and drop directly onto the deliverable pill to reassign immediately.
+   - 1-Click Specialist Picker Popover: Clicking on the assignee badge opens a floating menu with search filter and real-time free bandwidth counters (`✅ Xh free`, `⚠️ Near Cap`, `🔴 Overload`).
+   - Synchronizes both `taskBreakdown` and the project `members` squad roster in real-time.
+3. **Automated Vitest Test Suite Expansion**:
+   - Expanded `tests/retainerAndMemo.test.ts` with 4 new tests.
+   - Total test suite now stands at **32/32 tests passing across 6 test suites in 306ms**.
+   - Production bundle compiled with zero errors via `tsc -b && vite build`.
+
+
 
 
 
