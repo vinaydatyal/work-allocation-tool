@@ -65,3 +65,33 @@ export async function upsertPresence(
     last_seen: new Date().toISOString()
   }, { onConflict: 'user_id' });
 }
+
+// ─── Task dispatch helper ─────────────────────────────────────────────────────
+
+export async function dispatchTaskToSupabase(task: {
+  id?: string;
+  title: string;
+  client_name?: string;
+  client_tier?: string;
+  required_skill?: string;
+  estimated_hours?: number;
+  assigned_user_id: string;
+  priority?: 'high' | 'medium' | 'low';
+  due_date?: string;
+  source?: 'allocated' | 'clickup' | 'local';
+}) {
+  return supabase.from('tasks').upsert({
+    id: task.id || crypto.randomUUID(),
+    title: task.title,
+    client_name: task.client_name || 'Internal',
+    client_tier: task.client_tier || 'Tier 2',
+    required_skill: task.required_skill || 'General',
+    estimated_hours: task.estimated_hours || 1,
+    assigned_user_id: task.assigned_user_id,
+    priority: task.priority || 'medium',
+    status: 'assigned',
+    due_date: task.due_date || null,
+    source: task.source || 'allocated'
+  });
+}
+

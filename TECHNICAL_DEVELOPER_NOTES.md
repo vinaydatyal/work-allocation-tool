@@ -949,3 +949,27 @@ Agencies frequently maintain their complete client roster inside a specific Clic
     - **Status of Both Applications (Strict Verification)**:
       - **Work Allocation Tool**: All 36 automated unit tests passing (`npm test`). Build passes (`npm run build`). Clean git status synced with `origin/main` on commit `07fa82c`.
       - **DSR Tracker Desktop**: All 15 core systems documented in `REGRESSION_DEFENSE_MATRIX.md` and committed in local git `d973cee`.
+
+  39. **Phase 2: Two-Way Data Sync (Desktop ↔ Supabase Backend)**:
+    - **DSR Tracker Desktop Companion Engine (`main.js`)**:
+      - `get-team-profiles`: Rest API fetch to `${SUPABASE_URL}/rest/v1/profiles?select=*&order=name.asc` enables dynamic team identity selection directly in the desktop app.
+      - `fetch-supabase-tasks`: Automatically queries tasks assigned to `currentUser.id` where `status != 'completed'`. Normalizes priority case-insensitively and non-destructively merges tasks into `data.todos` with unique prefix `alloc_${t.id}` and `source: 'allocated'`. Existing local tasks are never overwritten or deleted.
+      - `sync-time-log-to-supabase`: Real-time POST to Supabase `time_logs` upon task completion with user ID, task name, category, duration, timestamps, and deduplication local ID.
+      - **Resilient Offline Sync Queue (`flushSyncQueue`)**:
+        - Automatic background processor running every 30s. If offline when a task ends, the payload is appended to `data.syncQueue` in `dsr_data.json`.
+        - Once network connectivity is restored, the queue batch-flushes to Supabase and purges delivered records. Duplicate attempts (status 409) are gracefully resolved.
+    - **DSR Tracker UI Enhancements (`dashboard.html`, `dashboard.js`, `style.css`)**:
+      - **Profile & Sync Status Header Pill (`#userProfileBtn`)**:
+        - Displays current user's name and live connection dot (`#syncStatusDot` — green when connected, gray when offline/disconnected).
+        - Clicking opens `#profileModal`, loading available team profiles (Vinay, Khuvaish, Amrit, Vansh, Nidhi, etc.) with role indicators.
+        - Persisted securely to disk using Electron `safeStorage`.
+      - **Bucket Source Filter Strip (`#bucketSourceFilterStrip`)**:
+        - Interactive filter pills: `[ All | Local | Allocated | ClickUp ]` situated directly above `#todoList`.
+        - Allows specialists to isolate allocated work or their personal local tasks with 1 click.
+        - Includes Cloud Sync button (`#syncAllocatedTasksBtn`) with spinning feedback animation.
+      - **Task Source Badges**:
+        - Color-coded chips rendered in `#todoList` items: `🎯 Allocated` (cyan), `⚡ ClickUp` (purple), `📌 Local` (gray).
+    - **Work Allocation Tool Companion (`src/lib/supabase.ts`)**:
+      - Added typed helper `dispatchTaskToSupabase`: enables managers to allocate tasks directly to team members with UUID generation, priority, and `source: 'allocated'`.
+      - Unit test suite: **36/36 passing**. Vite production build: clean.
+
