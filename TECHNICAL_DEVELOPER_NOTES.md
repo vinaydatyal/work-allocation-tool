@@ -933,6 +933,10 @@ Agencies frequently maintain their complete client roster inside a specific Clic
         - `SEO & Delivery Pod` (`#10B981`): Lead *Amrit Kaur*
         - `Web & Tech Pod` (`#3B82F6`): Lead *Vansh*
       - Configured permissive SELECT/WRITE policies for `teams`, `team_members`, and `tasks` to ensure client application access across anon and authenticated roles.
+    - **Today's Priorities Banner Visibility & Case-Sensitivity Normalization**:
+      - Resolved an issue where `renderPrioritiesBanner()` in `dashboard.js` and dropdown query in `mini.js` strictly compared `t.priority === 'High'` (case-sensitive) while todos stored lowercase `'high'`.
+      - Normalized filtering to `(t.priority || '').toLowerCase() === 'high'` across both parent tasks and subtasks.
+      - Updated `#prioritiesBanner` in `dashboard.html` to `display: flex` by default and added an informative placeholder so the banner is always visible and reactive.
 
 
 
