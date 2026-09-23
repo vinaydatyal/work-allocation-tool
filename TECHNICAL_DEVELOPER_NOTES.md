@@ -937,5 +937,15 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Established strict non-regression protocol across both projects: before and after any feature build, all 15 core architectural systems (Priorities Banner, Mini Pill Auto-switch, Contextual Dropdown, Notification focus, 3-min Idle/Sustained Input check, Pulse card flex, Bucket Search & 2-tier sort, Note timestamp carry-forward, Subtask note persistence, Timeline live hours, Zen Mode blur, Category migration, Multi-dir sync, and Supabase cloud IPC) must be cross-verified against the Master Feature Registry.
       - Enforces zero-tolerance for silent overrides or case-sensitivity regressions.
 
-
-
+  38. **Dual-Application State Preservation & Anti-Chaos Audit Protocol**:
+    - **DSR Tracker Desktop Standalone Git Repository**:
+      - Initialized git tracking at `E:\Antigravity\DSR Tracker\.git` with clean `.gitignore` (ignoring `node_modules/`, `dist/`, `.agents/`, logs, and `.exe` binaries).
+      - Committed baseline snapshot `d973cee` containing all 15 verified desktop systems and the `REGRESSION_DEFENSE_MATRIX.md`.
+    - **Today's Priorities Banner & Mini Pill Case-Sensitivity Defense**:
+      - Root cause diagnosed: `globalTodos` stores priority as lowercase (`'high'`), whereas desktop UI evaluated `t.priority === 'High'`.
+      - Sanitized all priority comparisons to `(t.priority || '').toLowerCase() === 'high'` in `dashboard.js` (line 2042) and `mini.js` (line 64).
+      - Updated `#prioritiesBanner` in `dashboard.html` to maintain stable flex layout with non-collapsing empty state indicator rather than disappearing.
+      - Compiled fresh production binary: `E:\Antigravity\DSR Tracker\dist\DSR Tracker Setup 1.0.0.exe`.
+    - **Status of Both Applications (Strict Verification)**:
+      - **Work Allocation Tool**: All 36 automated unit tests passing (`npm test`). Build passes (`npm run build`). Clean git status synced with `origin/main` on commit `07fa82c`.
+      - **DSR Tracker Desktop**: All 15 core systems documented in `REGRESSION_DEFENSE_MATRIX.md` and committed in local git `d973cee`.
