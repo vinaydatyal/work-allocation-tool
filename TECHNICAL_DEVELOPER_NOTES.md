@@ -894,4 +894,45 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Added 4 unit tests in `tests/retainerAndMemo.test.ts` validating scope creep detection, deliverable urgency alerts, invoice holds, and healthy account pass-through.
       - Full test suite now features **36/36 tests passing in 313ms**.
 
+  37. **DSR Tracker + Work Allocation Tool Integration (Master Plan v3 — Phase 0 & Phase 1)**:
+    - **Supabase PostgreSQL & Real-Time Backend Foundation**:
+      - Integrated `@supabase/supabase-js` into the web application and configured environment connection in `.env.local` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON`).
+      - Created typed interface definitions in `src/lib/database.types.ts` and initialized typed client in `src/lib/supabase.ts` with helper utilities (`getCurrentProfile`, `upsertPresence`).
+      - Engineered complete relational database schema in `supabase/schema.sql`:
+        - `profiles`: Multi-role identity (`EXECUTIVE`, `PROJECT_MANAGER`, `TEAM_LEAD`, `COORDINATOR`, `MEMBER`), permission flags, and server-side `clickup_token`.
+        - `teams`: Fixed pods with team lead foreign key, hex color swatch, sort order, and metadata.
+        - `team_members`: Drag-and-drop pod membership junction with ordering.
+        - `tasks`: Dual-sourced work items (`local`, `clickup`, `allocated`) with status and priority indexing.
+        - `time_logs`: High-frequency execution logs with client-side deduplication key (`local_id`).
+        - `dsr_entries` & `dsr_time_logs`: Structured multi-tiered DSR approval workflow.
+        - `presence`: Live 60s heartbeat tracking for team member task state (`active`, `idle`, `offline`).
+        - `sync_queue`: Local-first offline batch synchronization with retry tracking.
+        - Row Level Security (RLS) policies and PostgreSQL trigger `trg_set_permissions` for automated role privilege assignment.
+      - Authored `supabase/seed.sql` for 1-click database population of pods, executive profiles, and specialist assignments.
+    - **Server-Side ClickUp OAuth Token Persistence (`api/clickup/callback.js`)**:
+      - Upgraded the serverless OAuth callback handler: upon token exchange with ClickUp API v2, writes `access_token` directly to `profiles.clickup_token` in Supabase using the service/secret key.
+      - Eliminates sensitive token exposure in frontend browser URL query strings. Defaults first-time ClickUp users to the `MEMBER` role for Project Manager triage.
+    - **5-Role Enterprise Permission Model (`src/types.ts` & `src/data/userProfiles.ts`)**:
+      - Structured hierarchical role matrix: `EXECUTIVE` (read-only strategic overview & financials), `PROJECT_MANAGER` (full roster, allocation, org map, and DSR approval), `TEAM_LEAD` (pod management and member DSR review), `COORDINATOR` (task assignment & dispatch), `MEMBER` (time tracking & DSR submission).
+    - **Interactive Drag-and-Drop Org Map Studio (`src/components/OrgMapStudio.tsx`)**:
+      - Created dedicated Org Map command view accessible from the bottom navigation dock (`id: 'org'`).
+      - Features dynamic pod cards with aggregate load bars, team lead badges, and member capacity breakdowns.
+      - Native HTML5 drag-and-drop mechanism enabling Project Managers to reassign specialists between pods seamlessly.
+      - Live role badge modifier: click any specialist's role badge to assign new system roles on the fly.
+      - Automatic background persistence to Supabase `teams` and `team_members` with optimistic UI feedback.
+    - **DSR Tracker Desktop Companion Engine (`main.js`)**:
+      - Connected native Electron main process with Supabase project endpoint and publishable key.
+      - Wired IPC channels: `get-current-user`, `set-current-user`, `logout-user`, `fetch-supabase-tasks`, `sync-time-log-to-supabase`, and `update-presence`.
+      - Automatic allocated task merging into local bucket (`source: 'allocated'`) without overriding local user tasks.
+    - **Database Verification & Pod Leadership Calibration**:
+      - Verified live database state on Supabase: 5 Pods, 11 Profiles, and 11 Team Member pod assignments confirmed active via API checks.
+      - Calibrated official pod leadership assignments across database and frontend:
+        - `Executive Leadership` (`#6366F1`): CEOs *Agam Grover* & *Manpreet S. Nagpal*
+        - `Operations & Management` (`#F59E0B`): Lead *Vinay Datyal* (Project Manager)
+        - `SEO & Strategy Pod` (`#06B6D4`): Lead *Khuvaish*
+        - `SEO & Delivery Pod` (`#10B981`): Lead *Amrit Kaur*
+        - `Web & Tech Pod` (`#3B82F6`): Lead *Vansh*
+      - Configured permissive SELECT/WRITE policies for `teams`, `team_members`, and `tasks` to ensure client application access across anon and authenticated roles.
+
+
 

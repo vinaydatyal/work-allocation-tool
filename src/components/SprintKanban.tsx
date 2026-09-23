@@ -25,7 +25,7 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
   onUpdateTaskStatus
 }) => {
   const findAssignee = (userId: string | null) => teamMembers.find((m) => m.id === userId);
-  const isSEOManager = currentProfile.roleType === 'ADMIN';
+  const isSEOManager = currentProfile.roleType === 'PROJECT_MANAGER' || (currentProfile.roleType as string) === 'ADMIN';
 
   const handleStatusTransition = async (taskId: string, newStatus: TaskStatus) => {
     onUpdateTaskStatus(taskId, newStatus);

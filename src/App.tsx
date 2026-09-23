@@ -11,6 +11,7 @@ import { TaskBacklog } from './components/TaskBacklog';
 import { ResourceTimeline } from './components/ResourceTimeline';
 import { SprintKanban } from './components/SprintKanban';
 import { TeamRosterStudio } from './components/TeamRosterStudio';
+import { OrgMapStudio } from './components/OrgMapStudio';
 import { MondayAllocationWarRoom } from './components/MondayAllocationWarRoom';
 import { SkillGapHiringMatrix } from './components/SkillGapHiringMatrix';
 import { SkillEvaluationCenter } from './components/SkillEvaluationCenter';
@@ -433,6 +434,15 @@ export function App() {
                     currentProfile={currentProfile}
                     onAddMember={handleAddMember}
                     onUpdateMemberScores={handleUpdateMemberScores}
+                  />
+                )}
+
+                {activeTab === 'org' && (
+                  <OrgMapStudio
+                    currentProfile={currentProfile}
+                    teamMembers={teamMembers}
+                    tasks={tasks}
+                    isWhiteTheme={isWhiteTheme}
                   />
                 )}
 

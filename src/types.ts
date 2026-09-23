@@ -75,19 +75,46 @@ export type PriorityLevel = 'High' | 'Medium' | 'Low';
 
 export type TaskStatus = 'backlog' | 'assigned' | 'in_progress' | 'review' | 'completed';
 
-export type UserRoleType = 'ADMIN' | 'COORDINATOR';
+/**
+ * Role hierarchy (highest to lowest):
+ *   EXECUTIVE      — Board/Director level. Read-only overview, no task management.
+ *   PROJECT_MANAGER— Full control: roster, assignments, DSR approval, reports.
+ *   TEAM_LEAD      — Manages a fixed sub-team pod. Reviews DSRs for their members.
+ *   COORDINATOR    — Operational role. Can assign tasks, cannot manage roster.
+ *   MEMBER         — Individual contributor. Tracks time, submits DSR.
+ */
+export type UserRoleType =
+  | 'EXECUTIVE'
+  | 'PROJECT_MANAGER'
+  | 'TEAM_LEAD'
+  | 'COORDINATOR'
+  | 'MEMBER';
 
 export interface AppUserProfile {
   id: string;
   name: string;
-  roleTitle: string;
+  roleTitle: string;   // e.g. "SEO Lead", "Performance Manager", "Jr. Designer"
   roleType: UserRoleType;
   avatar: string;
+  teamId?: string;            // Sub-team/pod this user belongs to
+  managedMemberIds?: string[]; // TEAM_LEAD: IDs of direct reports
+  clickUpUserId?: number;
+  clickUpEmail?: string;
   permissions: {
-    canManageRoster: boolean;
-    canAssignTasks: boolean;
-    canExportPlan: boolean;
-    canCalibrateSkills: boolean;
+    // Roster & Planning
+    canManageRoster: boolean;         // PROJECT_MANAGER
+    canAssignTasks: boolean;          // PROJECT_MANAGER + COORDINATOR + TEAM_LEAD
+    canExportPlan: boolean;           // PROJECT_MANAGER + EXECUTIVE
+    canCalibrateSkills: boolean;      // PROJECT_MANAGER + TEAM_LEAD
+    canManageOrgMap: boolean;         // PROJECT_MANAGER only — drag-drop org structure
+    // DSR Workflow
+    canSubmitDSR: boolean;            // MEMBER + COORDINATOR
+    canReviewDSR: boolean;            // TEAM_LEAD + PROJECT_MANAGER
+    canApproveDSR: boolean;           // PROJECT_MANAGER only
+    // Visibility
+    canViewTeamPresence: boolean;     // TEAM_LEAD + PROJECT_MANAGER + EXECUTIVE
+    canViewAllTeams: boolean;         // PROJECT_MANAGER + EXECUTIVE (vs. own pod only)
+    canViewFinancials: boolean;       // PROJECT_MANAGER + EXECUTIVE
   };
 }
 

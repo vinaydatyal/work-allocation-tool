@@ -23,6 +23,7 @@ export type AppRoute =
   | 'sla'
   | 'radar'
   | 'member'
+  | 'org'
   | 'unknown';
 
 export interface RouteState {
@@ -59,7 +60,9 @@ const ROUTE_MAP: Record<string, AppRoute> = {
   'timeline': 'timeline',
   'backlog': 'backlog',
   'kanban': 'kanban',
-  'roster': 'roster'
+  'roster': 'roster',
+  'org': 'org',
+  'org-map': 'org'
 };
 
 export function parseRoute(pathname: string, search: string = ''): RouteState {

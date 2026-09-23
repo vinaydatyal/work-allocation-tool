@@ -21,7 +21,8 @@ import {
   Moon,
   Zap,
   Flame,
-  RefreshCw
+  RefreshCw,
+  Layers
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -122,10 +123,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [setActiveTab]);
 
   const NAV_ITEMS: {
-    id: 'projects' | 'calendar' | 'hours' | 'dsr' | 'skills' | 'bot' | 'finances' | 'notifications' | 'brief' | 'war-room';
+    id: 'projects' | 'calendar' | 'hours' | 'dsr' | 'skills' | 'bot' | 'finances' | 'notifications' | 'brief' | 'war-room' | 'org';
     label: string;
     shortLabel: string;
-    shortcut: string;
+    shortcut?: string;
     icon: React.ElementType;
     badge?: number;
   }[] = [
@@ -192,6 +193,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       shortcut: '8',
       icon: Bell,
       badge: 4
+    },
+    {
+      id: 'org',
+      label: 'Org Map & Pods',
+      shortLabel: 'Org Map',
+      icon: Layers
     },
     {
       id: 'brief',
