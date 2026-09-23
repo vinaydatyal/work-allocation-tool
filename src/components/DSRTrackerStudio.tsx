@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, BarChart3, CheckCircle2 } from 'lucide-react';
 import { toast as sonnerToast } from 'sonner';
 import {
   isClickUpConnected,
@@ -11,6 +11,7 @@ import {
 } from '../services/clickupOAuth';
 import type { TeamMember, Task } from '../types';
 import type { ActiveProjectItem } from './VisualAgencyHub';
+import { DSRApprovalQueue } from './DSRApprovalQueue';
 
 interface DSRTrackerStudioProps {
   members: TeamMember[];
@@ -43,6 +44,7 @@ export const DSRTrackerStudio: React.FC<DSRTrackerStudioProps> = ({
   onAssignProjectToMember,
   onRemoveProjectFromMember: _onRemoveProjectFromMember
 }) => {
+  const [activeMode, setActiveMode] = useState<'queue' | 'matrix'>('queue');
   const [selectedMonth, setSelectedMonth] = useState<string>('Jul 2026');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('All');
@@ -312,10 +314,56 @@ export const DSRTrackerStudio: React.FC<DSRTrackerStudioProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* 1. TOP BANNER & BI-DIRECTIONAL SYNC HIGHLIGHT */}
-      <div className="bg-gradient-to-r from-[#111827] via-slate-900 to-[#111827] border border-slate-700/90 rounded-2xl p-6 shadow-2xl relative overflow-hidden group hover:border-indigo-500/50 transition-all duration-500">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-400 opacity-90" />
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
+      {/* PRIMARY MODE SWITCHER: APPROVAL QUEUE vs MONTHLY MATRIX */}
+      <div className="bg-slate-900/95 border border-slate-800 p-2.5 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800/80 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => setActiveMode('queue')}
+            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              activeMode === 'queue'
+                ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white shadow-lg shadow-emerald-500/25 scale-[1.02]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+            <span>📋 DSR Approval & Review Queue</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveMode('matrix')}
+            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              activeMode === 'matrix'
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 scale-[1.02]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-indigo-300" />
+            <span>📊 Monthly Plan vs Actual Matrix</span>
+          </button>
+        </div>
+
+        <div className="text-xs text-slate-400 font-medium px-3 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-indigo-400" />
+          <span>Agency Roster: <strong className="text-slate-200">{members.length} Members</strong></span>
+        </div>
+      </div>
+
+      {activeMode === 'queue' ? (
+        <DSRApprovalQueue
+          members={members}
+          onViewMemberProfile={(m) => {
+            setSelectedMemberForProfile(m);
+            setActiveMode('matrix');
+          }}
+        />
+      ) : (
+        <>
+          {/* 1. TOP BANNER & BI-DIRECTIONAL SYNC HIGHLIGHT */}
+          <div className="bg-gradient-to-r from-[#111827] via-slate-900 to-[#111827] border border-slate-700/90 rounded-2xl p-6 shadow-2xl relative overflow-hidden group hover:border-indigo-500/50 transition-all duration-500">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-400 opacity-90" />
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-black uppercase tracking-wider shadow-sm">
               <span>⚡ Bi-Directional DSR & Work Allocation Engine</span>
@@ -685,8 +733,10 @@ export const DSRTrackerStudio: React.FC<DSRTrackerStudioProps> = ({
           </table>
         </div>
       </div>
+    </>
+  )}
 
-      {/* 4. INDIVIDUAL EMPLOYEE PROFILE & BI-DIRECTIONAL WORK ALLOCATION MODAL */}
+  {/* 4. INDIVIDUAL EMPLOYEE PROFILE & BI-DIRECTIONAL WORK ALLOCATION MODAL */}
       {selectedMemberForProfile && currentProfileData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fadeIn overflow-y-auto">
           <div className="bg-[#111827] border border-slate-700 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-xl my-auto">

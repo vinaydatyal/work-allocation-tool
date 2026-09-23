@@ -973,3 +973,40 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Added typed helper `dispatchTaskToSupabase`: enables managers to allocate tasks directly to team members with UUID generation, priority, and `source: 'allocated'`.
       - Unit test suite: **36/36 passing**. Vite production build: clean.
 
+  40. **Phase 3: DSR Approval Workflow & Full 23-Person Agency Roster Calibration**:
+    - **Official 23-Person Agency Roster Calibration (`src/data/userProfiles.ts`, `supabase/schema.sql`, `supabase/seed.sql`)**:
+      - Calibrated all 23 exact agency members with designations, avatars, and permission tiers:
+        - **Co-Founders & CEOs (2)**: `Agam Grover`, `Manpreet S. Nagpal` (`role_type: 'CEO'`, `role_title: 'CEO & Co-Founder'`).
+        - **Operations & SEO Manager (1)**: `Vinay Datyal` (`role_type: 'PROJECT_MANAGER'`, `role_title: 'SEO Manager'`).
+        - **Cross-Functional Team Leads (3)**: `Khuvaish` (`Strategy & SEO Pod`), `Amrit Kaur` (`SEO & Delivery Pod`), `Vansh` (`Web, Tech & Dev Pod`).
+        - **Project Coordinator (1)**: `Nidhi Verma` (`role_type: 'COORDINATOR'`, `role_title: 'Project Coordinator'`).
+        - **Specialists & Executives (16)**: `Anshum` (Developer), `Navjeet kaur` (Designer), `Kamakshi Chopra` (Senior SEO Executive), and Executives: `Aakash`, `Anshita`, `Anu Rana`, `Himanshu`, `Komal`, `Neeraj Panwar`, `Raman`, `Rushali Manchanda`, `Sahil Attri`, `Shubham Tisawer`, `Siya`, `Vimla Chauhan`, `Vivek kumar`.
+      - Database schema & check constraints updated in `schema.sql` and `seed.sql`:
+        - `profiles_role_type_check` updated to allow `('CEO', 'EXECUTIVE', 'PROJECT_MANAGER', 'TEAM_LEAD', 'COORDINATOR', 'MEMBER')`.
+        - RLS policies updated with `WITH CHECK (true)` for seamless client write capability on `dsr_entries`, `time_logs`, and `presence`.
+    - **DSR Tracker Desktop Companion Engine (`main.js`, `dashboard.html`, `dashboard.js`)**:
+      - Added IPC `submit-dsr`:
+        - Collects all tasks completed today, pushes unsynced time logs to Supabase `time_logs` (merging duplicates), and upserts a record in `dsr_entries` with `status: 'pending_review'`.
+      - Added IPC `get-dsr-status`:
+        - Queries `dsr_entries` for `currentUser.id` and today's date, returning current approval state and reviewer feedback.
+      - **Desktop UI Controls**:
+        - Glowing emerald/amber `#submitDsrBtn` in header with live state changes: `Submit DSR` → `⏳ Pending Review` → `✅ DSR Approved` → `⚠️ Re-Submit DSR`.
+        - Prominent `#dsrStatusBanner` displaying live submission timestamp, lead approval confirmation, or reviewer revision requests.
+        - Background status poll every 30s keeps desktop state synchronized with web lead approvals without restarting.
+        - Rebuilt desktop installer: `E:\Antigravity\DSR Tracker\dist\DSR Tracker Setup 1.0.0.exe`.
+        - Committed to desktop Git repository: commit `e51af3e`.
+    - **Work Allocation Tool DSR Approval Hub (`src/components/DSRApprovalQueue.tsx`, `DSRTrackerStudio.tsx`)**:
+      - Implemented primary mode switcher in `DSRTrackerStudio.tsx`:
+        - **`📋 DSR Approval & Review Queue`** (Default lead command center).
+        - **`📊 Monthly Plan vs Actual Matrix`** (Historical capacity matrix).
+      - **DSR Approval Queue Features**:
+        - Multi-lead filtering: `All Pods`, `Khuvaish (Strategy & SEO)`, `Amrit Kaur (SEO & Delivery)`, `Vansh (Web, Tech & Dev)`, `Vinay Datyal (Operations & Management)`, and `Co-Founders`.
+        - Skill category filtering (`Technical SEO`, `AEO/GEO`, `WordPress & Web Dev`, `UI/UX Design`, `Link Building`, etc.) reflecting fluid agency responsibilities.
+        - Status filter (`Pending Review`, `Approved`, `Needs Revision`, `All`) and real-time search.
+        - Detailed DSR submission cards with specialist avatar, pod badge, total duration, and expandable task breakdown with notes and category tags.
+        - Instant **Approve** action and **Request Revision** modal with preset feedback chips and custom comments.
+        - One-click **Batch Approve All Pending** button for rapid queue processing.
+      - **Supabase Workflow Helpers (`src/lib/supabase.ts`)**:
+        - Added typed functions: `fetchDsrEntries`, `fetchTimeLogsForDsr`, `approveDsrEntry`, `requestDsrRevision`, `batchApproveDsrEntries`, `submitDsr`.
+      - Unit test suite: **36/36 passing** (`vitest`). TypeScript compilation: **0 errors** (`npx tsc --noEmit`).
+

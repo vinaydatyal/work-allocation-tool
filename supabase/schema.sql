@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS teams (
 CREATE TABLE IF NOT EXISTS profiles (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name              TEXT NOT NULL,
-  role_type         TEXT NOT NULL CHECK (role_type IN ('EXECUTIVE','PROJECT_MANAGER','TEAM_LEAD','COORDINATOR','MEMBER')),
+  role_type         TEXT NOT NULL CHECK (role_type IN ('CEO','EXECUTIVE','PROJECT_MANAGER','TEAM_LEAD','COORDINATOR','MEMBER')),
   role_title        TEXT,
   avatar            TEXT,
   team_id           UUID REFERENCES teams(id) ON DELETE SET NULL,
@@ -167,14 +167,17 @@ CREATE POLICY "tasks_read_all"  ON tasks FOR SELECT USING (true);
 CREATE POLICY "tasks_write_all" ON tasks FOR ALL USING (true);
 
 -- Time logs: users see own, managers/TLs see their team
-CREATE POLICY "timelogs_own" ON time_logs FOR ALL USING (auth.uid()::TEXT = user_id::TEXT);
+-- Time logs: readable by team, writable by authenticated/anon client
+CREATE POLICY "timelogs_read_all"  ON time_logs FOR SELECT USING (true);
+CREATE POLICY "timelogs_write_all" ON time_logs FOR ALL USING (true);
 
--- DSR: users see own, reviewers see their team members
-CREATE POLICY "dsr_own" ON dsr_entries FOR ALL USING (auth.uid()::TEXT = user_id::TEXT);
+-- DSR: readable by team leads/managers/members, writable by client
+CREATE POLICY "dsr_read_all"  ON dsr_entries FOR SELECT USING (true);
+CREATE POLICY "dsr_write_all" ON dsr_entries FOR ALL USING (true);
 
 -- Presence: all authenticated users can read, self-write only
 CREATE POLICY "presence_read" ON presence FOR SELECT USING (true);
-CREATE POLICY "presence_self_write" ON presence FOR ALL USING (auth.uid()::TEXT = user_id::TEXT);
+CREATE POLICY "presence_self_write" ON presence FOR ALL USING (true);
 
 -- ─── FUNCTIONS ──────────────────────────────────────────────
 -- Auto-set permissions based on role_type
@@ -182,7 +185,7 @@ CREATE OR REPLACE FUNCTION set_permissions_from_role()
 RETURNS TRIGGER AS $$
 BEGIN
   CASE NEW.role_type
-    WHEN 'EXECUTIVE' THEN
+    WHEN 'CEO' THEN
       NEW.can_export_plan := true;
       NEW.can_view_all_teams := true;
       NEW.can_view_team_presence := true;
@@ -205,6 +208,8 @@ BEGIN
       NEW.can_view_team_presence := true;
     WHEN 'COORDINATOR' THEN
       NEW.can_assign_tasks := true;
+      NEW.can_submit_dsr := true;
+    WHEN 'EXECUTIVE' THEN
       NEW.can_submit_dsr := true;
     WHEN 'MEMBER' THEN
       NEW.can_submit_dsr := true;

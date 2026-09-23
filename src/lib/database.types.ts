@@ -13,7 +13,7 @@ export interface Database {
         Row: {
           id: string;
           name: string;
-          role_type: 'EXECUTIVE' | 'PROJECT_MANAGER' | 'TEAM_LEAD' | 'COORDINATOR' | 'MEMBER';
+          role_type: 'CEO' | 'EXECUTIVE' | 'PROJECT_MANAGER' | 'TEAM_LEAD' | 'COORDINATOR' | 'MEMBER';
           role_title: string | null;
           avatar: string | null;
           team_id: string | null;
@@ -37,7 +37,7 @@ export interface Database {
         Insert: {
           id?: string;
           name: string;
-          role_type: 'EXECUTIVE' | 'PROJECT_MANAGER' | 'TEAM_LEAD' | 'COORDINATOR' | 'MEMBER';
+          role_type: 'CEO' | 'EXECUTIVE' | 'PROJECT_MANAGER' | 'TEAM_LEAD' | 'COORDINATOR' | 'MEMBER';
           role_title?: string | null;
           avatar?: string | null;
           team_id?: string | null;

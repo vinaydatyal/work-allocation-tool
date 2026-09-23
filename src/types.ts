@@ -84,6 +84,7 @@ export type TaskStatus = 'backlog' | 'assigned' | 'in_progress' | 'review' | 'co
  *   MEMBER         — Individual contributor. Tracks time, submits DSR.
  */
 export type UserRoleType =
+  | 'CEO'
   | 'EXECUTIVE'
   | 'PROJECT_MANAGER'
   | 'TEAM_LEAD'
