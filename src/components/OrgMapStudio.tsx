@@ -792,8 +792,8 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
-                                        <Icon className="w-3 h-3" />
-                                        <span>{r.label}</span>
+                                        <Icon className="w-3 h-3 text-slate-300" />
+                                        <span className="text-white">{r.label}</span>
                                       </div>
                                       {isSelected && <Check className="w-3 h-3 text-cyan-400" />}
                                     </button>
