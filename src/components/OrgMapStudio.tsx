@@ -91,6 +91,12 @@ const DEFAULT_PODS: PodData[] = [
 ];
 
 const ROLE_CONFIG: Record<UserRoleType, { label: string; color: string; bg: string; icon: React.ComponentType<{ className?: string }> }> = {
+  CEO: {
+    label: 'CEO',
+    color: 'text-fuchsia-400',
+    bg: 'bg-fuchsia-500/10 border-fuchsia-500/20',
+    icon: Crown
+  },
   EXECUTIVE: {
     label: 'Executive',
     color: 'text-indigo-400',

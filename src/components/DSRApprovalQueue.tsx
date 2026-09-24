@@ -5,10 +5,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
-  Filter,
   Search,
-  Calendar,
-  Sparkles,
   CheckCheck,
   MessageSquare,
   RefreshCw,
@@ -16,9 +13,7 @@ import {
   X,
   ExternalLink,
   ShieldCheck,
-  TrendingUp,
-  Layers,
-  Award
+  TrendingUp
 } from 'lucide-react';
 import { toast as sonnerToast } from 'sonner';
 import type { TeamMember } from '../types';
@@ -27,8 +22,7 @@ import {
   fetchTimeLogsForDsr,
   approveDsrEntry,
   requestDsrRevision,
-  batchApproveDsrEntries,
-  supabase
+  batchApproveDsrEntries
 } from '../lib/supabase';
 
 export interface DSRApprovalQueueProps {
@@ -256,7 +250,6 @@ export const DSRApprovalQueue: React.FC<DSRApprovalQueueProps> = ({
   onViewMemberProfile
 }) => {
   const [dsrItems, setDsrItems] = useState<ReviewDsrItem[]>(() => generateInitialMockDSRs(members));
-  const [loading, setLoading] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Filters
@@ -264,7 +257,7 @@ export const DSRApprovalQueue: React.FC<DSRApprovalQueueProps> = ({
   const [selectedSkillFilter, setSelectedSkillFilter] = useState<string>('All');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'pending_review' | 'approved' | 'revision_requested'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   // UI state
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set(['dsr-0-anshum', 'dsr-1-kamakshi chopra']));

@@ -89,7 +89,7 @@ export function App() {
               clientCommunication: 8,
               requirementUnderstanding: 8,
               proactivityReliability: 8,
-              clientReadyTier: 'Tier 2: Direct Email Capable',
+              clientReadyTier: 'Tier 2: Direct Email Capable' as any,
               lastTestedDate: new Date().toISOString().split('T')[0]
             },
             skillScores: []
