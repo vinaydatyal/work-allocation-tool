@@ -107,6 +107,7 @@ export interface AgencyNotificationItem {
   targetProjectId?: string;
 }
 
+
 interface VisualAgencyHubProps {
   teamMembers: TeamMember[];
   tasks: Task[];
@@ -12632,10 +12633,20 @@ Due Date: ${proj.paymentDueDate}
           />
 
           {/* Modal Card Window */}
-          <div
-            className="relative w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden z-10 my-auto transition-all animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col"
-            style={{
-              backgroundColor: isWhiteTheme ? '#ffffff' : '#0f172a',
+            <style>{`
+              .lead-form-select option {
+                background-color: #0f172a !important;
+                color: #ffffff !important;
+              }
+              body.theme-white .lead-form-select option {
+                background-color: #ffffff !important;
+                color: #0f172a !important;
+              }
+            `}</style>
+            <div
+              className="relative w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden z-10 my-auto transition-all animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col"
+              style={{
+                backgroundColor: isWhiteTheme ? '#ffffff' : '#0f172a',
               borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
               boxShadow: isWhiteTheme
                 ? '0 25px 60px -15px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.05)'
@@ -12726,29 +12737,31 @@ Due Date: ${proj.paymentDueDate}
                 const numericVal = numMatch ? parseFloat(numMatch[1].replace(/,/g, '')) : 0;
 
                 if (editingLead) {
+                  const updatedLead = {
+                    ...editingLead,
+                    companyName,
+                    contactPerson: contactPerson || undefined,
+                    email: email || undefined,
+                    phone: phone || undefined,
+                    stage,
+                    assignedOwnerId,
+                    billingPreference,
+                    estimatedValue,
+                    estimatedValueNumeric: numericVal,
+                    leadSource: leadSource || undefined,
+                    nextFollowUpDate: nextFollowUpDate || undefined,
+                    notes: notes || undefined,
+                    updatedAt: new Date().toISOString()
+                  };
+                  
                   setBusinessLeads((prev) =>
-                    prev.map((l) =>
-                      l.id === editingLead.id
-                        ? {
-                            ...l,
-                            companyName,
-                            contactPerson: contactPerson || undefined,
-                            email: email || undefined,
-                            phone: phone || undefined,
-                            stage,
-                            assignedOwnerId,
-                            billingPreference,
-                            estimatedValue,
-                            estimatedValueNumeric: numericVal,
-                            leadSource: leadSource || undefined,
-                            nextFollowUpDate: nextFollowUpDate || undefined,
-                            notes: notes || undefined,
-                            updatedAt: new Date().toISOString()
-                          }
-                        : l
-                    )
+                    prev.map((l) => (l.id === editingLead.id ? updatedLead : l))
                   );
                   sonnerToast.success(`Lead "${companyName}" updated.`);
+                  
+                  if (stage === 'WON' && editingLead.stage !== 'WON') {
+                    handleConvertLeadToProject(updatedLead);
+                  }
                 } else {
                   const newLead: BusinessLeadItem = {
                     id: `lead-${Date.now()}`,
@@ -12769,6 +12782,10 @@ Due Date: ${proj.paymentDueDate}
                   };
                   setBusinessLeads((prev) => [newLead, ...prev]);
                   sonnerToast.success(`Lead "${companyName}" created.`);
+                  
+                  if (stage === 'WON') {
+                    handleConvertLeadToProject(newLead);
+                  }
                 }
 
                 setShowAddLeadModal(false);
@@ -12924,7 +12941,7 @@ Due Date: ${proj.paymentDueDate}
                     <select
                       name="stage"
                       defaultValue={editingLead?.stage || 'NEW'}
-                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+                      className="lead-form-select w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
                       style={{
                         backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
                         borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
@@ -12953,7 +12970,7 @@ Due Date: ${proj.paymentDueDate}
                     <select
                       name="assignedOwnerId"
                       defaultValue={editingLead?.assignedOwnerId || ''}
-                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+                      className="lead-form-select w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
                       style={{
                         backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
                         borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
@@ -13005,7 +13022,7 @@ Due Date: ${proj.paymentDueDate}
                     <select
                       name="billingPreference"
                       defaultValue={editingLead?.billingPreference || 'Monthly Retainer'}
-                      className="w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+                      className="lead-form-select w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
                       style={{
                         backgroundColor: isWhiteTheme ? '#ffffff' : '#020617',
                         borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',

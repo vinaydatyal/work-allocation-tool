@@ -77,7 +77,11 @@ export function parseRoute(pathname: string, search: string = ''): RouteState {
 
   // Member profile route: /member/:id or /member/:id/:tab or /profile/:id
   if (firstSeg === 'member' || firstSeg === 'profile') {
-    const memberId = segments[1] ? decodeURIComponent(segments[1]) : undefined;
+    let memberId = segments[1] ? decodeURIComponent(segments[1]) : undefined;
+    if (!memberId && search) {
+      const params = new URLSearchParams(search);
+      memberId = params.get('id') || undefined;
+    }
     const tabSegment = segments[2]?.toLowerCase();
     const validTabs: ('projects' | 'tasks' | 'skills' | 'activity')[] = ['projects', 'tasks', 'skills', 'activity'];
     const memberTab = validTabs.includes(tabSegment as any) ? (tabSegment as any) : 'projects';
