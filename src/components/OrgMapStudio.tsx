@@ -765,12 +765,8 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                             {/* Role Selection Dropdown */}
                             {canManage && editingRoleMemberId === member.id && (
                               <div
-                                style={{ backgroundColor: isWhiteTheme ? '#ffffff' : '#0f172a' }}
-                                className={`absolute left-0 mt-1 w-44 rounded-xl border shadow-2xl z-50 p-1.5 backdrop-blur-2xl ${
-                                  isWhiteTheme
-                                    ? 'border-slate-200'
-                                    : 'border-slate-700'
-                                }`}
+                                style={{ backgroundColor: '#000000' }}
+                                className={`absolute left-0 mt-1 w-44 rounded-xl border shadow-2xl z-50 p-1.5 backdrop-blur-2xl border-slate-700`}
                               >
                                 <span className="text-[10px] font-semibold text-slate-400 px-2 py-1 block">
                                   Assign System Role
@@ -786,9 +782,7 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                                       className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors ${
                                         isSelected
                                           ? 'bg-cyan-500/20 text-cyan-400 font-semibold'
-                                          : isWhiteTheme
-                                          ? 'hover:bg-slate-100 text-slate-700'
-                                          : 'hover:bg-slate-800 text-slate-300'
+                                          : 'hover:bg-slate-800 text-slate-200'
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
