@@ -774,7 +774,7 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                                 style={{ backgroundColor: '#000000' }}
                                 className={`absolute left-0 mt-1 w-44 rounded-xl border shadow-2xl z-50 p-1.5 backdrop-blur-2xl border-slate-700`}
                               >
-                                <span className="text-[10px] font-semibold text-slate-400 px-2 py-1 block">
+                                <span className="text-[10px] font-semibold !text-white px-2 py-1 block">
                                   Assign System Role
                                 </span>
                                 {(Object.keys(ROLE_CONFIG) as UserRoleType[]).map((rKey) => {
@@ -788,12 +788,12 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                                       className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors ${
                                         isSelected
                                           ? 'bg-cyan-500/20 text-cyan-400 font-semibold'
-                                          : 'hover:bg-slate-800 text-slate-200'
+                                          : 'hover:bg-slate-800 !text-white'
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
-                                        <Icon className="w-3 h-3 text-slate-300" />
-                                        <span className="text-white" style={{ color: '#ffffff' }}>{r.label}</span>
+                                        <Icon className="w-3 h-3" />
+                                        <span>{r.label}</span>
                                       </div>
                                       {isSelected && <Check className="w-3 h-3 text-cyan-400" />}
                                     </button>
