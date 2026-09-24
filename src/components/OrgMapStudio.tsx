@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { AppUserProfile, UserRoleType, TeamMember, Task } from '../types';
 import { supabase } from '../lib/supabase';
+import { navigate } from '../utils/router';
 import { calculateMemberAllocatedHours } from '../utils/matchingEngine';
 
 export interface PodData {
@@ -735,7 +736,13 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                             {canManage && (
                               <GripVertical className="w-3.5 h-3.5 text-slate-500 shrink-0 cursor-grab" />
                             )}
-                            <div className="relative">
+                            <div 
+                              className="relative cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate('/member?id=' + member.id);
+                              }}
+                            >
                               <img
                                 src={member.avatar}
                                 alt={member.name}
@@ -747,8 +754,12 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                             </div>
                             <div className="min-w-0">
                               <span
-                                className={`text-xs font-semibold truncate block ${
-                                  isWhiteTheme ? 'text-slate-900' : 'text-slate-100'
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate('/member?id=' + member.id);
+                                }}
+                                className={`text-xs font-semibold truncate block cursor-pointer hover:underline ${
+                                  isWhiteTheme ? 'text-slate-900 hover:text-cyan-600' : 'text-slate-100 hover:text-cyan-400'
                                 }`}
                               >
                                 {member.name}
