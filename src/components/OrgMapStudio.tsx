@@ -211,6 +211,18 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
         });
         setMemberAssignments((prev) => ({ ...prev, ...assignments }));
       }
+
+      // Load explicit role types from profiles
+      const { data: dbProfiles } = await supabase.from('profiles').select('id, role_type');
+      if (dbProfiles && dbProfiles.length > 0) {
+        const roles: Record<string, UserRoleType> = {};
+        dbProfiles.forEach((row) => {
+          if (row.role_type) {
+            roles[row.id] = row.role_type as UserRoleType;
+          }
+        });
+        setMemberRoles((prev) => ({ ...prev, ...roles }));
+      }
     } catch (e) {
       // Supabase table not created yet; gracefully rely on local state
     }
@@ -285,6 +297,51 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
         .from('profiles')
         .update({ role_type: newRole })
         .eq('id', memberId);
+
+      // Auto-create a new pod if the member becomes a TEAM_LEAD
+      if (newRole === 'TEAM_LEAD') {
+        const member = teamMembers.find(m => m.id === memberId);
+        // Using functional state updates where possible to avoid stale closures
+        setPods(currentPods => {
+          if (currentPods.some(p => p.teamLeadId === memberId)) {
+            return currentPods; // Already has a pod
+          }
+          
+          const newPodId = `team_${Date.now()}`;
+          const newPod: PodData = {
+            id: newPodId,
+            name: `${member?.name.split(' ')[0]}'s Pod`,
+            color: '#8B5CF6',
+            description: `Newly formed pod led by ${member?.name}`,
+            teamLeadId: memberId,
+            sortOrder: currentPods.length
+          };
+          
+          // Async DB operations can be kicked off without awaiting inside the state updater
+          (async () => {
+            try {
+              await supabase.from('teams').insert({
+                id: newPodId,
+                name: newPod.name,
+                color: newPod.color,
+                description: newPod.description,
+                team_lead_id: newPod.teamLeadId,
+                sort_order: newPod.sortOrder
+              });
+              
+              setMemberAssignments(prevAssig => ({ ...prevAssig, [memberId]: newPodId }));
+              
+              await supabase.from('team_members').delete().eq('member_id', memberId);
+              await supabase.from('team_members').insert({ team_id: newPodId, member_id: memberId, sort_order: 0 });
+              await supabase.from('profiles').update({ team_id: newPodId }).eq('id', memberId);
+            } catch (err) {
+              console.error("Failed to auto-create pod:", err);
+            }
+          })();
+
+          return [...currentPods, newPod];
+        });
+      }
     } catch (e) {
       // Ignored if local
     }
@@ -306,6 +363,39 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
         .update({ team_lead_id: memberId })
         .eq('id', podId);
     } catch (e) {}
+  };
+
+  const handleAddCustomPod = async () => {
+    if (!canManage) return;
+    const podName = window.prompt("Enter new custom pod name:", "New Custom Pod");
+    if (!podName) return;
+    
+    const newPodId = `team_${Date.now()}`;
+    const newPod: PodData = {
+      id: newPodId,
+      name: podName,
+      color: '#0ea5e9',
+      description: 'Custom pod created manually',
+      teamLeadId: null,
+      sortOrder: pods.length
+    };
+    
+    setPods(prev => [...prev, newPod]);
+    setSyncStatus('syncing');
+    try {
+      await supabase.from('teams').insert({
+        id: newPodId,
+        name: newPod.name,
+        color: newPod.color,
+        description: newPod.description,
+        team_lead_id: newPod.teamLeadId,
+        sort_order: newPod.sortOrder
+      });
+      setSyncStatus('synced');
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    } catch(err) {
+      setSyncStatus('error');
+    }
   };
 
   // Filter members based on search
@@ -391,11 +481,22 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
           </div>
 
           {/* Permission Badge */}
-          {!canManage && (
+          {!canManage ? (
             <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-medium">
               <Lock className="w-3.5 h-3.5" />
               <span>Read-Only View</span>
             </div>
+          ) : (
+            <button
+              onClick={handleAddCustomPod}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                isWhiteTheme
+                  ? 'bg-cyan-500 hover:bg-cyan-600 text-white shadow-sm'
+                  : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/20'
+              }`}
+            >
+              <span>+ Add Custom Pod</span>
+            </button>
           )}
         </div>
       </div>
@@ -435,6 +536,7 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
             0
           );
           const podUtilization = podCapacity > 0 ? Math.round((podAllocated / podCapacity) * 100) : 0;
+          const isPodEditing = podMembers.some(m => m.id === editingRoleMemberId);
 
           return (
             <div
@@ -442,7 +544,8 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
               onDragOver={(e) => handleDragOver(e, pod.id)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, pod.id)}
-              className={`rounded-2xl border flex flex-col transition-all duration-200 ${
+              style={{ zIndex: isPodEditing ? 100 : 1 }}
+              className={`relative rounded-2xl border flex flex-col transition-all duration-200 ${
                 isOver
                   ? 'border-cyan-400 ring-2 ring-cyan-400/30 scale-[1.01] bg-cyan-950/20'
                   : isWhiteTheme
@@ -589,7 +692,8 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                         key={member.id}
                         draggable={canManage}
                         onDragStart={(e) => handleDragStart(e, member.id)}
-                        className={`p-3 rounded-xl border transition-all select-none ${
+                        style={{ zIndex: editingRoleMemberId === member.id ? 999 : 1 }}
+                        className={`relative p-3 rounded-xl border transition-all select-none ${
                           canManage ? 'cursor-grab active:cursor-grabbing hover:scale-[1.02]' : ''
                         } ${
                           isLeadOfThisPod
@@ -637,7 +741,10 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
 
                         {/* Interactive Role Badge */}
                         <div className="mt-2.5 flex items-center justify-between gap-2">
-                          <div className="relative">
+                          <div 
+                            className="relative"
+                            style={{ zIndex: editingRoleMemberId === member.id ? 9999 : 1 }}
+                          >
                             <button
                               type="button"
                               disabled={!canManage}

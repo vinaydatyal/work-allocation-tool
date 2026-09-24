@@ -24,6 +24,7 @@ import type { TeamMember, Task, SkillCategory, TaskStatus, AppUserProfile, Proje
 import { calculateMemberAllocatedHours } from './utils/matchingEngine';
 import { daysFromToday } from './utils/dateUtils';
 import { useAppRouter, navigate } from './utils/router';
+import { supabase } from './lib/supabase';
 
 import { Toaster } from 'sonner';
 
@@ -57,6 +58,48 @@ export function App() {
   const handleNavigateTab = (tab: string) => {
     navigate('/' + tab);
   };
+
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (data && !error) {
+        setTeamMembers((prev) => {
+          // Merge supabase profiles with mockData (using mockData for fields like skills, capacity if missing in db)
+          const merged = prev.map(m => {
+            const dbProf = data.find(p => p.id === m.id);
+            if (dbProf) {
+              return { ...m, name: dbProf.name, role: dbProf.role_title || m.role, avatar: dbProf.avatar || m.avatar };
+            }
+            return m;
+          });
+          // Add any new profiles from DB that are not in mockData
+          const newProfs = data.filter(p => !prev.some(m => m.id === p.id)).map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.role_title || 'Executive',
+            department: 'SEO' as const,
+            seniority: 'Executive' as const,
+            avatar: p.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+            weeklyCapacityHours: 40,
+            skills: ['Technical SEO'] as any,
+            completedSprintTasks: 0,
+            colorSwatch: '#10B981',
+            generalCompetency: {
+              englishProficiency: 8,
+              clientCommunication: 8,
+              requirementUnderstanding: 8,
+              proactivityReliability: 8,
+              clientReadyTier: 'Tier 2: Direct Email Capable',
+              lastTestedDate: new Date().toISOString().split('T')[0]
+            },
+            skillScores: []
+          }));
+          return [...merged, ...newProfs];
+        });
+      }
+    };
+    fetchTeamMembers();
+  }, []);
 
   useEffect(() => {
     if (isWhiteTheme) {
@@ -137,11 +180,18 @@ export function App() {
     setTasks((prev) => [newTask, ...prev]);
   };
 
-  const handleAddMember = (newMember: TeamMember) => {
+  const handleAddMember = async (newMember: TeamMember) => {
     setTeamMembers((prev) => [...prev, newMember]);
+    await supabase.from('profiles').insert({
+      id: newMember.id,
+      name: newMember.name,
+      role_type: 'MEMBER',
+      role_title: newMember.role,
+      avatar: newMember.avatar,
+    });
   };
 
-  const handleDeleteMember = (memberId: string) => {
+  const handleDeleteMember = async (memberId: string) => {
     setTeamMembers((prev) => prev.filter((member) => member.id !== memberId));
     setTasks((prev) =>
       prev.map((task) =>
@@ -150,6 +200,15 @@ export function App() {
           : task
       )
     );
+    await supabase.from('profiles').delete().eq('id', memberId);
+  };
+
+  const handleUpdateMember = async (member: TeamMember) => {
+    setTeamMembers((prev) => prev.map((m) => m.id === member.id ? member : m));
+    await supabase.from('profiles').update({
+      name: member.name,
+      role_title: member.role,
+    }).eq('id', member.id);
   };
 
   const handleUpdateTaskStatus = (taskId: string, newStatus: TaskStatus) => {
@@ -338,6 +397,7 @@ export function App() {
                         tasks={tasks}
                         onAddMember={handleAddMember}
                         onDeleteMember={handleDeleteMember}
+                        onUpdateMember={handleUpdateMember}
                         activeView={activeTab as any}
                         onNavigateView={(view) => handleNavigateTab(view)}
                     isWhiteTheme={isWhiteTheme}

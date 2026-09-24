@@ -112,6 +112,7 @@ interface VisualAgencyHubProps {
   tasks: Task[];
   onAddMember?: (member: TeamMember) => void;
   onDeleteMember?: (memberId: string) => void;
+  onUpdateMember?: (member: TeamMember) => void;
   activeView: 'projects' | 'hours' | 'dsr' | 'skills' | 'bot' | 'finances' | 'notifications' | string;
   onDeliverJob: (projectName: string, hours: number, memberIds: string[]) => void;
   onNavigateView?: (view: 'projects' | 'hours' | 'dsr' | 'skills' | 'bot' | 'finances' | string, targetId?: string) => void;
@@ -262,6 +263,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   tasks: _tasks,
   onAddMember,
   onDeleteMember,
+  onUpdateMember,
   activeView,
   onDeliverJob,
   onNavigateView,
@@ -3046,20 +3048,22 @@ Due Date: ${proj.paymentDueDate}
 
   const handleSaveEditedMember = () => {
     if (!editingMember) return;
+    
+    const updatedMember = {
+      ...editingMember,
+      generalCompetency: {
+        ...editingMember.generalCompetency,
+        clientReadyTier: editingMember.generalCompetency.clientReadyTier
+      }
+    };
+
+    if (onUpdateMember) {
+      onUpdateMember(updatedMember);
+    }
+
     setCustomMembers((prev) =>
       prev.map((m) =>
-        m.id === editingMember.id
-          ? {
-              ...m,
-              name: editingMember.name,
-              role: editingMember.role,
-              weeklyCapacityHours: editingMember.weeklyCapacityHours,
-              generalCompetency: {
-                ...m.generalCompetency,
-                clientReadyTier: editingMember.generalCompetency.clientReadyTier
-              }
-            }
-          : m
+        m.id === editingMember.id ? updatedMember : m
       )
     );
     // Update any references in projectsList
@@ -3347,7 +3351,7 @@ Due Date: ${proj.paymentDueDate}
       .filter(Boolean);
 
     const newMember: TeamMember = {
-      id: `m-${Date.now()}`,
+      id: crypto.randomUUID(),
       name: newMemberName,
       role: newMemberRole,
       department: 'SEO',
@@ -11649,21 +11653,30 @@ Due Date: ${proj.paymentDueDate}
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-800 flex justify-end gap-2 shrink-0 p-6 sticky bottom-0 bg-slate-900/95 backdrop-blur-md z-10">
+            <div className="pt-3 border-t border-slate-800 flex justify-between items-center gap-2 shrink-0 p-6 sticky bottom-0 bg-slate-900/95 backdrop-blur-md z-10">
               <button
                 type="button"
-                onClick={() => setEditingMember(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all cursor-pointer"
+                onClick={() => handleDeleteMember(editingMember.id)}
+                className="px-4 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white font-bold text-xs transition-all cursor-pointer border border-rose-500/30"
               >
-                Cancel
+                Delete Member
               </button>
-              <button
-                type="button"
-                onClick={handleSaveEditedMember}
-                className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
-              >
-                Save Profile Changes
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingMember(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEditedMember}
+                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
+                >
+                  Save Profile Changes
+                </button>
+              </div>
             </div>
           </motion.div>
         </>
@@ -11786,7 +11799,7 @@ Due Date: ${proj.paymentDueDate}
                 disabled={!newMemberName.trim()}
                 className="px-5 py-2 rounded-xl bg-purple-500 hover:bg-purple-400 text-white font-black text-xs transition-all cursor-pointer shadow-lg shadow-purple-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Add Team Member
+                Save Custom Member
               </button>
             </div>
             </form>
