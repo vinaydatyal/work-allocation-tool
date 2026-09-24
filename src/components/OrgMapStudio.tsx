@@ -772,9 +772,20 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                             {canManage && editingRoleMemberId === member.id && (
                               <div
                                 style={{ backgroundColor: '#000000' }}
-                                className={`absolute left-0 mt-1 w-44 rounded-xl border shadow-2xl z-50 p-1.5 backdrop-blur-2xl border-slate-700`}
+                                className={`system-role-dropdown absolute left-0 mt-1 w-44 rounded-xl border shadow-2xl z-50 p-1.5 backdrop-blur-2xl border-slate-700`}
                               >
-                                <span className="text-[10px] font-semibold !text-white px-2 py-1 block">
+                                <style>{`
+                                  .system-role-dropdown span,
+                                  .system-role-dropdown button,
+                                  .system-role-dropdown div,
+                                  .system-role-dropdown svg {
+                                    color: #ffffff !important;
+                                  }
+                                  .system-role-dropdown .text-cyan-400 {
+                                    color: #22d3ee !important;
+                                  }
+                                `}</style>
+                                <span className="text-[10px] font-semibold px-2 py-1 block">
                                   Assign System Role
                                 </span>
                                 {(Object.keys(ROLE_CONFIG) as UserRoleType[]).map((rKey) => {
