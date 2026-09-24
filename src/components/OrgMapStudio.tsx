@@ -493,16 +493,35 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
               <span>Read-Only View</span>
             </div>
           ) : (
-            <button
-              onClick={handleAddCustomPod}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                isWhiteTheme
-                  ? 'bg-cyan-500 hover:bg-cyan-600 text-white shadow-sm'
-                  : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/20'
-              }`}
-            >
-              <span>+ Add Custom Pod</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleAddCustomPod}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  isWhiteTheme
+                    ? 'bg-cyan-500 hover:bg-cyan-600 text-white shadow-sm'
+                    : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/20'
+                }`}
+              >
+                <span>+ Add Custom Pod</span>
+              </button>
+              
+              {currentProfile.id === 'prof_vinay' && (
+                <button
+                  onClick={() => {
+                    setSyncStatus('syncing');
+                    setTimeout(() => setSyncStatus('synced'), 1500);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    isWhiteTheme
+                      ? 'bg-indigo-500 hover:bg-indigo-600 text-white shadow-sm'
+                      : 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/20'
+                  }`}
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Force Save</span>
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
