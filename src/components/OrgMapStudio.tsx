@@ -765,10 +765,11 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                             {/* Role Selection Dropdown */}
                             {canManage && editingRoleMemberId === member.id && (
                               <div
+                                style={{ backgroundColor: isWhiteTheme ? '#ffffff' : '#0f172a' }}
                                 className={`absolute left-0 mt-1 w-44 rounded-xl border shadow-2xl z-50 p-1.5 backdrop-blur-2xl ${
                                   isWhiteTheme
-                                    ? 'bg-white border-slate-200'
-                                    : 'bg-slate-900 border-slate-700'
+                                    ? 'border-slate-200'
+                                    : 'border-slate-700'
                                 }`}
                               >
                                 <span className="text-[10px] font-semibold text-slate-400 px-2 py-1 block">
