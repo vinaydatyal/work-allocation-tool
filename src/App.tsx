@@ -32,7 +32,9 @@ export function App() {
   const router = useAppRouter();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(initialTeamMembers);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [currentProfile, setCurrentProfile] = useState<AppUserProfile>(appUserProfiles[0]);
+  const [currentProfile, setCurrentProfile] = useState<AppUserProfile>(
+    appUserProfiles.find(p => p.id === 'prof_vinay') || appUserProfiles[0]
+  );
 
   // Sync activeTab with router.route (or default to 'projects')
   const activeTab = router.route === 'member' ? 'projects' : (router.route || 'projects');
