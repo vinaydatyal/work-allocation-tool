@@ -12619,12 +12619,11 @@ Due Date: ${proj.paymentDueDate}
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
           {/* High-Contrast Frosted Backdrop (Immune to theme overrides and bleed-through) */}
           <div
-            className="fixed inset-0 transition-opacity duration-300 cursor-pointer"
+            className="absolute inset-0 transition-opacity duration-300 cursor-pointer"
             style={{
               backgroundColor: 'rgba(2, 6, 23, 0.85)',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
-              zIndex: 1
             }}
             onClick={() => {
               setShowAddLeadModal(false);
@@ -12644,7 +12643,7 @@ Due Date: ${proj.paymentDueDate}
               }
             `}</style>
             <div
-              className="relative w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden z-10 my-auto transition-all animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col"
+              className="relative w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden z-10 my-auto transition-all max-h-[92vh] flex flex-col"
               style={{
                 backgroundColor: isWhiteTheme ? '#ffffff' : '#0f172a',
               borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
