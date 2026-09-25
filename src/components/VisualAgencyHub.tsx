@@ -507,7 +507,20 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
       const saved = localStorage.getItem('vat_business_leads_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Defensive migration/sanitization for older or ClickUp-synced leads
+          const validStages = ['NEW', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'];
+          return parsed.map((lead: any) => {
+            const rawStage = lead.stage?.toUpperCase();
+            const safeStage = validStages.includes(rawStage) ? rawStage : 'NEW';
+            return {
+              ...lead,
+              stage: safeStage,
+              estimatedValueNumeric: typeof lead.estimatedValueNumeric === 'number' ? lead.estimatedValueNumeric : 0,
+              billingPreference: lead.billingPreference || 'Monthly Retainer'
+            } as BusinessLeadItem;
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to load business leads from localStorage', e);
@@ -7870,7 +7883,6 @@ Due Date: ${proj.paymentDueDate}
                                 </div>
                               </td>
 
-                              {/* Stage Selector */}
                               <td className="py-3.5 px-4">
                                 <select
                                   value={lead.stage}
@@ -7880,7 +7892,7 @@ Due Date: ${proj.paymentDueDate}
                                       e.target.value as BusinessLeadItem['stage']
                                     )
                                   }
-                                  className={`text-[11px] font-black uppercase px-2.5 py-1 rounded-lg border focus:outline-none ${stageStyle.bg} ${stageStyle.text} ${stageStyle.border} bg-slate-950 cursor-pointer`}
+                                  className={`text-[11px] font-black uppercase px-2.5 py-1 rounded-lg border focus:outline-none ${(stageStyle || {bg: 'bg-slate-800', text: 'text-slate-200', border: 'border-slate-700'}).bg} ${(stageStyle || {bg: 'bg-slate-800', text: 'text-slate-200', border: 'border-slate-700'}).text} ${(stageStyle || {bg: 'bg-slate-800', text: 'text-slate-200', border: 'border-slate-700'}).border} bg-slate-950 cursor-pointer`}
                                 >
                                   <option value="NEW">NEW</option>
                                   <option value="DISCOVERY">DISCOVERY</option>
@@ -12632,6 +12644,16 @@ Due Date: ${proj.paymentDueDate}
           />
 
           {/* Modal Card Window */}
+          <div
+            className="relative w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden z-10 my-auto transition-all max-h-[92vh] flex flex-col"
+            style={{
+              backgroundColor: isWhiteTheme ? '#ffffff' : '#0f172a',
+              borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
+              boxShadow: isWhiteTheme
+                ? '0 25px 60px -15px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+                : '0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.08)'
+            }}
+          >
             <style>{`
               .lead-form-select option {
                 background-color: #0f172a !important;
@@ -12642,16 +12664,7 @@ Due Date: ${proj.paymentDueDate}
                 color: #0f172a !important;
               }
             `}</style>
-            <div
-              className="relative w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden z-10 my-auto transition-all max-h-[92vh] flex flex-col"
-              style={{
-                backgroundColor: isWhiteTheme ? '#ffffff' : '#0f172a',
-              borderColor: isWhiteTheme ? '#cbd5e1' : '#334155',
-              boxShadow: isWhiteTheme
-                ? '0 25px 60px -15px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.05)'
-                : '0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.08)'
-            }}
-          >
+
             {/* Top Luminous Gradient Stripe */}
             <div className="h-1.5 w-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-emerald-400 shrink-0" />
 
