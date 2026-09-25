@@ -11344,13 +11344,6 @@ Due Date: ${proj.paymentDueDate}
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setEditingProject(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer modal-cancel-btn"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
                   onClick={() => handleMoveProjectToArchive(editingProject, 'past_project')}
                   className="px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer modal-archive-btn"
                   title="Move to Past Projects folder"
@@ -11376,7 +11369,15 @@ Due Date: ${proj.paymentDueDate}
                   <span>Delete…</span>
                 </button>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingProject(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer modal-cancel-btn flex items-center gap-1.5 text-slate-400 hover:text-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Cancel</span>
+                </button>
                 {editModalStepTab !== 'core' && (
                   <button
                     type="button"
