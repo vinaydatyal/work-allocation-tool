@@ -1146,6 +1146,26 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Production build (`tsc -b && vite build`) passed in 722ms with exit code 0.
       - 36/36 unit tests passed in 509ms.
 
+  50. **Comprehensive Task Details, Time Spent Tracking, and Live ClickUp Comments Pocket (`MemberProfilePage.tsx`)**:
+    - **Requirement**: Display task status, time spent vs estimate with progress, live ClickUp comments, descriptions, assignees, and priority flags on task cards.
+    - **Status & Priority Visualization**:
+      - Display authentic ClickUp status pill with native status color (`t.clickUpStatusColor`) and pulsing dot.
+      - Integrated priority flags (Urgent 🔴, High 🟠, Medium 🔵, Low ⚪).
+      - Retained two-way status select dropdown allowing status changes that reflect both locally and in ClickUp via `updateClickUpTaskStatus`.
+    - **Time Spent & Progress Bar**:
+      - Parses ClickUp `time_spent` and `time_estimate` in milliseconds and converts them to decimal hours (`Math.round((ms / 3600000) * 10) / 10`).
+      - Visual mini progress bar showing spent percentage against budget with green/amber/red color shifts and over-budget badges (`+X.Xh over`).
+    - **Expandable Task Pocket ("Details & Comments")**:
+      - Added toggle button (`Details ▼` / `Hide ▲`) for each task card (`expandedTaskId`).
+      - Renders full task description / brief with formatted line breaks.
+      - Renders assignees chips with profile pictures or initial badges.
+      - Live ClickUp comments thread: calls `fetchClickUpTaskComments(token, taskId)` on demand, displaying author avatar, username, timestamp, and comment text.
+      - Includes inline comment compose input calling `createClickUpTaskComment(token, taskId, text)` with instant UI update.
+    - **Verification**:
+      - Production build (`tsc -b && vite build`) passed in 575ms with exit code 0.
+      - 36/36 automated unit tests passed in 380ms.
+
+
 
 
 

@@ -171,6 +171,19 @@ export interface Task {
   clickUpTaskId?: string;
   clickUpUrl?: string;
   clickUpStatus?: string;
+  clickUpStatusColor?: string;
+  timeSpentHours?: number;
+  timeEstimateHours?: number;
+  description?: string;
+  commentsCount?: number;
+  listName?: string;
+  folderName?: string;
+  assigneesList?: Array<{
+    id: number | string;
+    username: string;
+    email?: string;
+    profilePicture?: string | null;
+  }>;
 }
 
 /* --- BRIEF ANALYZER TYPES --- */

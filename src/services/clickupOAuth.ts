@@ -203,7 +203,11 @@ export interface ClickUpTask {
   due_date: string | null;
   start_date?: string | null;
   time_estimate: number | null;
+  time_spent?: number | null;
+  comments_count?: number;
   list: { id: string; name: string };
+  folder?: { id: string; name: string };
+  space?: { id: string; name: string };
   url: string;
   custom_fields?: Array<{ id: string; name: string; value: any; type?: string }>;
   description?: string;

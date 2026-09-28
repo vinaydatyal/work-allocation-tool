@@ -6456,6 +6456,38 @@ Enhanced [MemberProfilePage.tsx](file:///e:/Antigravity/Work%20Allocation%20Tool
    - `npm run build` (`tsc -b && vite build`): compiled cleanly in **722ms** with exit code 0.
    - `npm test`: **36/36 unit tests passed** in 509ms.
 
+---
+
+## 👤 User (Turn #204)
+
+<USER_REQUEST>
+show task status, time spend, comment and other details as well
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+### 🚀 Comprehensive Task Details, Time Spent, and Live ClickUp Comments Deployed
+
+Upgraded [src/components/MemberProfilePage.tsx](file:///e:/Antigravity/Work%20Allocation%20Tool/src/components/MemberProfilePage.tsx) and [src/types.ts](file:///e:/Antigravity/Work%20Allocation%20Tool/src/types.ts) to display rich task cards:
+
+1. **Task Status & Priority Badges**:
+   - Authentic ClickUp status pill with matching status color from API (`t.clickUpStatusColor`) and pulsing dot.
+   - Priority indicator with colored flags (Urgent 🔴, High 🟠, Medium 🔵, Low ⚪).
+   - Interactive two-way status select dropdown syncing with ClickUp API in real-time.
+2. **Time Spent & Progress Tracking**:
+   - Converts ClickUp `time_spent` and `time_estimate` to decimal hours.
+   - Visual progress bar showing percentage of time spent vs estimate with green, amber, and red overage indicators (`+X.Xh over`).
+3. **Expandable "Details & Comments" Pocket**:
+   - Each card features an expandable toggle (`Details ▼` / `Hide ▲`).
+   - Displays task description / brief with line breaks.
+   - Shows assignees chips with avatars and usernames.
+   - Live ClickUp comments thread: fetches task comments via `fetchClickUpTaskComments`, displaying author avatar, username, timestamp, and text.
+   - Inline comment composer calling `createClickUpTaskComment` with live optimistic updating.
+4. **Verification**:
+   - `npm run build`: bundle compiled in **575ms** with zero errors.
+   - `npm test`: **36/36 unit tests passed** in 380ms.
+
+
 
 
 

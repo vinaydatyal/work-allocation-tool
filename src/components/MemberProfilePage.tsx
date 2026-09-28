@@ -12,7 +12,11 @@ import {
   fetchClickUpTask,
   fetchClickUpWorkspaces,
   fetchClickUpTeamMembers,
-  updateClickUpTaskStatus
+  updateClickUpTaskStatus,
+  fetchClickUpTaskComments,
+  createClickUpTaskComment,
+  getCommentPlainText,
+  type ClickUpCommentItem
 } from '../services/clickupOAuth';
 import { getPDFMasterProjects } from '../data/pdfMasterProjectsData';
 import { calculateMemberROI } from '../utils/projectFinancials';
@@ -40,7 +44,14 @@ import {
   Link2,
   Trash2,
   Search,
-  UserCheck
+  UserCheck,
+  MessageSquare,
+  Send,
+  ChevronDown,
+  ChevronUp,
+  Flag,
+  FileText,
+  Users
 } from 'lucide-react';
 
 interface MemberProfilePageProps {
@@ -183,6 +194,11 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
   const [taskSourceFilter, setTaskSourceFilter] = useState<'all' | 'clickup' | 'allocations'>('all');
   const [lastAutoRefreshedAt, setLastAutoRefreshedAt] = useState<string | null>(null);
   const [lastWorkspaceUsersRefreshedAt, setLastWorkspaceUsersRefreshedAt] = useState<string | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [taskCommentsMap, setTaskCommentsMap] = useState<Record<string, ClickUpCommentItem[]>>({});
+  const [loadingCommentsMap, setLoadingCommentsMap] = useState<Record<string, boolean>>({});
+  const [newCommentTextMap, setNewCommentTextMap] = useState<Record<string, string>>({});
+  const [isPostingComment, setIsPostingComment] = useState(false);
 
   // 1-Click Handler: Assign Member to an existing project
   const handleConfirmAssignProject = (e: React.FormEvent) => {
@@ -295,6 +311,9 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
             ? 'in_progress'
             : 'assigned';
 
+          const estHours = live.time_estimate ? Math.round((live.time_estimate / 3600000) * 10) / 10 : (task.estimatedHours || 4);
+          const spentHours = live.time_spent ? Math.round((live.time_spent / 3600000) * 10) / 10 : (task.timeSpentHours || 0);
+
           const updated = clickUpSyncedTasks.map((t) => {
             if (t.id === task.id || t.clickUpTaskId === task.clickUpTaskId) {
               return {
@@ -302,7 +321,13 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                 title: live.name || t.title,
                 status: mappedStatus,
                 clickUpStatus: live.status?.status || t.clickUpStatus,
-                estimatedHours: live.time_estimate ? Math.max(1, Math.round(live.time_estimate / 3600000)) : t.estimatedHours,
+                clickUpStatusColor: live.status?.color || t.clickUpStatusColor,
+                estimatedHours: estHours,
+                timeEstimateHours: estHours,
+                actualHoursLogged: spentHours,
+                timeSpentHours: spentHours,
+                description: live.text_content || live.description || t.description,
+                commentsCount: live.comments_count ?? t.commentsCount,
                 dueDate: live.due_date ? new Date(Number(live.due_date)).toISOString().split('T')[0] : t.dueDate
               };
             }
@@ -310,7 +335,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
           });
           setClickUpSyncedTasks(updated);
           localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(updated));
-          sonnerToast.success(`⚡ Refreshed ClickUp #${task.clickUpTaskId}: Status is "${live.status?.status || mappedStatus}"`);
+          sonnerToast.success(`⚡ Refreshed ClickUp #${task.clickUpTaskId}: "${live.status?.status || mappedStatus}" (${spentHours}h spent / ${estHours}h est)`);
         }
       } else {
         sonnerToast.success(`⚡ Task #${task.clickUpTaskId} verified against active project deliverables.`);
@@ -391,7 +416,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
 
       if (liveTasks && liveTasks.length > 0) {
         const mapped: Task[] = liveTasks.map((t, idx) => {
-          const hours = t.time_estimate ? Math.max(1, Math.round(t.time_estimate / 3600000)) : 4;
+          const estHours = t.time_estimate ? Math.round((t.time_estimate / 3600000) * 10) / 10 : 4;
+          const spentHours = t.time_spent ? Math.round((t.time_spent / 3600000) * 10) / 10 : 0;
           const rawStatus = (t.status?.status || '').toLowerCase();
           const mappedStatus: TaskStatus = (rawStatus.includes('complete') || rawStatus.includes('done') || rawStatus.includes('closed'))
             ? 'completed'
@@ -401,22 +427,39 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
             ? 'in_progress'
             : 'assigned';
 
+          const folderOrSpace = t.folder?.name || t.space?.name;
+          const listName = t.list?.name || 'ClickUp Task';
+          const projName = folderOrSpace ? `${folderOrSpace} • ${listName}` : listName;
+
           return {
             id: `tsk_cu_live_${t.id}_${idx}`,
             title: t.name,
-            clientName: t.list?.name || 'ClickUp Task',
-            projectName: t.list?.name || 'ClickUp Workspace',
+            clientName: listName,
+            projectName: projName,
             requiredSkill: member.skills[0] || 'Technical SEO',
-            estimatedHours: hours,
-            actualHoursLogged: 0,
+            estimatedHours: estHours,
+            actualHoursLogged: spentHours,
+            timeSpentHours: spentHours,
+            timeEstimateHours: estHours,
             assignedUserId: member.id,
-            priority: (t.priority?.priority === 'urgent' ? 'High' : t.priority?.priority === 'high' ? 'High' : 'Medium') as any,
+            priority: (t.priority?.priority === 'urgent' ? 'High' : t.priority?.priority === 'high' ? 'High' : t.priority?.priority === 'normal' ? 'Medium' : 'Low') as any,
             status: mappedStatus,
             dueDate: t.due_date ? new Date(Number(t.due_date)).toISOString().split('T')[0] : '2026-07-31',
             categoryColor: '#8B5CF6',
             clickUpTaskId: String(t.id),
             clickUpUrl: t.url,
-            clickUpStatus: t.status?.status || 'in progress'
+            clickUpStatus: t.status?.status || 'in progress',
+            clickUpStatusColor: t.status?.color || undefined,
+            description: t.text_content || t.description || undefined,
+            commentsCount: t.comments_count,
+            listName: t.list?.name,
+            folderName: t.folder?.name,
+            assigneesList: t.assignees?.map((a) => ({
+              id: a.id,
+              username: a.username,
+              email: a.email,
+              profilePicture: a.profilePicture
+            }))
           };
         });
 
@@ -596,6 +639,58 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
     setClickUpSyncedTasks([]);
     setLastAutoRefreshedAt(null);
     sonnerToast.success(`🧹 Cleared task cache for ${member.name}!`);
+  };
+
+  // Toggle Expand Task Pocket & auto-fetch comments for ClickUp tasks
+  const handleToggleExpandTask = async (task: Task) => {
+    const isOpening = expandedTaskId !== task.id;
+    setExpandedTaskId(isOpening ? task.id : null);
+
+    if (isOpening && task.clickUpTaskId && !taskCommentsMap[task.clickUpTaskId]) {
+      const token = getClickUpToken();
+      if (token) {
+        setLoadingCommentsMap((prev) => ({ ...prev, [task.clickUpTaskId!]: true }));
+        try {
+          const comments = await fetchClickUpTaskComments(token, task.clickUpTaskId);
+          setTaskCommentsMap((prev) => ({ ...prev, [task.clickUpTaskId!]: comments }));
+        } catch (err) {
+          console.warn('Failed to fetch ClickUp comments:', err);
+        } finally {
+          setLoadingCommentsMap((prev) => ({ ...prev, [task.clickUpTaskId!]: false }));
+        }
+      }
+    }
+  };
+
+  // Post a new comment directly to ClickUp task
+  const handlePostComment = async (task: Task) => {
+    if (!task.clickUpTaskId) return;
+    const text = (newCommentTextMap[task.id] || '').trim();
+    if (!text) {
+      sonnerToast.error('Please enter a comment');
+      return;
+    }
+    const token = getClickUpToken();
+    if (!token) {
+      sonnerToast.error('ClickUp is not connected.');
+      return;
+    }
+
+    setIsPostingComment(true);
+    try {
+      const created = await createClickUpTaskComment(token, task.clickUpTaskId, text);
+      setTaskCommentsMap((prev) => ({
+        ...prev,
+        [task.clickUpTaskId!]: [...(prev[task.clickUpTaskId!] || []), created]
+      }));
+      setNewCommentTextMap((prev) => ({ ...prev, [task.id]: '' }));
+      sonnerToast.success('💬 Comment posted to ClickUp task!');
+    } catch (err: any) {
+      console.error('Failed to post comment:', err);
+      sonnerToast.error('Failed to post comment: ' + err.message);
+    } finally {
+      setIsPostingComment(false);
+    }
   };
 
   // Tasks assigned to member: combines sprint tasks, live ClickUp tasks, and active project deliverables
@@ -1358,85 +1453,349 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredTasks.map((t) => (
-                <div
-                  key={t.id}
-                  className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all group"
-                >
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] font-black uppercase text-cyan-400 font-mono">
-                        {t.clientName}
-                      </span>
-                      <span className="text-slate-600">•</span>
-                      <span className="text-xs text-slate-400 font-medium">
-                        {t.projectName || 'General Deliverable'}
-                      </span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        t.priority === 'High' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'
-                      }`}>
-                        {t.priority}
-                      </span>
-                    </div>
+              {filteredTasks.map((t) => {
+                const spent = t.timeSpentHours ?? t.actualHoursLogged ?? 0;
+                const est = Math.max(1, t.timeEstimateHours ?? t.estimatedHours ?? 4);
+                const pct = Math.min(100, Math.round((spent / est) * 100));
+                const isOver = spent > est;
+                const isExpanded = expandedTaskId === t.id;
+                const comments = t.clickUpTaskId ? taskCommentsMap[t.clickUpTaskId] : undefined;
+                const isLoadingComments = t.clickUpTaskId ? loadingCommentsMap[t.clickUpTaskId] : false;
 
-                    <div className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
-                      {t.title}
-                    </div>
+                return (
+                  <div
+                    key={t.id}
+                    className="rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all overflow-hidden shadow-sm hover:shadow-md"
+                  >
+                    {/* PRIMARY TASK CARD SUMMARY ROW */}
+                    <div className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        {/* Meta Tags: Client, Folder/List, Priority, ClickUp Live Status */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-black uppercase text-cyan-400 font-mono tracking-wider">
+                            {t.clientName}
+                          </span>
+                          {t.folderName && (
+                            <>
+                              <span className="text-slate-600">•</span>
+                              <span className="text-[11px] text-slate-400 font-medium">
+                                📁 {t.folderName}
+                              </span>
+                            </>
+                          )}
+                          {t.listName && (
+                            <>
+                              <span className="text-slate-600">•</span>
+                              <span className="text-[11px] text-slate-400 font-medium">
+                                📋 {t.listName}
+                              </span>
+                            </>
+                          )}
+                          <span className="text-slate-600">•</span>
 
-                    <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap pt-0.5">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Est: <strong className="text-slate-200 font-mono">{t.estimatedHours}h</strong></span>
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Due: {t.dueDate}</span>
-                      </span>
-                      {t.clickUpTaskId && (
-                        <div className="flex items-center gap-1.5">
-                          <a
-                            href={t.clickUpUrl || `https://app.clickup.com/t/${t.clickUpTaskId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-950/70 border border-purple-500/40 text-purple-300 hover:text-purple-200 font-bold text-[11px] transition-colors"
-                            title="Open task in ClickUp"
+                          {/* Priority Flag */}
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                              t.priority === 'High'
+                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                : t.priority === 'Medium'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700'
+                            }`}
                           >
-                            <ExternalLink className="w-3 h-3" />
-                            <span>ClickUp #{t.clickUpTaskId}</span>
-                          </a>
+                            <Flag className="w-2.5 h-2.5" />
+                            <span>{t.priority}</span>
+                          </span>
+
+                          {/* Live ClickUp Status Badge */}
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-xs"
+                            style={{
+                              backgroundColor: t.clickUpStatusColor ? `${t.clickUpStatusColor}22` : 'rgba(168, 85, 247, 0.15)',
+                              borderColor: t.clickUpStatusColor ? `${t.clickUpStatusColor}66` : 'rgba(168, 85, 247, 0.4)',
+                              color: t.clickUpStatusColor || '#c084fc'
+                            }}
+                          >
+                            <span
+                              className="w-1.5 h-1.5 rounded-full"
+                              style={{ backgroundColor: t.clickUpStatusColor || '#c084fc' }}
+                            />
+                            <span>{t.clickUpStatus || t.status.replace('_', ' ')}</span>
+                          </span>
+                        </div>
+
+                        {/* Task Title */}
+                        <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
+                          {t.title}
+                        </h4>
+
+                        {/* Metrics Bar: Time Spent, Estimate, Due Date, Comments, ClickUp Link */}
+                        <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap pt-1">
+                          {/* Time Spent vs Estimate Progress */}
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center gap-1 font-mono">
+                              <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                              <span>Time Spent: <strong className="text-white font-bold">{spent}h</strong></span>
+                              <span className="text-slate-500">/</span>
+                              <span>Est: <strong className="text-slate-300 font-bold">{est}h</strong></span>
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-16 h-2 rounded-full bg-slate-800 overflow-hidden relative border border-slate-700">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    isOver
+                                      ? 'bg-rose-500'
+                                      : pct >= 80
+                                      ? 'bg-amber-400'
+                                      : 'bg-emerald-400'
+                                  }`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className={`text-[10px] font-mono font-bold ${isOver ? 'text-rose-400' : 'text-slate-400'}`}>
+                                {pct}%
+                              </span>
+                              {isOver && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                  +{Math.round((spent - est) * 10) / 10}h over
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Due Date */}
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Due: <strong className="text-slate-200 font-mono">{t.dueDate}</strong></span>
+                          </span>
+
+                          {/* Comments Button */}
                           <button
                             type="button"
-                            onClick={() => handleSyncSingleTask(t)}
-                            disabled={syncingTaskId === t.id}
-                            className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-purple-300 transition-colors cursor-pointer"
-                            title="Sync this task from ClickUp"
+                            onClick={() => handleToggleExpandTask(t)}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer text-xs"
+                            title="View task comments and discussion"
                           >
-                            <RefreshCw className={`w-3 h-3 ${syncingTaskId === t.id ? 'animate-spin text-purple-400' : ''}`} />
+                            <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
+                            <span>
+                              {comments
+                                ? `${comments.length} comments`
+                                : t.commentsCount !== undefined
+                                ? `${t.commentsCount} comments`
+                                : 'Comments'}
+                            </span>
                           </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Status Toggle Controls */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <select
-                      value={t.status}
-                      onChange={(e) => {
-                        const newStatus = e.target.value as TaskStatus;
-                        handleTaskStatusChange(t, newStatus);
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                    >
-                      <option value="backlog">Backlog</option>
-                      <option value="assigned">Assigned</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="review">In Review</option>
-                      <option value="completed">Completed</option>
-                    </select>
+                          {/* ClickUp Link & Quick Sync */}
+                          {t.clickUpTaskId && (
+                            <div className="flex items-center gap-1.5">
+                              <a
+                                href={t.clickUpUrl || `https://app.clickup.com/t/${t.clickUpTaskId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-950/70 border border-purple-500/40 text-purple-300 hover:text-purple-200 font-bold text-[11px] transition-colors"
+                                title="Open task in ClickUp"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>ClickUp #{t.clickUpTaskId}</span>
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => handleSyncSingleTask(t)}
+                                disabled={syncingTaskId === t.id}
+                                className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-purple-300 transition-colors cursor-pointer"
+                                title="Sync this task from ClickUp"
+                              >
+                                <RefreshCw className={`w-3 h-3 ${syncingTaskId === t.id ? 'animate-spin text-purple-400' : ''}`} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right Controls: Two-Way Status Select & Pocket Toggle */}
+                      <div className="flex items-center gap-2 shrink-0 pt-2 lg:pt-0">
+                        <div className="flex flex-col gap-1 items-end">
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Status:</span>
+                          <select
+                            value={t.status}
+                            onChange={(e) => {
+                              const newStatus = e.target.value as TaskStatus;
+                              handleTaskStatusChange(t, newStatus);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                          >
+                            <option value="backlog">Backlog</option>
+                            <option value="assigned">Assigned</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="review">In Review</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleToggleExpandTask(t)}
+                          className="mt-4 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                          title="Toggle task description, assignees, and comments pocket"
+                        >
+                          <span>{isExpanded ? 'Hide' : 'Details'}</span>
+                          {isExpanded ? (
+                            <ChevronUp className="w-3.5 h-3.5 text-cyan-400" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* EXPANDABLE TASK POCKET: Description, Assignees, Live Comments */}
+                    {isExpanded && (
+                      <div className="p-4 border-t border-slate-800 bg-slate-950/70 space-y-4 animate-fade-in">
+                        {/* Task Description / Brief */}
+                        {t.description ? (
+                          <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+                            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                              <span>Task Description / Brief:</span>
+                            </div>
+                            <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
+                              {t.description}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-500 italic flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-slate-600" />
+                            <span>No task description specified.</span>
+                          </div>
+                        )}
+
+                        {/* Assignees Chips */}
+                        {t.assigneesList && t.assigneesList.length > 0 && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5 text-purple-400" />
+                              <span>Assignees:</span>
+                            </span>
+                            {t.assigneesList.map((a) => (
+                              <div
+                                key={a.id}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-200"
+                              >
+                                {a.profilePicture ? (
+                                  <img src={a.profilePicture} alt={a.username} className="w-4 h-4 rounded-full object-cover" />
+                                ) : (
+                                  <div className="w-4 h-4 rounded-full bg-purple-600/40 text-[9px] font-bold text-purple-300 flex items-center justify-center">
+                                    {a.username.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                                <span className="font-medium">{a.username}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Live ClickUp Comments Thread */}
+                        <div className="pt-2 border-t border-slate-800/80 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <MessageSquare className="w-4 h-4 text-purple-400" />
+                              <span>ClickUp Comments & Activity Thread</span>
+                              {t.clickUpTaskId && (
+                                <span className="text-[11px] text-purple-300 font-mono">
+                                  (Task #{t.clickUpTaskId})
+                                </span>
+                              )}
+                            </div>
+                            {isLoadingComments && (
+                              <span className="text-[11px] text-purple-400 flex items-center gap-1">
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                                <span>Fetching comments...</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Comments List */}
+                          <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                            {!t.clickUpTaskId ? (
+                              <p className="text-xs text-slate-500 italic">Comments available on synced ClickUp tasks.</p>
+                            ) : isLoadingComments ? (
+                              <div className="py-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                                <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
+                                <span>Loading ClickUp comments...</span>
+                              </div>
+                            ) : (!comments || comments.length === 0) ? (
+                              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/60 text-xs text-slate-400 text-center">
+                                No comments posted on ClickUp #{t.clickUpTaskId} yet.
+                              </div>
+                            ) : (
+                              comments.map((c) => {
+                                const text = getCommentPlainText(c);
+                                const author = c.user?.username || 'ClickUp User';
+                                const dateStr = c.date
+                                  ? new Date(Number(c.date)).toLocaleString([], {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })
+                                  : '';
+
+                                return (
+                                  <div key={c.id} className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <div className="flex items-center gap-1.5">
+                                        {c.user?.profilePicture ? (
+                                          <img src={c.user.profilePicture} alt={author} className="w-4 h-4 rounded-full object-cover" />
+                                        ) : (
+                                          <div className="w-4 h-4 rounded-full bg-purple-700/40 text-[9px] font-bold text-purple-200 flex items-center justify-center">
+                                            {author.charAt(0).toUpperCase()}
+                                          </div>
+                                        )}
+                                        <span className="font-bold text-slate-200">@{author}</span>
+                                      </div>
+                                      <span className="text-slate-500 font-mono text-[10px]">{dateStr}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-300 pl-5.5 whitespace-pre-line">{text}</p>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+
+                          {/* Add Comment Input Box */}
+                          {t.clickUpTaskId && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <input
+                                type="text"
+                                placeholder={`Write a comment on ClickUp #${t.clickUpTaskId}...`}
+                                value={newCommentTextMap[t.id] || ''}
+                                onChange={(e) => setNewCommentTextMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handlePostComment(t);
+                                  }
+                                }}
+                                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handlePostComment(t)}
+                                disabled={isPostingComment || !newCommentTextMap[t.id]?.trim()}
+                                className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                              >
+                                {isPostingComment ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                <span>Send</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
