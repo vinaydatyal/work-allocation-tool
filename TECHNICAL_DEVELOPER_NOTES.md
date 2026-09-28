@@ -1010,3 +1010,21 @@ Agencies frequently maintain their complete client roster inside a specific Clic
         - Added typed functions: `fetchDsrEntries`, `fetchTimeLogsForDsr`, `approveDsrEntry`, `requestDsrRevision`, `batchApproveDsrEntries`, `submitDsr`.
       - Unit test suite: **36/36 passing** (`vitest`). TypeScript compilation: **0 errors** (`npx tsc --noEmit`).
 
+  41. **Roster Navigation, Lead Safety Hardening & Master Integration Roadmap**:
+    - **Interactive Profile Drill-Down (`src/components/OrgMapStudio.tsx`)**:
+      - Connected team member avatars and names directly to their personal Member Profile page via internal router navigation (`onNavigateToMember(member.id)`).
+    - **Project Manager Force Save Trigger (`src/components/VisualAgencyHub.tsx`)**:
+      - Added a discrete manual persistence trigger visible exclusively to the Project Manager persona (`prof_vinay`) to force state synchronization on demand.
+    - **Defensive LocalStorage Sanitization for Business Leads**:
+      - Added safe try-catch JSON parsing with fallback arrays in `VisualAgencyHub.tsx` to prevent corrupt or malformed browser storage strings from causing blank screen render exceptions.
+    - **Modal Ergonomics Polish**:
+      - Re-aligned the Cancel button and added an explicit dismiss `X` icon to the Edit Project modal header.
+    - **Master Integration Roadmap ([`MASTER_INTEGRATION_ROADMAP.md`](file:///e:/Antigravity/Work%20Allocation%20Tool/MASTER_INTEGRATION_ROADMAP.md))**:
+      - Formatted and centralized the multi-phase integration roadmap between the Work Allocation Tool and DSR Tracker Desktop:
+        - **Phase 0 & 1** [COMPLETED]: Supabase PostgreSQL Schema, 5-Role Identity, Org Map Studio.
+        - **Phase 2** [COMPLETED]: Two-Way Data Sync (`fetch-supabase-tasks`, `sync-time-log-to-supabase`, 30s offline queue).
+        - **Phase 3** [COMPLETED]: DSR Approval Queue (`DSRApprovalQueue.tsx`) & 23-Person Roster Calibration.
+        - **Phase 4** [READY TO START]: OS Protocol Deep Links (`dsr-tracker://`) & Live Team Presence Pulse.
+        - **Phase 5** [UPCOMING]: Supabase Realtime WebSockets & ClickUp Webhook Automation.
+
+
