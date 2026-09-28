@@ -6487,8 +6487,34 @@ Upgraded [src/components/MemberProfilePage.tsx](file:///e:/Antigravity/Work%20Al
    - `npm run build`: bundle compiled in **575ms** with zero errors.
    - `npm test`: **36/36 unit tests passed** in 380ms.
 
+---
 
+## 👤 User (Turn #205)
 
+<USER_REQUEST>
+show tags, custom fields etc as well, also add a sorting by project, tags, time, task etc filture feature
+</USER_REQUEST>
 
+## 🤖 Assistant (Antigravity)
 
+### 🚀 Task Tags, Custom Fields & Multi-Attribute Sorting/Filtering Engine Deployed
 
+Upgraded [src/components/MemberProfilePage.tsx](file:///e:/Antigravity/Work%20Allocation%20Tool/src/components/MemberProfilePage.tsx), [src/types.ts](file:///e:/Antigravity/Work%20Allocation%20Tool/src/types.ts), and [src/services/clickupOAuth.ts](file:///e:/Antigravity/Work%20Allocation%20Tool/src/services/clickupOAuth.ts) to display tags, custom fields, and a comprehensive sorting/filtering control bar:
+
+1. **Native Task Tags**:
+   - Renders authentic ClickUp tag chips with live background and foreground colors (`tag_bg`, `tag_fg`).
+   - Interactive: clicking any tag pill filters all active tasks by that tag in 1 click.
+2. **Custom Fields & Deliverables Metadata Pocket**:
+   - Integrated `renderCustomFieldValue` helper supporting ClickUp dropdown badges with colored options, multi-select labels, URLs with external link shortcuts, dates, currency amounts, and checkboxes.
+   - Rendered in a responsive 1-4 column grid inside each task card's expandable pocket.
+3. **Multi-Attribute Sorting & Filtering Control Bar**:
+   - **Search Input**: Live keyword search across task title, description brief, project name, client name, ClickUp task ID, and tag names.
+   - **Project Filter Dropdown**: Dynamically populated with all distinct projects and clients present on member tasks.
+   - **Tag Filter Dropdown**: Dynamically populated with all tags found on member tasks.
+   - **Sort By Criteria**: Due Date, Time Spent (decimal hours), Time Estimate, Project / Client name, Task Title, Priority level, and Workflow Status.
+   - **Sort Direction**: Quick toggle between `ASC ↑` and `DESC ↓`.
+   - **Reset Filters**: One-click reset button clearing all active filters, tags, and search queries.
+   - **Matching Counter**: Live display showing `(filtered / total)` tasks.
+4. **Verification**:
+   - `npm run build`: compiled cleanly in **618ms** with zero errors.
+   - `npm test`: **36/36 unit tests passed** in 329ms.

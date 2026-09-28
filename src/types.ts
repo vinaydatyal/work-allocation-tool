@@ -184,6 +184,18 @@ export interface Task {
     email?: string;
     profilePicture?: string | null;
   }>;
+  tags?: Array<{
+    name: string;
+    tag_fg?: string;
+    tag_bg?: string;
+  }>;
+  customFields?: Array<{
+    id: string;
+    name: string;
+    value?: any;
+    type?: string;
+    type_config?: any;
+  }>;
 }
 
 /* --- BRIEF ANALYZER TYPES --- */

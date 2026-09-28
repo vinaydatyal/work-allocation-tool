@@ -1165,7 +1165,34 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Production build (`tsc -b && vite build`) passed in 575ms with exit code 0.
       - 36/36 automated unit tests passed in 380ms.
 
-
-
-
-
+  51. **Task Tags, Custom Fields & Multi-Attribute Sorting/Filtering Engine (`MemberProfilePage.tsx`, `types.ts`, `clickupOAuth.ts`)**:
+    - **Requirement**: Display task tags, custom fields, and provide sorting by project, tags, time, task title, etc., along with robust filtering.
+    - **Data Model Extensions (`types.ts` & `clickupOAuth.ts`)**:
+      - Extended `Task` interface with:
+        - `tags?: Array<{ name: string; tag_fg?: string; tag_bg?: string }>`
+        - `customFields?: Array<{ id: string; name: string; value?: any; type?: string; type_config?: any }>`
+      - Extended `ClickUpTask` interface to capture `tags` and `custom_fields` directly from the ClickUp API.
+    - **Tag Visualization & Quick Filtering**:
+      - Rendered native ClickUp tag chips in task card headers using ClickUp's foreground and background color metadata (`tag_fg`, `tag_bg`).
+      - Tag chips are interactive: clicking a tag chip immediately sets the tag filter to that tag name for instant cross-filtering.
+    - **Custom Fields & Deliverables Metadata Pocket**:
+      - Implemented `renderCustomFieldValue` helper supporting ClickUp dropdown options (with option label and badge color), multi-value labels, URLs (with external link icon), dates, currency formatted amounts, checkboxes, and structured objects.
+      - Rendered a responsive 1-4 column custom fields grid inside the expanded task pocket with field name, active field count indicator, and styled values.
+    - **Multi-Attribute Sorting & Filtering Control Bar**:
+      - **Instant Search Input**: Real-time filtering across task title, description brief, project name, client name, ClickUp task ID, and tag names with clear button.
+      - **Project / Client Dropdown Filter**: Dynamically populated with all distinct projects/clients present in active tasks.
+      - **Tag Dropdown Filter**: Dynamically populated with all unique tags found across the member's tasks.
+      - **Sort By Criteria**:
+        - `Due Date` (chronological)
+        - `Time Spent` (descending/ascending decimal hours logged)
+        - `Time Estimate` (descending/ascending budgeted hours)
+        - `Project / Client` (alphabetical)
+        - `Task Title` (alphabetical)
+        - `Priority` (High > Medium > Low)
+        - `Status` (workflow order)
+      - **Sort Direction Toggle**: One-click toggle between `ASC ↑` and `DESC ↓`.
+      - **Reset Filters Button**: Appears dynamically when any filter, tag, or search term is applied to clear all filters in 1 click.
+      - **Live Filter Counter**: Displays matching tasks count (`filteredTasks.length / memberTasks.length`).
+    - **Verification**:
+      - Production build (`tsc -b && vite build`) passed in 618ms with exit code 0.
+      - All 36/36 unit tests passed in 329ms.

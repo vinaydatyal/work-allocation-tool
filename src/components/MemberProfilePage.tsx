@@ -51,7 +51,10 @@ import {
   ChevronUp,
   Flag,
   FileText,
-  Users
+  Users,
+  Tag,
+  ArrowUpDown,
+  SlidersHorizontal
 } from 'lucide-react';
 
 interface MemberProfilePageProps {
@@ -75,6 +78,11 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
 }) => {
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | TaskStatus>('all');
+  const [taskSortBy, setTaskSortBy] = useState<'due_date' | 'time_spent' | 'time_est' | 'project' | 'task_name' | 'priority' | 'status'>('due_date');
+  const [taskSortOrder, setTaskSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all');
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
+  const [taskSearchQuery, setTaskSearchQuery] = useState<string>('');
 
   // Active Projects state with persistence
   const [projectsList, setProjectsList] = useState<ActiveProjectItem[]>(() => {
@@ -328,7 +336,19 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                 timeSpentHours: spentHours,
                 description: live.text_content || live.description || t.description,
                 commentsCount: live.comments_count ?? t.commentsCount,
-                dueDate: live.due_date ? new Date(Number(live.due_date)).toISOString().split('T')[0] : t.dueDate
+                dueDate: live.due_date ? new Date(Number(live.due_date)).toISOString().split('T')[0] : t.dueDate,
+                tags: live.tags?.map((tag: any) => ({
+                  name: tag.name,
+                  tag_fg: tag.tag_fg,
+                  tag_bg: tag.tag_bg
+                })) || t.tags,
+                customFields: live.custom_fields?.map((cf: any) => ({
+                  id: cf.id,
+                  name: cf.name,
+                  value: cf.value,
+                  type: cf.type,
+                  type_config: cf.type_config
+                })) || t.customFields
               };
             }
             return t;
@@ -459,7 +479,19 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
               username: a.username,
               email: a.email,
               profilePicture: a.profilePicture
-            }))
+            })),
+            tags: t.tags?.map((tag) => ({
+              name: tag.name,
+              tag_fg: tag.tag_fg,
+              tag_bg: tag.tag_bg
+            })) || [],
+            customFields: t.custom_fields?.map((cf) => ({
+              id: cf.id,
+              name: cf.name,
+              value: cf.value,
+              type: cf.type,
+              type_config: cf.type_config
+            })) || []
           };
         });
 
@@ -833,17 +865,113 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
     }
   };
 
-  // Filtered tasks
+  // Unique projects and tags available on member's active tasks
+  const availableProjects = useMemo(() => {
+    const set = new Set<string>();
+    memberTasks.forEach((t) => {
+      const p = t.projectName || t.clientName;
+      if (p) set.add(p);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [memberTasks]);
+
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    memberTasks.forEach((t) => {
+      t.tags?.forEach((tg) => {
+        if (tg.name) set.add(tg.name);
+      });
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [memberTasks]);
+
+  // Filtered & Sorted tasks
   const filteredTasks = useMemo(() => {
     let list = memberTasks;
+
+    // 1. Source filter
     if (taskSourceFilter === 'clickup') {
       list = list.filter((t) => t.id.startsWith('tsk_cu_live_') || (!!t.clickUpTaskId && !t.id.startsWith('proj_deliv_')));
     } else if (taskSourceFilter === 'allocations') {
       list = list.filter((t) => t.id.startsWith('proj_deliv_') || t.id.startsWith('tb_'));
     }
-    if (taskStatusFilter === 'all') return list;
-    return list.filter((t) => t.status === taskStatusFilter);
-  }, [memberTasks, taskStatusFilter, taskSourceFilter]);
+
+    // 2. Status filter
+    if (taskStatusFilter !== 'all') {
+      list = list.filter((t) => t.status === taskStatusFilter);
+    }
+
+    // 3. Project filter
+    if (selectedProjectFilter !== 'all') {
+      list = list.filter((t) => (t.projectName || t.clientName) === selectedProjectFilter);
+    }
+
+    // 4. Tag filter
+    if (selectedTagFilter !== 'all') {
+      list = list.filter((t) => t.tags?.some((tg) => tg.name.toLowerCase() === selectedTagFilter.toLowerCase()));
+    }
+
+    // 5. Keyword search filter
+    if (taskSearchQuery.trim()) {
+      const q = taskSearchQuery.toLowerCase().trim();
+      list = list.filter((t) =>
+        t.title.toLowerCase().includes(q) ||
+        (t.description && t.description.toLowerCase().includes(q)) ||
+        (t.projectName && t.projectName.toLowerCase().includes(q)) ||
+        (t.clientName && t.clientName.toLowerCase().includes(q)) ||
+        (t.clickUpTaskId && t.clickUpTaskId.includes(q)) ||
+        (t.tags && t.tags.some((tg) => tg.name.toLowerCase().includes(q))) ||
+        (t.customFields && t.customFields.some((cf) => String(cf.value || '').toLowerCase().includes(q) || cf.name.toLowerCase().includes(q)))
+      );
+    }
+
+    // 6. Multi-attribute sorting
+    const sorted = [...list].sort((a, b) => {
+      let diff = 0;
+      if (taskSortBy === 'time_spent') {
+        const aSpent = a.timeSpentHours ?? a.actualHoursLogged ?? 0;
+        const bSpent = b.timeSpentHours ?? b.actualHoursLogged ?? 0;
+        diff = aSpent - bSpent;
+      } else if (taskSortBy === 'time_est') {
+        const aEst = a.timeEstimateHours ?? a.estimatedHours ?? 0;
+        const bEst = b.timeEstimateHours ?? b.estimatedHours ?? 0;
+        diff = aEst - bEst;
+      } else if (taskSortBy === 'due_date') {
+        const aTime = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+        const bTime = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+        diff = aTime - bTime;
+      } else if (taskSortBy === 'project') {
+        const aProj = (a.projectName || a.clientName || '').toLowerCase();
+        const bProj = (b.projectName || b.clientName || '').toLowerCase();
+        diff = aProj.localeCompare(bProj);
+      } else if (taskSortBy === 'task_name') {
+        diff = a.title.toLowerCase().localeCompare(b.title.toLowerCase());
+      } else if (taskSortBy === 'priority') {
+        const priorityRank: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
+        const aRank = priorityRank[a.priority as string] || 0;
+        const bRank = priorityRank[b.priority as string] || 0;
+        diff = aRank - bRank;
+      } else if (taskSortBy === 'status') {
+        const statusRank: Record<string, number> = { assigned: 1, in_progress: 2, review: 3, completed: 4, backlog: 0 };
+        const aRank = statusRank[a.status] || 0;
+        const bRank = statusRank[b.status] || 0;
+        diff = aRank - bRank;
+      }
+
+      return taskSortOrder === 'asc' ? diff : -diff;
+    });
+
+    return sorted;
+  }, [
+    memberTasks,
+    taskSourceFilter,
+    taskStatusFilter,
+    selectedProjectFilter,
+    selectedTagFilter,
+    taskSearchQuery,
+    taskSortBy,
+    taskSortOrder
+  ]);
 
   // Workload calculations
   const weeklyCap = member.weeklyCapacityHours || 40;
@@ -877,6 +1005,119 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
     setCopiedUrl(true);
     sonnerToast.success(`Profile URL copied to clipboard: ${url}`);
     setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  // Helper to format ClickUp Custom Field value
+  const renderCustomFieldValue = (cf: { id: string; name: string; value?: any; type?: string; type_config?: any }) => {
+    if (cf.value === null || cf.value === undefined || cf.value === '') {
+      return <span className="text-slate-500 italic text-[11px]">—</span>;
+    }
+
+    // Dropdown
+    if (cf.type === 'drop_down' && cf.type_config?.options) {
+      const opt = cf.type_config.options.find(
+        (o: any) => o.orderindex === cf.value || o.id === cf.value || String(o.orderindex) === String(cf.value)
+      );
+      if (opt) {
+        return (
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border truncate max-w-full"
+            style={{
+              backgroundColor: opt.color ? `${opt.color}22` : 'rgba(148, 163, 184, 0.1)',
+              borderColor: opt.color ? `${opt.color}55` : 'rgba(148, 163, 184, 0.3)',
+              color: opt.color || '#cbd5e1'
+            }}
+          >
+            {opt.name}
+          </span>
+        );
+      }
+      return <span className="text-slate-200 text-xs font-medium truncate">{String(cf.value)}</span>;
+    }
+
+    // Labels
+    if (cf.type === 'labels' && Array.isArray(cf.value)) {
+      const options = cf.type_config?.options || [];
+      return (
+        <div className="flex items-center gap-1 flex-wrap">
+          {cf.value.map((valId: string, idx: number) => {
+            const opt = options.find((o: any) => o.id === valId || o.label === valId);
+            const labelName = opt?.label || opt?.name || String(valId);
+            const color = opt?.color || '#38bdf8';
+            return (
+              <span
+                key={idx}
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border"
+                style={{
+                  backgroundColor: `${color}22`,
+                  borderColor: `${color}55`,
+                  color: color
+                }}
+              >
+                {labelName}
+              </span>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // URL
+    if (cf.type === 'url' && typeof cf.value === 'string') {
+      return (
+        <a
+          href={cf.value.startsWith('http') ? cf.value : `https://${cf.value}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cyan-400 hover:text-cyan-300 underline inline-flex items-center gap-1 text-xs truncate max-w-full"
+        >
+          <span className="truncate">{cf.value}</span>
+          <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+        </a>
+      );
+    }
+
+    // Date
+    if (cf.type === 'date' && (typeof cf.value === 'number' || !isNaN(Number(cf.value)))) {
+      const d = new Date(Number(cf.value));
+      return <span className="text-slate-300 font-mono text-xs">{d.toLocaleDateString()}</span>;
+    }
+
+    // Currency
+    if (cf.type === 'currency') {
+      return <span className="text-emerald-400 font-mono font-bold text-xs">${Number(cf.value).toLocaleString()}</span>;
+    }
+
+    // Checkbox
+    if (cf.type === 'checkbox') {
+      return cf.value ? (
+        <span className="inline-flex items-center gap-1 text-emerald-400 text-xs font-semibold">
+          <Check className="w-3 h-3" /> Yes
+        </span>
+      ) : (
+        <span className="text-slate-500 text-xs">No</span>
+      );
+    }
+
+    // Array of values
+    if (Array.isArray(cf.value)) {
+      return (
+        <span className="text-slate-300 text-xs truncate">
+          {cf.value.map((v) => (typeof v === 'object' ? v.name || v.username || JSON.stringify(v) : String(v))).join(', ')}
+        </span>
+      );
+    }
+
+    // Object
+    if (typeof cf.value === 'object') {
+      return (
+        <span className="text-slate-300 text-xs truncate">
+          {cf.value.name || cf.value.username || JSON.stringify(cf.value)}
+        </span>
+      );
+    }
+
+    return <span className="text-slate-300 text-xs font-medium truncate">{String(cf.value)}</span>;
   };
 
   const handleSwitchTab = (tab: 'projects' | 'tasks' | 'skills') => {
@@ -1418,16 +1659,152 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                 <span>Project Deliverables ({memberProjects.length})</span>
               </button>
             </div>
+
+            {/* Filter, Sort & Search Toolbar */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 pt-2 pb-1 bg-slate-900/40 p-3 rounded-xl border border-slate-800/80">
+              {/* Search Bar */}
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Filter by title, brief, tag, project, or ClickUp #ID..."
+                  value={taskSearchQuery}
+                  onChange={(e) => setTaskSearchQuery(e.target.value)}
+                  className="w-full bg-slate-950/90 border border-slate-700/80 rounded-xl pl-9 pr-8 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-colors"
+                />
+                {taskSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setTaskSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown Filters & Sorting Group */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Project Filter */}
+                <div className="flex items-center gap-1.5 bg-slate-950/90 border border-slate-700/80 rounded-xl px-2.5 py-1">
+                  <Briefcase className="w-3 h-3 text-cyan-400 shrink-0" />
+                  <select
+                    value={selectedProjectFilter}
+                    onChange={(e) => setSelectedProjectFilter(e.target.value)}
+                    className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer max-w-[130px] truncate"
+                  >
+                    <option value="all" className="bg-slate-900 text-slate-200">All Projects ({availableProjects.length})</option>
+                    {availableProjects.map((p) => (
+                      <option key={p} value={p} className="bg-slate-900 text-slate-200">
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Tag Filter */}
+                <div className="flex items-center gap-1.5 bg-slate-950/90 border border-slate-700/80 rounded-xl px-2.5 py-1">
+                  <Tag className="w-3 h-3 text-purple-400 shrink-0" />
+                  <select
+                    value={selectedTagFilter}
+                    onChange={(e) => setSelectedTagFilter(e.target.value)}
+                    className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer max-w-[110px] truncate"
+                  >
+                    <option value="all" className="bg-slate-900 text-slate-200">All Tags ({availableTags.length})</option>
+                    {availableTags.map((t) => (
+                      <option key={t} value={t} className="bg-slate-900 text-slate-200">
+                        #{t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sort By Dropdown */}
+                <div className="flex items-center gap-1.5 bg-slate-950/90 border border-slate-700/80 rounded-xl px-2.5 py-1">
+                  <SlidersHorizontal className="w-3 h-3 text-amber-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sort:</span>
+                  <select
+                    value={taskSortBy}
+                    onChange={(e) => setTaskSortBy(e.target.value as any)}
+                    className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer"
+                  >
+                    <option value="due_date" className="bg-slate-900 text-slate-200">Due Date</option>
+                    <option value="time_spent" className="bg-slate-900 text-slate-200">Time Spent</option>
+                    <option value="time_est" className="bg-slate-900 text-slate-200">Time Estimate</option>
+                    <option value="project" className="bg-slate-900 text-slate-200">Project / Client</option>
+                    <option value="task_name" className="bg-slate-900 text-slate-200">Task Title</option>
+                    <option value="priority" className="bg-slate-900 text-slate-200">Priority</option>
+                    <option value="status" className="bg-slate-900 text-slate-200">Status</option>
+                  </select>
+                </div>
+
+                {/* Asc / Desc Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => setTaskSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-800 border border-slate-700/80 text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center gap-1 cursor-pointer"
+                  title={`Toggle sort order (currently ${taskSortOrder === 'asc' ? 'Ascending' : 'Descending'})`}
+                >
+                  <ArrowUpDown className="w-3 h-3 text-cyan-400" />
+                  <span className="font-mono text-[11px]">{taskSortOrder === 'asc' ? 'ASC ↑' : 'DESC ↓'}</span>
+                </button>
+
+                {/* Reset Filters Pill */}
+                {(selectedProjectFilter !== 'all' || selectedTagFilter !== 'all' || taskSearchQuery.trim() !== '' || taskStatusFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProjectFilter('all');
+                      setSelectedTagFilter('all');
+                      setTaskSearchQuery('');
+                      setTaskStatusFilter('all');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                    title="Clear all active filters"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                )}
+
+                <span className="text-[11px] font-mono text-slate-400 pl-1 shrink-0">
+                  ({filteredTasks.length}/{memberTasks.length})
+                </span>
+              </div>
+            </div>
           </div>
 
           {filteredTasks.length === 0 ? (
             <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800 text-slate-400 space-y-3">
               <CheckCircle2 className="w-8 h-8 text-slate-600 mx-auto" />
               <div>
-                <p className="text-sm font-semibold text-slate-300">No tasks found under filter "{taskStatusFilter}".</p>
-                <p className="text-xs text-slate-500 mt-1">Assign sprint deliverables or pick tasks assigned to {member.name} from ClickUp.</p>
+                <p className="text-sm font-semibold text-slate-300">
+                  {selectedProjectFilter !== 'all' || selectedTagFilter !== 'all' || taskSearchQuery.trim() !== '' || taskStatusFilter !== 'all'
+                    ? 'No tasks match your selected filter, tag, or search criteria.'
+                    : `No tasks found under filter "${taskStatusFilter}".`}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {selectedProjectFilter !== 'all' || selectedTagFilter !== 'all' || taskSearchQuery.trim() !== ''
+                    ? 'Try clearing active filters or searching with different keywords.'
+                    : `Assign sprint deliverables or pick tasks assigned to ${member.name} from ClickUp.`}
+                </p>
               </div>
               <div className="flex items-center justify-center gap-2 flex-wrap">
+                {(selectedProjectFilter !== 'all' || selectedTagFilter !== 'all' || taskSearchQuery.trim() !== '' || taskStatusFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProjectFilter('all');
+                      setSelectedTagFilter('all');
+                      setTaskSearchQuery('');
+                      setTaskStatusFilter('all');
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold shadow-lg transition-all cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Clear All Filters</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -1522,6 +1899,34 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                             />
                             <span>{t.clickUpStatus || t.status.replace('_', ' ')}</span>
                           </span>
+
+                          {/* Task Tags */}
+                          {t.tags && t.tags.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {t.tags.map((tg, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTagFilter(selectedTagFilter === tg.name ? 'all' : tg.name);
+                                  }}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border transition-all cursor-pointer shadow-xs ${
+                                    selectedTagFilter === tg.name ? 'ring-2 ring-cyan-400' : 'hover:opacity-90'
+                                  }`}
+                                  style={{
+                                    backgroundColor: tg.tag_bg ? `${tg.tag_bg}33` : 'rgba(99, 102, 241, 0.15)',
+                                    color: tg.tag_fg ? tg.tag_fg : '#c7d2fe',
+                                    borderColor: tg.tag_bg ? `${tg.tag_bg}77` : 'rgba(99, 102, 241, 0.4)'
+                                  }}
+                                  title={`Filter by tag #${tg.name}`}
+                                >
+                                  <Tag className="w-2.5 h-2.5 opacity-80" />
+                                  <span>{tg.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         {/* Task Title */}
@@ -1692,6 +2097,38 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                                 <span className="font-medium">{a.username}</span>
                               </div>
                             ))}
+                          </div>
+                        )}
+
+                        {/* ClickUp Custom Fields & Metadata Grid */}
+                        {t.customFields && t.customFields.length > 0 && t.customFields.some((cf) => cf.value !== null && cf.value !== undefined && cf.value !== '') && (
+                          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5">
+                            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
+                                <span>ClickUp Custom Fields & Deliverables Metadata:</span>
+                              </div>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                {t.customFields.filter(cf => cf.value !== null && cf.value !== undefined && cf.value !== '').length} fields
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pt-1">
+                              {t.customFields
+                                .filter((cf) => cf.value !== null && cf.value !== undefined && cf.value !== '')
+                                .map((cf) => (
+                                  <div
+                                    key={cf.id}
+                                    className="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80 flex flex-col justify-between gap-1"
+                                  >
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide truncate" title={cf.name}>
+                                      {cf.name}
+                                    </span>
+                                    <div className="min-w-0">
+                                      {renderCustomFieldValue(cf)}
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
                           </div>
                         )}
 
