@@ -23,10 +23,8 @@ import {
   Grid3X3,
   CalendarRange,
   ShieldAlert,
-  UserCheck,
-  Zap
+  UserCheck
 } from 'lucide-react';
-import { navigate } from '../utils/router';
 import type { TeamMember, AppUserProfile } from '../types';
 
 export interface BreadcrumbsProps {

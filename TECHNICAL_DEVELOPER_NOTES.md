@@ -1100,3 +1100,18 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - DSR Tracker: Desktop Electron client, dual-mode mini pill, SLA monitor, and protocol linking.
     - Verified all test suites passing without regressions.
 
+  47. **Vercel Production Deployment Resolution (`tsc -b && vite build`)**:
+    - **Issue Identified**:
+      - Vercel automated CI/CD pipeline failed on commit `53f2fb9` because Vercel runs `tsc -b && vite build` with strict `noUnusedLocals: true`.
+    - **Root Causes**:
+      1. Missing closing `</div>` in `VisualAgencyHub.tsx` inside the team capacity button group header.
+      2. Unused imports `Zap` and `navigate` in `Breadcrumbs.tsx`.
+      3. Type mismatch: `fetchClickUpTasks` in `VisualAgencyHub.tsx` called with 3 arguments instead of 2.
+    - **Resolution**:
+      - Added the closing `</div>` in `VisualAgencyHub.tsx`.
+      - Removed unused `Zap` and `navigate` imports in `Breadcrumbs.tsx`.
+      - Corrected `fetchClickUpTasks(token, wsId)`.
+      - Executed local `npm run build`: transformed 2265 modules, compiled cleanly in 1.18s with exit code 0.
+      - 36/36 automated unit tests passing (`vitest`).
+
+

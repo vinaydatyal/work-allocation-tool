@@ -2197,7 +2197,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         return;
       }
 
-      const tasks = await fetchClickUpTasks(token, wsId, 100);
+      const tasks = await fetchClickUpTasks(token, wsId);
       let updatedCount = 0;
 
       const assigneeCompletedMap: Record<number, number> = {};
@@ -8258,16 +8258,18 @@ Due Date: ${proj.paymentDueDate}
                   <Flame className="w-3.5 h-3.5 text-amber-400" />
                   <span>🔥 Workload Heatmap & Shield</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSyncClickUpCapacity}
-                  disabled={isSyncingCapacity}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/50 text-purple-200 font-bold text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer hover:scale-105 disabled:opacity-50"
-                  title="Sync active task estimates and capacity from ClickUp"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCapacity ? 'animate-spin' : 'text-purple-400'}`} />
-                  <span>{isSyncingCapacity ? 'Syncing...' : '⚡ Sync ClickUp Capacity'}</span>
-                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSyncClickUpCapacity}
+                disabled={isSyncingCapacity}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/50 text-purple-200 font-bold text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer hover:scale-105 disabled:opacity-50"
+                title="Sync active task estimates and capacity from ClickUp"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCapacity ? 'animate-spin' : 'text-purple-400'}`} />
+                <span>{isSyncingCapacity ? 'Syncing...' : '⚡ Sync ClickUp Capacity'}</span>
+              </button>
 
                 <button
                   type="button"
