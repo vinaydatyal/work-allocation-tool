@@ -214,6 +214,19 @@ export interface ClickUpTask {
   description?: string;
   text_content?: string;
   parent?: string | null;
+  checklists?: Array<{
+    id: string;
+    name: string;
+    orderindex?: number;
+    resolved?: number;
+    unresolved?: number;
+    items?: Array<{ id: string; name: string; resolved: boolean; orderindex?: number }>;
+  }>;
+  subtasks?: Array<{
+    id: string;
+    name: string;
+    status?: { status: string; color: string };
+  }>;
 }
 
 export interface ClickUpSpace {
@@ -537,6 +550,29 @@ export async function fetchClickUpTasks(
  */
 export async function fetchClickUpTask(token: string, taskId: string): Promise<any> {
   return clickupFetch(`/task/${taskId}`, token);
+}
+
+/**
+ * Delete a task in ClickUp
+ */
+export async function deleteClickUpTask(token: string, taskId: string): Promise<any> {
+  return clickupRequest(`/task/${taskId}`, token, { method: 'DELETE' });
+}
+
+/**
+ * Update a checklist item in ClickUp (e.g. resolve / unresolve)
+ */
+export async function updateClickUpChecklistItem(
+  token: string,
+  checklistId: string,
+  checklistItemId: string,
+  resolved: boolean
+): Promise<any> {
+  return clickupRequest(`/checklist/${checklistId}/checklist_item/${checklistItemId}`, token, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ resolved })
+  });
 }
 
 /**

@@ -196,6 +196,30 @@ export interface Task {
     type?: string;
     type_config?: any;
   }>;
+  checklists?: TaskChecklist[];
+  subtasks?: TaskSubtask[];
+}
+
+export interface TaskChecklistItem {
+  id: string;
+  name: string;
+  resolved: boolean;
+}
+
+export interface TaskChecklist {
+  id: string;
+  name: string;
+  resolvedCount: number;
+  unresolvedCount: number;
+  items: TaskChecklistItem[];
+}
+
+export interface TaskSubtask {
+  id: string;
+  name: string;
+  status: string;
+  statusColor?: string;
+  isCompleted: boolean;
 }
 
 /* --- BRIEF ANALYZER TYPES --- */

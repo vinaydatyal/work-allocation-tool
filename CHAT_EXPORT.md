@@ -6533,3 +6533,38 @@ Provided a full system readiness audit covering:
 1. What is 100% complete and operational in the Member Profile & ClickUp integration.
 2. Immediate optional enhancements for the Member Profile view (Direct In-Card Time Logging, Subtasks/Checklists, Weekly DSR Reconciliation).
 3. Broader agency roadmap status across the 10 Master Phases.
+
+---
+
+## 👤 User (Turn #207)
+
+<USER_REQUEST>
+Direct In-Card Time Logging, Subtasks & Checklist Progress, 1-Click Sync to Member DSR, Batch Task Actions, option to delete a card
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+### 🚀 Direct In-Card Time Logging, Subtasks & Checklists, 1-Click DSR Sync, Batch Actions & Card Deletion Deployed!
+
+All 5 core features requested for the Member Profile Page ([src/components/MemberProfilePage.tsx](file:///e:/Antigravity/Work%20Allocation%20Tool/src/components/MemberProfilePage.tsx)) are fully implemented, verified, and active:
+
+1. **Direct In-Card Time Logging & Live Stopwatch**:
+   - **Stopwatch Timer Button**: Added `▶ Timer` on every card. When clicked, starts live stopwatch with red pulsing indicator and elapsed `mm:ss` counter (`⏹ Stop`). Stopping the timer opens the time log modal pre-filled with accrued duration.
+   - **`+ Log` Button & Time Logging Modal**: Preset pills (`15m`, `30m`, `1h`, `2h`, `4h`), custom decimal hours input, work description/memo, and automatic push to ClickUp's `POST /team/{id}/time_entries` API (`createClickUpTimeEntry`) with local persistence to `vat_time_logs_${member.id}`.
+2. **Subtasks & Interactive Checklist Progress**:
+   - Checklists parsed from ClickUp API responses with visual progress bar `(completed/total)%`.
+   - Interactive checkboxes allowing specialists to toggle checklist items on/off with instant remote sync via `updateClickUpChecklistItem`.
+   - Subtasks rendered with authentic ClickUp status pills and strike-through on completion.
+   - Inline `+ Add Item` input to add custom deliverable QA steps and checklist items locally.
+3. **1-Click Sync to Member DSR**:
+   - Prominent `📋 Sync to DSR` button in header toolbar.
+   - Reconciles total logged task hours, creates structured DSR time logs, and persists to `vat_dsr_member_submission_${member.id}` and `vat_all_dsr_submissions_v1` with Sonner toast feedback.
+4. **Batch Task Actions**:
+   - Card selection checkboxes + "Select All Tasks" toggle.
+   - Floating/inline batch action toolbar with quick status changes (`In Progress`, `In Review`, `Completed`), bulk deletion, and deselect.
+5. **Option to Delete a Card (Local & Remote ClickUp)**:
+   - `🗑️` Delete button on card right controls opening confirmation modal with option to also delete in ClickUp (`deleteClickUpTask`).
+6. **Verification**:
+   - Production bundle compiled cleanly with 0 errors (`npm run build`).
+   - All 36 Vitest unit tests passed (`npm test`).
+

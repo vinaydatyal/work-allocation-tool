@@ -1208,7 +1208,39 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Multi-attribute sorting (Due Date, Time Spent, Time Estimate, Project, Task Name, Priority, Status) and filtering control bar (Search, Project, Tag, Reset).
       - Background silent polling (60s daemon) and instant cache flushing.
     - **Remaining Opportunities & Next Iterations**:
-      - 1. **Direct In-Card Time Logging to ClickUp**: 1-click modal or timer allowing specialists to log hours to ClickUp's `POST /team/{id}/time_entries` directly from the task card.
-      - 2. **Subtasks & Checklist Progress**: Expandable checklist breakdown within the task pocket showing completed vs pending checklist items.
-      - 3. **Sync ClickUp Time Entries to Member Weekly DSR**: 1-click button reconciling ClickUp logged hours directly into the member's DSR weekly record.
-      - 4. **Supabase Cloud Production Migration**: Applying `supabase/schema.sql` to live cloud Supabase instance to transition from client-side persistence to multi-user PostgreSQL.
+      - 1. **Supabase Cloud Production Migration**: Applying `supabase/schema.sql` to live cloud Supabase instance to transition from client-side persistence to multi-user PostgreSQL.
+      - 2. **Real-time WebSocket Notifications**: Pushing instant notifications to team leads when specialists submit DSR reports or complete critical deliverables.
+
+  53. **Direct In-Card Time Logging, Subtasks & Checklist Progress, 1-Click DSR Sync, Batch Actions, & Card Deletion (Implemented)**:
+    - **Direct In-Card Time Logging & Live Stopwatch**:
+      - Added interactive stopwatch timer button on each card (`▶ Timer` / `⏹ Stop (mm:ss)`) with live `setInterval` tracking and pulsing red indicator.
+      - Stopping the timer automatically opens the Time Logging modal pre-filled with the accrued hours.
+      - Added `+ Log` button opening the Direct Time Logging modal with quick preset pills (`15m`, `30m`, `1h`, `2h`, `4h`), custom decimal hours input, and work memo textarea.
+      - If the task is linked to ClickUp, automatically pushes time entries to ClickUp's `/team/{team_id}/time_entries` API (`createClickUpTimeEntry`) with duration in milliseconds and start timestamp.
+      - Persists time entries locally to `vat_time_logs_${member.id}` and updates task `timeSpentHours` and `actualHoursLogged`.
+    - **Subtasks & Interactive Checklist Progress**:
+      - Extended `Task` interface in `src/types.ts` with `TaskChecklist`, `TaskChecklistItem`, and `TaskSubtask`.
+      - Updated `clickupOAuth.ts` to export `deleteClickUpTask` and `updateClickUpChecklistItem`.
+      - Mapped ClickUp checklists (`cl.items`, `cl.resolved`, `cl.unresolved`) and subtasks (`st.status`, `st.name`) during task ingestion and single-card refresh.
+      - Rendered checklist progress bar with `(completed/total)%` metric and interactive item checkboxes inside the expanded task pocket.
+      - Toggling a checklist item calls `updateClickUpChecklistItem` to sync state with ClickUp remotely while immediately updating local state.
+      - Added inline "+ Add Item" input allowing specialists to add custom deliverable QA steps and checklist items locally.
+    - **1-Click Sync to Member DSR**:
+      - Added prominent `📋 Sync to DSR` button in the task header toolbar.
+      - `handleSyncTasksToDSR` aggregates total hours spent across all active tasks for the member, creates structured DSR deliverables with project and status notes, and persists the payload to `vat_dsr_member_submission_${member.id}` and `vat_all_dsr_submissions_v1`.
+      - Dispatches high-visibility Sonner toast confirming hours synced to the member's Daily Status Report.
+    - **Batch Task Actions**:
+      - Added multi-select checkbox on every task card header and a "Select All Tasks" toggle above the task list.
+      - Rendered a floating/inline batch action toolbar when 1 or more tasks are selected:
+        - Displays selected count badge.
+        - One-click bulk status change buttons (`In Progress`, `In Review`, `Completed`) updating local state, `localStorage`, and remotely syncing with ClickUp via `updateClickUpTaskStatus`.
+        - Bulk delete button (`handleBatchDelete`) removing selected cards across local storage and ClickUp workspace.
+        - One-click `Deselect` button.
+    - **Option to Delete a Card (Local & ClickUp Remote)**:
+      - Added dedicated `🗑️` Delete button on card right controls.
+      - Opens a high-contrast confirmation modal displaying task title, client, status, and ClickUp task ID.
+      - Includes an optional "Also delete in ClickUp Workspace" checkbox (`deleteClickUpTask`) for tasks linked to ClickUp.
+      - Confirmed deletion removes the task from `clickUpSyncedTasks`, cleans up `localStorage`, and displays Sonner feedback.
+    - **Verification**:
+      - Production build (`tsc -b && vite build`) passed with 0 errors.
+      - All 36/36 Vitest unit tests passed.

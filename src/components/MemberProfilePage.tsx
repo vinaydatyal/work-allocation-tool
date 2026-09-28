@@ -15,6 +15,10 @@ import {
   updateClickUpTaskStatus,
   fetchClickUpTaskComments,
   createClickUpTaskComment,
+  createClickUpTimeEntry,
+  deleteClickUpTask,
+  updateClickUpChecklistItem,
+  isClickUpTaskClosed,
   getCommentPlainText,
   type ClickUpCommentItem
 } from '../services/clickupOAuth';
@@ -54,7 +58,12 @@ import {
   Users,
   Tag,
   ArrowUpDown,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Play,
+  Square,
+  CheckSquare,
+  FileCheck,
+  Layers
 } from 'lucide-react';
 
 interface MemberProfilePageProps {
@@ -83,6 +92,41 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
   const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all');
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
   const [taskSearchQuery, setTaskSearchQuery] = useState<string>('');
+
+  // 1. In-Card Time Logging & Timer State
+  const [timeLogTask, setTimeLogTask] = useState<Task | null>(null);
+  const [timeLogHours, setTimeLogHours] = useState<number>(1);
+  const [timeLogDescription, setTimeLogDescription] = useState<string>('');
+  const [isSubmittingTimeLog, setIsSubmittingTimeLog] = useState<boolean>(false);
+  const [activeTimerTaskId, setActiveTimerTaskId] = useState<string | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState<number>(0);
+
+  // 2. Batch Task Actions State
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [isBatchProcessing, setIsBatchProcessing] = useState<boolean>(false);
+
+  // 3. Delete Task Modal State
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [deleteInClickUpToo, setDeleteInClickUpToo] = useState<boolean>(true);
+  const [isDeletingTask, setIsDeletingTask] = useState<boolean>(false);
+
+  // 4. Checklist Item Add State
+  const [newChecklistTextMap, setNewChecklistTextMap] = useState<Record<string, string>>({});
+
+  // Timer effect for in-card stopwatch
+  useEffect(() => {
+    let interval: any = null;
+    if (activeTimerTaskId) {
+      interval = setInterval(() => {
+        setTimerSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setTimerSeconds(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeTimerTaskId]);
 
   // Active Projects state with persistence
   const [projectsList, setProjectsList] = useState<ActiveProjectItem[]>(() => {
@@ -348,7 +392,21 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                   value: cf.value,
                   type: cf.type,
                   type_config: cf.type_config
-                })) || t.customFields
+                })) || t.customFields,
+                checklists: live.checklists?.map((cl: any) => ({
+                  id: cl.id,
+                  name: cl.name,
+                  resolvedCount: cl.resolved ?? 0,
+                  unresolvedCount: cl.unresolved ?? 0,
+                  items: cl.items?.map((it: any) => ({ id: it.id, name: it.name, resolved: !!it.resolved })) || []
+                })) || t.checklists,
+                subtasks: live.subtasks?.map((st: any) => ({
+                  id: st.id,
+                  name: st.name,
+                  status: st.status?.status || '',
+                  statusColor: st.status?.color,
+                  isCompleted: isClickUpTaskClosed(st.status?.status)
+                })) || t.subtasks
               };
             }
             return t;
@@ -491,6 +549,20 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
               value: cf.value,
               type: cf.type,
               type_config: cf.type_config
+            })) || [],
+            checklists: t.checklists?.map((cl: any) => ({
+              id: cl.id,
+              name: cl.name,
+              resolvedCount: cl.resolved ?? 0,
+              unresolvedCount: cl.unresolved ?? 0,
+              items: cl.items?.map((it: any) => ({ id: it.id, name: it.name, resolved: !!it.resolved })) || []
+            })) || [],
+            subtasks: t.subtasks?.map((st: any) => ({
+              id: st.id,
+              name: st.name,
+              status: st.status?.status || '',
+              statusColor: st.status?.color,
+              isCompleted: isClickUpTaskClosed(st.status?.status)
             })) || []
           };
         });
@@ -862,6 +934,358 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
       }
     } else {
       sonnerToast.success(`Updated task status to ${newStatus.replace('_', ' ')}`);
+    }
+  };
+
+  // ─── 1. DIRECT IN-CARD TIME LOGGING HANDLERS ────────────────────────────────
+  const handleLogTimeSubmit = async () => {
+    if (!timeLogTask) return;
+    if (timeLogHours <= 0) {
+      sonnerToast.error('Please enter a valid number of hours (> 0)');
+      return;
+    }
+
+    setIsSubmittingTimeLog(true);
+    const token = getClickUpToken();
+    let wsId = getClickUpWorkspaceId();
+    const hoursToLog = Math.round(timeLogHours * 10) / 10;
+    const desc = timeLogDescription.trim() || `Worked on ${timeLogTask.title}`;
+
+    try {
+      if (token && timeLogTask.clickUpTaskId) {
+        if (!wsId) {
+          const ws = await fetchClickUpWorkspaces(token);
+          if (ws && ws.length > 0) {
+            wsId = ws[0].id;
+            setClickUpWorkspaceId(wsId);
+          }
+        }
+        if (wsId) {
+          try {
+            await createClickUpTimeEntry(token, wsId, {
+              task_id: timeLogTask.clickUpTaskId,
+              duration: Math.round(hoursToLog * 3600000),
+              start: Date.now() - Math.round(hoursToLog * 3600000),
+              description: desc
+            });
+            sonnerToast.success(`⏱️ Logged ${hoursToLog}h to ClickUp #${timeLogTask.clickUpTaskId}!`);
+          } catch (cuErr: any) {
+            console.warn('ClickUp time entry API failed:', cuErr);
+            sonnerToast.warning(`ClickUp log note: ${cuErr.message || 'Saved locally'}`);
+          }
+        }
+      }
+
+      // Update task in clickUpSyncedTasks and localStorage
+      const updated = clickUpSyncedTasks.map((t) => {
+        if (t.id === timeLogTask.id || (timeLogTask.clickUpTaskId && t.clickUpTaskId === timeLogTask.clickUpTaskId)) {
+          const newSpent = Math.round(((t.timeSpentHours || 0) + hoursToLog) * 10) / 10;
+          return {
+            ...t,
+            timeSpentHours: newSpent,
+            actualHoursLogged: newSpent
+          };
+        }
+        return t;
+      });
+      setClickUpSyncedTasks(updated);
+      localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(updated));
+
+      // Append to local activity timesheet
+      try {
+        const logEntry = {
+          id: `tl_${Date.now()}`,
+          taskId: timeLogTask.id,
+          taskTitle: timeLogTask.title,
+          clickUpTaskId: timeLogTask.clickUpTaskId,
+          hours: hoursToLog,
+          description: desc,
+          timestamp: new Date().toISOString()
+        };
+        const existingLogs = JSON.parse(localStorage.getItem(`vat_time_logs_${member.id}`) || '[]');
+        localStorage.setItem(`vat_time_logs_${member.id}`, JSON.stringify([logEntry, ...existingLogs.slice(0, 49)]));
+      } catch {
+        // ignore
+      }
+
+      sonnerToast.success(`⏱️ Recorded ${hoursToLog}h for ${member.name}!`, {
+        description: `"${timeLogTask.title}" total is now ${(timeLogTask.timeSpentHours || 0) + hoursToLog}h`
+      });
+
+      setTimeLogTask(null);
+      setTimeLogDescription('');
+      setTimeLogHours(1);
+      if (activeTimerTaskId === timeLogTask.id) {
+        setActiveTimerTaskId(null);
+        setTimerSeconds(0);
+      }
+    } catch (err: any) {
+      console.error('Time logging error:', err);
+      sonnerToast.error('Time logging failed: ' + err.message);
+    } finally {
+      setIsSubmittingTimeLog(false);
+    }
+  };
+
+  const handleToggleTimer = (task: Task) => {
+    if (activeTimerTaskId === task.id) {
+      // Stop timer and open modal with accrued duration
+      const elapsedHours = Math.max(0.1, Math.round((timerSeconds / 3600) * 10) / 10);
+      setTimeLogTask(task);
+      setTimeLogHours(elapsedHours);
+      setTimeLogDescription(`Session timer: ${Math.floor(timerSeconds / 60)}m ${timerSeconds % 60}s`);
+      setActiveTimerTaskId(null);
+      setTimerSeconds(0);
+    } else {
+      // Start timer
+      setActiveTimerTaskId(task.id);
+      setTimerSeconds(0);
+      sonnerToast.info(`⏱️ Stopwatch started for "${task.title}"`);
+    }
+  };
+
+  // ─── 2. CHECKLISTS & SUBTASKS HANDLERS ──────────────────────────────────────
+  const handleToggleChecklistItem = async (task: Task, checklistId: string, itemId: string, currentResolved: boolean) => {
+    const newResolved = !currentResolved;
+    const updated = clickUpSyncedTasks.map((t) => {
+      if (t.id === task.id) {
+        const newChecklists = t.checklists?.map((cl) => {
+          if (cl.id === checklistId) {
+            const newItems = cl.items.map((it) => (it.id === itemId ? { ...it, resolved: newResolved } : it));
+            const resCount = newItems.filter((i) => i.resolved).length;
+            return {
+              ...cl,
+              items: newItems,
+              resolvedCount: resCount,
+              unresolvedCount: newItems.length - resCount
+            };
+          }
+          return cl;
+        });
+        return { ...t, checklists: newChecklists };
+      }
+      return t;
+    });
+
+    setClickUpSyncedTasks(updated);
+    localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(updated));
+
+    const token = getClickUpToken();
+    if (token && task.clickUpTaskId && checklistId && !checklistId.startsWith('custom_')) {
+      try {
+        await updateClickUpChecklistItem(token, checklistId, itemId, newResolved);
+        sonnerToast.success(`Checklist item marked ${newResolved ? 'complete' : 'pending'} in ClickUp`);
+      } catch (err) {
+        console.warn('ClickUp checklist sync failed, saved locally:', err);
+      }
+    }
+  };
+
+  const handleAddCustomChecklistItem = (task: Task) => {
+    const text = (newChecklistTextMap[task.id] || '').trim();
+    if (!text) return;
+
+    const updated = clickUpSyncedTasks.map((t) => {
+      if (t.id === task.id) {
+        const existing = t.checklists || [];
+        const primary = existing[0] || {
+          id: `custom_cl_${Date.now()}`,
+          name: 'Deliverable Checklist',
+          resolvedCount: 0,
+          unresolvedCount: 0,
+          items: []
+        };
+
+        const newItem = { id: `it_${Date.now()}`, name: text, resolved: false };
+        const updatedItems = [...primary.items, newItem];
+        const updatedPrimary = {
+          ...primary,
+          items: updatedItems,
+          unresolvedCount: updatedItems.filter((i) => !i.resolved).length
+        };
+
+        const updatedChecklists = existing.length > 0 ? [updatedPrimary, ...existing.slice(1)] : [updatedPrimary];
+        return { ...t, checklists: updatedChecklists };
+      }
+      return t;
+    });
+
+    setClickUpSyncedTasks(updated);
+    localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(updated));
+    setNewChecklistTextMap((prev) => ({ ...prev, [task.id]: '' }));
+    sonnerToast.success(`Added checklist step: "${text}"`);
+  };
+
+  // ─── 3. 1-CLICK SYNC TO MEMBER DSR HANDLER ──────────────────────────────────
+  const handleSyncTasksToDSR = () => {
+    const activeTasksWithHours = memberTasks.filter(
+      (t) => (t.timeSpentHours || 0) > 0 || (t.actualHoursLogged || 0) > 0
+    );
+
+    const totalHours = activeTasksWithHours.reduce(
+      (sum, t) => sum + (t.timeSpentHours || t.actualHoursLogged || 0),
+      0
+    );
+
+    const roundedTotal = Math.round(totalHours * 10) / 10;
+    const taskPool = activeTasksWithHours.length > 0 ? activeTasksWithHours : memberTasks.slice(0, 5);
+
+    const dsrTimeLogs = taskPool.map((t, idx) => {
+      const h = t.timeSpentHours || t.actualHoursLogged || (t.estimatedHours ? Math.round(t.estimatedHours / 2) : 2);
+      return {
+        id: `dsr_tl_${t.id}_${idx}`,
+        taskName: `[ClickUp #${t.clickUpTaskId || 'Live'}] ${t.title}`,
+        category: t.requiredSkill || member.skills[0] || 'Technical SEO',
+        durationMs: Math.round(h * 3600000),
+        notes: `Project: ${t.projectName || t.clientName || 'General Delivery'} • Status: ${t.clickUpStatus || t.status}`,
+        source: t.clickUpTaskId ? 'ClickUp' : 'Deliverables'
+      };
+    });
+
+    const submissionPayload = {
+      memberId: member.id,
+      memberName: member.name,
+      memberRole: member.role,
+      syncedAt: new Date().toISOString(),
+      date: new Date().toISOString().split('T')[0],
+      totalHours: roundedTotal > 0 ? roundedTotal : 8,
+      totalDurationMs: Math.round((roundedTotal > 0 ? roundedTotal : 8) * 3600000),
+      status: 'pending_review',
+      timeLogs: dsrTimeLogs
+    };
+
+    try {
+      localStorage.setItem(`vat_dsr_member_submission_${member.id}`, JSON.stringify(submissionPayload));
+      const allSubs = JSON.parse(localStorage.getItem('vat_all_dsr_submissions_v1') || '[]');
+      const filtered = allSubs.filter((s: any) => s.memberId !== member.id || s.date !== submissionPayload.date);
+      localStorage.setItem('vat_all_dsr_submissions_v1', JSON.stringify([submissionPayload, ...filtered]));
+    } catch (err) {
+      console.warn('Failed to save DSR payload:', err);
+    }
+
+    sonnerToast.success(`📋 Synced ${roundedTotal > 0 ? roundedTotal : 8}h to ${member.name}'s Daily Status Report (DSR)!`, {
+      description: `${dsrTimeLogs.length} deliverables queued for team lead review.`
+    });
+  };
+
+  // ─── 4. CARD DELETION HANDLERS ──────────────────────────────────────────────
+  const handleDeleteTaskConfirm = async () => {
+    if (!taskToDelete) return;
+    setIsDeletingTask(true);
+    const token = getClickUpToken();
+
+    try {
+      if (deleteInClickUpToo && token && taskToDelete.clickUpTaskId) {
+        try {
+          await deleteClickUpTask(token, taskToDelete.clickUpTaskId);
+          sonnerToast.success(`🗑️ Deleted task #${taskToDelete.clickUpTaskId} from ClickUp`);
+        } catch (cuErr: any) {
+          console.warn('ClickUp task delete failed, removing locally:', cuErr);
+          sonnerToast.warning(`ClickUp deletion notice: ${cuErr.message || 'Removed locally'}`);
+        }
+      }
+
+      const updated = clickUpSyncedTasks.filter(
+        (t) => t.id !== taskToDelete.id && (!taskToDelete.clickUpTaskId || t.clickUpTaskId !== taskToDelete.clickUpTaskId)
+      );
+      setClickUpSyncedTasks(updated);
+      localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(updated));
+
+      setSelectedTaskIds((prev) => {
+        const next = new Set(prev);
+        next.delete(taskToDelete.id);
+        return next;
+      });
+
+      sonnerToast.success(`Removed task card: "${taskToDelete.title}"`);
+      setTaskToDelete(null);
+    } catch (err: any) {
+      console.error('Delete failed:', err);
+      sonnerToast.error('Failed to delete task: ' + err.message);
+    } finally {
+      setIsDeletingTask(false);
+    }
+  };
+
+  // ─── 5. BATCH TASK ACTION HANDLERS ──────────────────────────────────────────
+  const handleToggleSelectTask = (taskId: string) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedTaskIds.size === filteredTasks.length && filteredTasks.length > 0) {
+      setSelectedTaskIds(new Set());
+    } else {
+      setSelectedTaskIds(new Set(filteredTasks.map((t) => t.id)));
+    }
+  };
+
+  const handleBatchStatusChange = async (newStatus: TaskStatus) => {
+    if (selectedTaskIds.size === 0) return;
+    setIsBatchProcessing(true);
+    const token = getClickUpToken();
+    const count = selectedTaskIds.size;
+
+    try {
+      const updated = clickUpSyncedTasks.map((t) => {
+        if (selectedTaskIds.has(t.id)) {
+          return { ...t, status: newStatus, clickUpStatus: newStatus === 'completed' ? 'complete' : 'in progress' };
+        }
+        return t;
+      });
+      setClickUpSyncedTasks(updated);
+      localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(updated));
+
+      if (token) {
+        const cuTasksToUpdate = memberTasks.filter((t) => selectedTaskIds.has(t.id) && t.clickUpTaskId);
+        await Promise.allSettled(
+          cuTasksToUpdate.map((t) => updateClickUpTaskStatus(token, t.clickUpTaskId!, newStatus))
+        );
+      }
+
+      sonnerToast.success(`⚡ Updated ${count} tasks to "${newStatus.replace('_', ' ')}"`);
+      setSelectedTaskIds(new Set());
+    } catch (err: any) {
+      console.error('Batch status change failed:', err);
+      sonnerToast.error('Batch status update failed: ' + err.message);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedTaskIds.size === 0) return;
+    const count = selectedTaskIds.size;
+    const confirmed = window.confirm(`Are you sure you want to remove ${count} selected tasks?`);
+    if (!confirmed) return;
+
+    setIsBatchProcessing(true);
+    const token = getClickUpToken();
+
+    try {
+      if (token) {
+        const cuTasksToDelete = memberTasks.filter((t) => selectedTaskIds.has(t.id) && t.clickUpTaskId);
+        await Promise.allSettled(
+          cuTasksToDelete.map((t) => deleteClickUpTask(token, t.clickUpTaskId!))
+        );
+      }
+
+      const updated = clickUpSyncedTasks.filter((t) => !selectedTaskIds.has(t.id));
+      setClickUpSyncedTasks(updated);
+      localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(updated));
+
+      sonnerToast.success(`🗑️ Removed ${count} tasks!`);
+      setSelectedTaskIds(new Set());
+    } catch (err: any) {
+      console.error('Batch delete failed:', err);
+      sonnerToast.error('Batch delete failed: ' + err.message);
+    } finally {
+      setIsBatchProcessing(false);
     }
   };
 
@@ -1587,6 +2011,17 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                   </button>
                 )}
 
+                {/* 1-Click Sync to Member DSR */}
+                <button
+                  type="button"
+                  onClick={handleSyncTasksToDSR}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md shadow-emerald-600/20 hover:scale-102"
+                  title="Reconcile and sync all logged task hours to this member's Weekly DSR"
+                >
+                  <FileCheck className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Sync to DSR</span>
+                </button>
+
                 {isClickUpConnected() ? (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 font-bold text-[10px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1772,6 +2207,80 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Batch Selection & Action Toolbar */}
+            {filteredTasks.length > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-3.5 py-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex items-center gap-2 cursor-pointer font-semibold text-slate-300 select-none hover:text-white transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={selectedTaskIds.size === filteredTasks.length && filteredTasks.length > 0}
+                      onChange={handleToggleSelectAll}
+                      className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
+                    />
+                    <span>Select All Tasks</span>
+                  </label>
+                  {selectedTaskIds.size > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                      {selectedTaskIds.size} selected
+                    </span>
+                  )}
+                </div>
+
+                {/* Batch Actions Group */}
+                {selectedTaskIds.size > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1 bg-slate-950/90 border border-slate-700/80 rounded-lg p-0.5">
+                      <span className="text-[10px] font-bold text-slate-400 px-1.5 uppercase">Set Status:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleBatchStatusChange('in_progress')}
+                        disabled={isBatchProcessing}
+                        className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 transition-colors cursor-pointer"
+                      >
+                        In Progress
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBatchStatusChange('review')}
+                        disabled={isBatchProcessing}
+                        className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 transition-colors cursor-pointer"
+                      >
+                        In Review
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBatchStatusChange('completed')}
+                        disabled={isBatchProcessing}
+                        className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 transition-colors cursor-pointer"
+                      >
+                        Completed
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleBatchDelete}
+                      disabled={isBatchProcessing}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition-colors cursor-pointer"
+                      title="Bulk delete selected tasks"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete ({selectedTaskIds.size})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTaskIds(new Set())}
+                      className="px-2 py-1 text-slate-400 hover:text-white transition-colors cursor-pointer text-xs"
+                    >
+                      Deselect
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {filteredTasks.length === 0 ? (
@@ -1846,175 +2355,233 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                   >
                     {/* PRIMARY TASK CARD SUMMARY ROW */}
                     <div className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1 space-y-1.5">
-                        {/* Meta Tags: Client, Folder/List, Priority, ClickUp Live Status */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[10px] font-black uppercase text-cyan-400 font-mono tracking-wider">
-                            {t.clientName}
-                          </span>
-                          {t.folderName && (
-                            <>
-                              <span className="text-slate-600">•</span>
-                              <span className="text-[11px] text-slate-400 font-medium">
-                                📁 {t.folderName}
-                              </span>
-                            </>
-                          )}
-                          {t.listName && (
-                            <>
-                              <span className="text-slate-600">•</span>
-                              <span className="text-[11px] text-slate-400 font-medium">
-                                📋 {t.listName}
-                              </span>
-                            </>
-                          )}
-                          <span className="text-slate-600">•</span>
-
-                          {/* Priority Flag */}
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
-                              t.priority === 'High'
-                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                : t.priority === 'Medium'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                : 'bg-slate-800 text-slate-400 border border-slate-700'
-                            }`}
-                          >
-                            <Flag className="w-2.5 h-2.5" />
-                            <span>{t.priority}</span>
-                          </span>
-
-                          {/* Live ClickUp Status Badge */}
-                          <span
-                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-xs"
-                            style={{
-                              backgroundColor: t.clickUpStatusColor ? `${t.clickUpStatusColor}22` : 'rgba(168, 85, 247, 0.15)',
-                              borderColor: t.clickUpStatusColor ? `${t.clickUpStatusColor}66` : 'rgba(168, 85, 247, 0.4)',
-                              color: t.clickUpStatusColor || '#c084fc'
-                            }}
-                          >
-                            <span
-                              className="w-1.5 h-1.5 rounded-full"
-                              style={{ backgroundColor: t.clickUpStatusColor || '#c084fc' }}
-                            />
-                            <span>{t.clickUpStatus || t.status.replace('_', ' ')}</span>
-                          </span>
-
-                          {/* Task Tags */}
-                          {t.tags && t.tags.length > 0 && (
-                            <div className="flex items-center gap-1 flex-wrap">
-                              {t.tags.map((tg, idx) => (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTagFilter(selectedTagFilter === tg.name ? 'all' : tg.name);
-                                  }}
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border transition-all cursor-pointer shadow-xs ${
-                                    selectedTagFilter === tg.name ? 'ring-2 ring-cyan-400' : 'hover:opacity-90'
-                                  }`}
-                                  style={{
-                                    backgroundColor: tg.tag_bg ? `${tg.tag_bg}33` : 'rgba(99, 102, 241, 0.15)',
-                                    color: tg.tag_fg ? tg.tag_fg : '#c7d2fe',
-                                    borderColor: tg.tag_bg ? `${tg.tag_bg}77` : 'rgba(99, 102, 241, 0.4)'
-                                  }}
-                                  title={`Filter by tag #${tg.name}`}
-                                >
-                                  <Tag className="w-2.5 h-2.5 opacity-80" />
-                                  <span>{tg.name}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        {/* Task Card Selection Checkbox */}
+                        <div className="pt-0.5 shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={selectedTaskIds.has(t.id)}
+                            onChange={() => handleToggleSelectTask(t.id)}
+                            className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
+                            title="Select for batch actions"
+                          />
                         </div>
 
-                        {/* Task Title */}
-                        <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
-                          {t.title}
-                        </h4>
-
-                        {/* Metrics Bar: Time Spent, Estimate, Due Date, Comments, ClickUp Link */}
-                        <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap pt-1">
-                          {/* Time Spent vs Estimate Progress */}
-                          <div className="flex items-center gap-2">
-                            <span className="flex items-center gap-1 font-mono">
-                              <Clock className="w-3.5 h-3.5 text-cyan-400" />
-                              <span>Time Spent: <strong className="text-white font-bold">{spent}h</strong></span>
-                              <span className="text-slate-500">/</span>
-                              <span>Est: <strong className="text-slate-300 font-bold">{est}h</strong></span>
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          {/* Meta Tags: Client, Folder/List, Priority, ClickUp Live Status */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-black uppercase text-cyan-400 font-mono tracking-wider">
+                              {t.clientName}
                             </span>
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-16 h-2 rounded-full bg-slate-800 overflow-hidden relative border border-slate-700">
-                                <div
-                                  className={`h-full rounded-full transition-all ${
-                                    isOver
-                                      ? 'bg-rose-500'
-                                      : pct >= 80
-                                      ? 'bg-amber-400'
-                                      : 'bg-emerald-400'
-                                  }`}
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                              <span className={`text-[10px] font-mono font-bold ${isOver ? 'text-rose-400' : 'text-slate-400'}`}>
-                                {pct}%
-                              </span>
-                              {isOver && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                                  +{Math.round((spent - est) * 10) / 10}h over
+                            {t.folderName && (
+                              <>
+                                <span className="text-slate-600">•</span>
+                                <span className="text-[11px] text-slate-400 font-medium">
+                                  📁 {t.folderName}
                                 </span>
-                              )}
-                            </div>
+                              </>
+                            )}
+                            {t.listName && (
+                              <>
+                                <span className="text-slate-600">•</span>
+                                <span className="text-[11px] text-slate-400 font-medium">
+                                  📋 {t.listName}
+                                </span>
+                              </>
+                            )}
+                            <span className="text-slate-600">•</span>
+
+                            {/* Priority Flag */}
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                                t.priority === 'High'
+                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                  : t.priority === 'Medium'
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+                              }`}
+                            >
+                              <Flag className="w-2.5 h-2.5" />
+                              <span>{t.priority}</span>
+                            </span>
+
+                            {/* Live ClickUp Status Badge */}
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-xs"
+                              style={{
+                                backgroundColor: t.clickUpStatusColor ? `${t.clickUpStatusColor}22` : 'rgba(168, 85, 247, 0.15)',
+                                borderColor: t.clickUpStatusColor ? `${t.clickUpStatusColor}66` : 'rgba(168, 85, 247, 0.4)',
+                                color: t.clickUpStatusColor || '#c084fc'
+                              }}
+                            >
+                              <span
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{ backgroundColor: t.clickUpStatusColor || '#c084fc' }}
+                              />
+                              <span>{t.clickUpStatus || t.status.replace('_', ' ')}</span>
+                            </span>
+
+                            {/* Task Tags */}
+                            {t.tags && t.tags.length > 0 && (
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {t.tags.map((tg, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedTagFilter(selectedTagFilter === tg.name ? 'all' : tg.name);
+                                    }}
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border transition-all cursor-pointer shadow-xs ${
+                                      selectedTagFilter === tg.name ? 'ring-2 ring-cyan-400' : 'hover:opacity-90'
+                                    }`}
+                                    style={{
+                                      backgroundColor: tg.tag_bg ? `${tg.tag_bg}33` : 'rgba(99, 102, 241, 0.15)',
+                                      color: tg.tag_fg ? tg.tag_fg : '#c7d2fe',
+                                      borderColor: tg.tag_bg ? `${tg.tag_bg}77` : 'rgba(99, 102, 241, 0.4)'
+                                    }}
+                                    title={`Filter by tag #${tg.name}`}
+                                  >
+                                    <Tag className="w-2.5 h-2.5 opacity-80" />
+                                    <span>{tg.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
 
-                          {/* Due Date */}
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Due: <strong className="text-slate-200 font-mono">{t.dueDate}</strong></span>
-                          </span>
+                          {/* Task Title */}
+                          <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
+                            {t.title}
+                          </h4>
 
-                          {/* Comments Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleExpandTask(t)}
-                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer text-xs"
-                            title="View task comments and discussion"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
-                            <span>
-                              {comments
-                                ? `${comments.length} comments`
-                                : t.commentsCount !== undefined
-                                ? `${t.commentsCount} comments`
-                                : 'Comments'}
-                            </span>
-                          </button>
+                          {/* Metrics Bar: Time Spent, Estimate, Due Date, Comments, ClickUp Link */}
+                          <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap pt-1">
+                            {/* Time Spent vs Estimate Progress */}
+                            <div className="flex items-center gap-2">
+                              <span className="flex items-center gap-1 font-mono">
+                                <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                                <span>Time Spent: <strong className="text-white font-bold">{spent}h</strong></span>
+                                <span className="text-slate-500">/</span>
+                                <span>Est: <strong className="text-slate-300 font-bold">{est}h</strong></span>
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-16 h-2 rounded-full bg-slate-800 overflow-hidden relative border border-slate-700">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      isOver
+                                        ? 'bg-rose-500'
+                                        : pct >= 80
+                                        ? 'bg-amber-400'
+                                        : 'bg-emerald-400'
+                                    }`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className={`text-[10px] font-mono font-bold ${isOver ? 'text-rose-400' : 'text-slate-400'}`}>
+                                  {pct}%
+                                </span>
+                                {isOver && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                    +{Math.round((spent - est) * 10) / 10}h over
+                                  </span>
+                                )}
+                              </div>
 
-                          {/* ClickUp Link & Quick Sync */}
-                          {t.clickUpTaskId && (
-                            <div className="flex items-center gap-1.5">
-                              <a
-                                href={t.clickUpUrl || `https://app.clickup.com/t/${t.clickUpTaskId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-950/70 border border-purple-500/40 text-purple-300 hover:text-purple-200 font-bold text-[11px] transition-colors"
-                                title="Open task in ClickUp"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                <span>ClickUp #{t.clickUpTaskId}</span>
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => handleSyncSingleTask(t)}
-                                disabled={syncingTaskId === t.id}
-                                className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-purple-300 transition-colors cursor-pointer"
-                                title="Sync this task from ClickUp"
-                              >
-                                <RefreshCw className={`w-3 h-3 ${syncingTaskId === t.id ? 'animate-spin text-purple-400' : ''}`} />
-                              </button>
+                              {/* Direct In-Card Time Logging: Stopwatch Timer & Quick Log Button */}
+                              <div className="flex items-center gap-1 ml-1">
+                                {/* Timer / Stopwatch Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleTimer(t)}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer shadow-xs ${
+                                    activeTimerTaskId === t.id
+                                      ? 'bg-rose-500 text-white animate-pulse'
+                                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
+                                  }`}
+                                  title={activeTimerTaskId === t.id ? 'Click to stop timer and log recorded hours' : 'Start live stopwatch for this task'}
+                                >
+                                  {activeTimerTaskId === t.id ? (
+                                    <>
+                                      <Square className="w-3 h-3 fill-white" />
+                                      <span className="font-mono">
+                                        {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, '0')}
+                                      </span>
+                                      <span className="text-[10px]">Stop</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Play className="w-3 h-3 text-cyan-400" />
+                                      <span>Timer</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                {/* Direct +Log Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTimeLogTask(t);
+                                    setTimeLogHours(1);
+                                    setTimeLogDescription('');
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-cyan-950/70 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 hover:text-cyan-200 text-[11px] font-bold transition-all cursor-pointer shadow-xs"
+                                  title="Directly log hours for this task"
+                                >
+                                  <PlusCircle className="w-3 h-3 text-cyan-400" />
+                                  <span>+ Log</span>
+                                </button>
+                              </div>
                             </div>
-                          )}
+
+                            {/* Due Date */}
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Due: <strong className="text-slate-200 font-mono">{t.dueDate}</strong></span>
+                            </span>
+
+                            {/* Comments Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleExpandTask(t)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer text-xs"
+                              title="View task comments and discussion"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
+                              <span>
+                                {comments
+                                  ? `${comments.length} comments`
+                                  : t.commentsCount !== undefined
+                                  ? `${t.commentsCount} comments`
+                                  : 'Comments'}
+                              </span>
+                            </button>
+
+                            {/* ClickUp Link & Quick Sync */}
+                            {t.clickUpTaskId && (
+                              <div className="flex items-center gap-1.5">
+                                <a
+                                  href={t.clickUpUrl || `https://app.clickup.com/t/${t.clickUpTaskId}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-950/70 border border-purple-500/40 text-purple-300 hover:text-purple-200 font-bold text-[11px] transition-colors"
+                                  title="Open task in ClickUp"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  <span>ClickUp #{t.clickUpTaskId}</span>
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSyncSingleTask(t)}
+                                  disabled={syncingTaskId === t.id}
+                                  className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-purple-300 transition-colors cursor-pointer"
+                                  title="Sync this task from ClickUp"
+                                >
+                                  <RefreshCw className={`w-3 h-3 ${syncingTaskId === t.id ? 'animate-spin text-purple-400' : ''}`} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -2038,11 +2605,24 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                           </select>
                         </div>
 
+                        {/* Delete Card Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTaskToDelete(t);
+                            setDeleteInClickUpToo(!!t.clickUpTaskId);
+                          }}
+                          className="mt-4 p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-200 border border-rose-500/30 transition-all cursor-pointer flex items-center justify-center"
+                          title="Delete / remove this task card"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => handleToggleExpandTask(t)}
                           className="mt-4 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-                          title="Toggle task description, assignees, and comments pocket"
+                          title="Toggle task description, assignees, checklists, and comments pocket"
                         >
                           <span>{isExpanded ? 'Hide' : 'Details'}</span>
                           {isExpanded ? (
@@ -2128,6 +2708,138 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                                     </div>
                                   </div>
                                 ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Checklists & Subtasks Section */}
+                        {((t.checklists && t.checklists.length > 0) || (t.subtasks && t.subtasks.length > 0) || true) && (
+                          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3">
+                            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Checklists & Subtasks Progress</span>
+                              </div>
+                              {t.checklists && t.checklists.length > 0 && (
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {t.checklists.reduce((acc, c) => acc + (c.items?.filter(i => i.resolved).length || 0), 0)} / {t.checklists.reduce((acc, c) => acc + (c.items?.length || 0), 0)} items done
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Subtasks if any */}
+                            {t.subtasks && t.subtasks.length > 0 && (
+                              <div className="space-y-1.5 pb-2 border-b border-slate-800/80">
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                  <Layers className="w-3 h-3 text-cyan-400" />
+                                  <span>Subtasks ({t.subtasks.length}):</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                  {t.subtasks.map((st) => (
+                                    <div
+                                      key={st.id}
+                                      className={`p-2 rounded-lg border text-xs flex items-center justify-between gap-2 ${
+                                        st.isCompleted
+                                          ? 'bg-emerald-950/20 border-emerald-500/30 text-slate-400'
+                                          : 'bg-slate-950/60 border-slate-800 text-slate-200'
+                                      }`}
+                                    >
+                                      <span className={`truncate ${st.isCompleted ? 'line-through text-slate-400' : 'font-medium'}`}>
+                                        {st.name}
+                                      </span>
+                                      <span
+                                        className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase shrink-0"
+                                        style={{
+                                          backgroundColor: st.statusColor ? `${st.statusColor}22` : 'rgba(148, 163, 184, 0.2)',
+                                          color: st.statusColor || '#94a3b8'
+                                        }}
+                                      >
+                                        {st.status || 'Active'}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Checklists */}
+                            {t.checklists && t.checklists.length > 0 ? (
+                              <div className="space-y-3">
+                                {t.checklists.map((cl) => {
+                                  const total = cl.items?.length || 0;
+                                  const completed = cl.items?.filter((i) => i.resolved).length || 0;
+                                  const clPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+                                  return (
+                                    <div key={cl.id} className="space-y-2">
+                                      <div className="flex items-center justify-between text-xs">
+                                        <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                                          <span>📋 {cl.name}</span>
+                                          <span className="text-[10px] text-slate-400 font-mono">({completed}/{total})</span>
+                                        </span>
+                                        <span className="text-[10px] font-mono text-emerald-400 font-bold">{clPct}%</span>
+                                      </div>
+                                      <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                                        <div
+                                          className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 rounded-full transition-all"
+                                          style={{ width: `${clPct}%` }}
+                                        />
+                                      </div>
+                                      <div className="space-y-1 pt-1">
+                                        {cl.items?.map((item) => (
+                                          <label
+                                            key={item.id}
+                                            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer select-none group"
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={item.resolved}
+                                              onChange={() => handleToggleChecklistItem(t, cl.id, item.id, item.resolved)}
+                                              className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                                            />
+                                            <span
+                                              className={`text-xs transition-colors ${
+                                                item.resolved
+                                                  ? 'line-through text-slate-500'
+                                                  : 'text-slate-300 group-hover:text-white'
+                                              }`}
+                                            >
+                                              {item.name}
+                                            </span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-slate-500 italic">
+                                No checklist items recorded for this task yet.
+                              </div>
+                            )}
+
+                            {/* Add Checklist Item input */}
+                            <div className="flex items-center gap-2 pt-1">
+                              <input
+                                type="text"
+                                placeholder="Add deliverable checklist item / QA check..."
+                                value={newChecklistTextMap[t.id] || ''}
+                                onChange={(e) =>
+                                  setNewChecklistTextMap((prev) => ({ ...prev, [t.id]: e.target.value }))
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleAddCustomChecklistItem(t);
+                                }}
+                                className="flex-1 bg-slate-950/80 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleAddCustomChecklistItem(t)}
+                                className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all cursor-pointer shrink-0"
+                              >
+                                + Add Item
+                              </button>
                             </div>
                           </div>
                         )}
@@ -2777,6 +3489,220 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIRECT IN-CARD TIME LOGGING MODAL */}
+      {timeLogTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl space-y-4">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Direct Time Logging</h3>
+                  <p className="text-xs text-slate-400">Log time spent for {member.name}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTimeLogTask(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-6 space-y-4">
+              {/* Task Title & Project Badge */}
+              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-1">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Target Task:
+                </div>
+                <div className="text-sm font-bold text-white">
+                  {timeLogTask.title}
+                </div>
+                <div className="text-xs text-slate-400 flex items-center gap-2">
+                  <span>📁 {timeLogTask.projectName || timeLogTask.clientName || 'Deliverable'}</span>
+                  {timeLogTask.clickUpTaskId && (
+                    <span className="text-purple-300 font-mono">#ClickUp {timeLogTask.clickUpTaskId}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Preset Hours */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 block">Quick Presets:</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {[0.25, 0.5, 1, 2, 4].map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setTimeLogHours(h)}
+                      className={`py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        timeLogHours === h
+                          ? 'bg-cyan-500 text-slate-950 shadow-md font-black'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                      }`}
+                    >
+                      {h < 1 ? `${h * 60}m` : `${h}h`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Exact Hours Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 block">Hours to Log:</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="48"
+                    step="0.25"
+                    value={timeLogHours}
+                    onChange={(e) => setTimeLogHours(parseFloat(e.target.value) || 0)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    hours
+                  </span>
+                </div>
+              </div>
+
+              {/* Work Description / Memo */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 block">Work Description / Memo:</label>
+                <textarea
+                  rows={2}
+                  value={timeLogDescription}
+                  onChange={(e) => setTimeLogDescription(e.target.value)}
+                  placeholder="e.g. Conducted technical audit and schema verification..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 resize-none"
+                />
+              </div>
+
+              {timeLogTask.clickUpTaskId && (
+                <div className="p-2.5 rounded-xl bg-purple-950/40 border border-purple-500/30 text-[11px] text-purple-200 flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                  <span>Will push live time entry to ClickUp team tracking API automatically.</span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-slate-800 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setTimeLogTask(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLogTimeSubmit}
+                disabled={isSubmittingTimeLog || timeLogHours <= 0}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isSubmittingTimeLog ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Recording...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Confirm & Log {timeLogHours}h</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CARD DELETION CONFIRMATION MODAL */}
+      {taskToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-rose-500/40 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl space-y-4">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Remove Task Card</h3>
+                  <p className="text-xs text-slate-400">Confirm task removal from member roster</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTaskToDelete(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-6 space-y-4">
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Are you sure you want to remove the task card <strong className="text-white">"{taskToDelete.title}"</strong> assigned to <strong className="text-white">{member.name}</strong>?
+              </p>
+
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-1">
+                <div className="text-slate-400">Project: <span className="text-slate-200 font-semibold">{taskToDelete.projectName || taskToDelete.clientName}</span></div>
+                <div className="text-slate-400">Status: <span className="text-cyan-300 font-semibold uppercase">{taskToDelete.clickUpStatus || taskToDelete.status}</span></div>
+                {taskToDelete.clickUpTaskId && (
+                  <div className="text-slate-400">ClickUp ID: <span className="text-purple-300 font-mono">#{taskToDelete.clickUpTaskId}</span></div>
+                )}
+              </div>
+
+              {taskToDelete.clickUpTaskId && (
+                <label className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-950/20 border border-rose-500/30 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={deleteInClickUpToo}
+                    onChange={(e) => setDeleteInClickUpToo(e.target.checked)}
+                    className="w-4 h-4 rounded border-rose-500/50 bg-slate-950 text-rose-500 focus:ring-rose-500 cursor-pointer"
+                  />
+                  <div className="text-xs">
+                    <div className="font-bold text-rose-300">Also delete in ClickUp Workspace</div>
+                    <div className="text-slate-400 text-[11px]">Permanently removes task #{taskToDelete.clickUpTaskId} from your ClickUp account</div>
+                  </div>
+                </label>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-slate-800 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setTaskToDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteTaskConfirm}
+                disabled={isDeletingTask}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingTask ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirm Delete</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
