@@ -6728,4 +6728,34 @@ all
 - `npm run build`: Compiled cleanly with **0 errors**.
 - Synchronized technical developer notes across both workspaces.
 
+---
+
+## 👤 User (Turn #211)
+
+<USER_REQUEST>
+which file od dsr tracker should i install now?
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+### 📦 DSR Tracker Installation & Execution Options
+
+We freshly compiled the Windows distribution binaries in `e:\Antigravity\DSR Tracker`. You have two primary options:
+
+1. **Option A: Official Windows Setup Installer (Recommended)**
+   - **File Path**: [`dist/DSR Tracker Setup 1.0.0.exe`](file:///e:/Antigravity/DSR%20Tracker/dist/DSR%20Tracker%20Setup%201.0.0.exe) (103.1 MB)
+   - **How to install**: Double-click this executable.
+   - **What it does**:
+     - Installs DSR Tracker onto your Windows system.
+     - Adds Desktop and Start Menu shortcuts.
+     - Registers the native Windows protocol handler (`dsr-tracker://track` and `dsr-tracker://sync`) so 1-click deep links from the Work Allocation Tool automatically launch and start timers in DSR Tracker.
+
+2. **Option B: Standalone / Portable Executable (Zero Installation)**
+   - **File Path**: [`dist/win-unpacked/DSR Tracker.exe`](file:///e:/Antigravity/DSR%20Tracker/dist/win-unpacked/DSR%20Tracker.exe) (232.4 MB)
+   - **How to run**: Double-click directly to launch immediately without going through an installation wizard.
+
+3. **Option C: Live Developer Mode**
+   - Run `npm start` in `e:\Antigravity\DSR Tracker` in PowerShell or Command Prompt.
+
+
 
