@@ -4,6 +4,8 @@ import {
   isClickUpConnected,
   getClickUpToken,
   getClickUpWorkspaceId,
+  setClickUpWorkspaceId,
+  fetchClickUpWorkspaces,
   fetchClickUpTasks
 } from '../services/clickupOAuth';
 import type { Task, TeamMember } from '../types';
@@ -77,33 +79,53 @@ export function ActivityCalendar({ tasks, members, projects }: ActivityCalendarP
   useEffect(() => {
     if (!isClickUpConnected()) return;
     const token = getClickUpToken();
-    const wsId = getClickUpWorkspaceId();
-    if (!token || !wsId) return;
+    if (!token) return;
 
-    fetchClickUpTasks(token, wsId)
-      .then((cuTasks) => {
+    const loadCalendarTasks = async () => {
+      let wsId = getClickUpWorkspaceId();
+      if (!wsId) {
+        try {
+          const wsList = await fetchClickUpWorkspaces(token);
+          if (wsList && wsList.length > 0) {
+            wsId = wsList[0].id;
+            setClickUpWorkspaceId(wsId);
+          }
+        } catch (wsErr) {
+          console.warn('Workspace discovery fallback in calendar:', wsErr);
+        }
+      }
+      if (!wsId) return;
+
+      try {
+        const cuTasks = await fetchClickUpTasks(token, wsId, { includeClosed: true });
         const withDue: CalendarActivity[] = cuTasks
           .filter((t) => t.due_date)
           .map((t) => {
             const dueDateStr = formatDate(new Date(Number(t.due_date)));
+            const sLower = (t.status?.status || '').toLowerCase();
+            const isCompleted = sLower.includes('complete') || sLower.includes('done') || sLower.includes('closed');
             return {
               id: `cu-${t.id}`,
               title: `[CU] ${t.name}`,
               date: dueDateStr,
               time: '09:00',
               category: 'work' as const,
-              client: t.status?.status || 'ClickUp',
+              client: t.list?.name || t.folder?.name || 'ClickUp Workspace',
               projectId: '',
               ownerId: '',
               notes: `ClickUp task #${t.id} · Status: ${t.status?.status || 'Active'}`,
-              completed: t.status?.status?.toLowerCase() === 'complete',
+              completed: isCompleted,
               source: 'clickup' as const,
               clickUpUrl: t.url
             };
           });
         setClickUpActivities(withDue);
-      })
-      .catch((err) => console.warn('ActivityCalendar ClickUp fetch error:', err));
+      } catch (err) {
+        console.warn('ActivityCalendar ClickUp fetch error:', err);
+      }
+    };
+
+    loadCalendarTasks();
   }, []);
 
   const generatedActivities = useMemo<CalendarActivity[]>(() => [

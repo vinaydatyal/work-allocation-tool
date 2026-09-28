@@ -1271,3 +1271,35 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Production build (`tsc -b && vite build`) passed with 0 errors.
       - All 36/36 Vitest unit tests passed.
 
+  55. **ClickUp Auth Gateway, Role-Based Landing, & Global App Consistency Audit Fixes**:
+    - **ClickUp Auth Gateway (`ClickUpAuthGateway.tsx`) & Private Window Landing**:
+      - When opening the application in a fresh or incognito/private window without active ClickUp credentials, the app no longer defaults to `prof_vinay` or any pre-selected profile.
+      - Renders a modern `ClickUpAuthGateway` requiring ClickUp OAuth 2.0 authorization or Personal API Token authentication.
+      - Includes a dedicated sandbox preview selector allowing stakeholders to preview specific agency personas (Agam Grover, Vinay Datyal, Khuvaish, Anshum Sharma) in demo mode.
+    - **Role-Based Dynamic Workspace Routing**:
+      - Upon authenticating with ClickUp, the system extracts the user's ClickUp identity and matches them against agency profiles and team members.
+      - Automatically opens the tailored workspace corresponding to their personal role:
+        - **Executive Leadership (CEO)**: Opens Master Projects / Monday War Room (`/war-room`).
+        - **Operations & SEO Management**: Opens Executive Capacity Hub / Allocations (`/projects`).
+        - **Team Leads**: Opens Pod Management / DSR Review Queue (`/dsr`).
+        - **Specialists / Executives**: Directly opens their individual Member Profile workspace (`/member/:id`) or Sprints Kanban (`/kanban`).
+      - Added "Sign Out / Switch ClickUp" button in the bottom floating dock profile popover (`Navbar.tsx`) with full session cleanup (`handleLogout`).
+    - **Audit Fix 1: Root Task State Persistence (`App.tsx`)**:
+      - `tasks` in `App.tsx` now loads from and syncs with `localStorage.getItem('vat_agency_tasks_v1')`, preventing deliverables from reverting to initial mock tasks on page refresh.
+    - **Audit Fix 2: Default `includeClosed: true` in `fetchClickUpTasks`**:
+      - Updated `fetchClickUpTasks` in `clickupOAuth.ts` to default `include_closed` to `'true'` unless explicitly set to `false`.
+      - Updated `MemberProfilePage.tsx`, `VisualAgencyHub.tsx` (`performSilentClickUpSync`, `handleSyncClickUpCapacity`), and `ActivityCalendar.tsx` to ensure completed sprint deliverables and restored capacity are never silently dropped.
+    - **Audit Fix 3: Semantic Task-to-Project Reconciliation (`VisualAgencyHub.tsx`)**:
+      - Replaced arbitrary task slicing (`tasks.slice(idx * 2, idx * 2 + 2)`) with semantic project matching based on ClickUp list name, folder name, client name, and deliverable titles.
+      - Task required skills are inferred semantically from task names rather than alternating.
+    - **Audit Fix 4: Client Name Normalization (`TaskBacklog.tsx` & `ActivityCalendar.tsx`)**:
+      - Replaced `t.status?.status || 'ClickUp'` with `t.list?.name || t.folder?.name || 'ClickUp Workspace'`.
+    - **Audit Fix 5: Local DSR Submissions Ingestion in Review Queue (`DSRApprovalQueue.tsx`)**:
+      - In `DSRApprovalQueue.tsx`, `loadDsrSubmissions` now reads and merges `vat_all_dsr_submissions_v1` from `localStorage` whenever Supabase is offline or empty, ensuring specialist DSR submissions from Member Profiles immediately appear in the queue.
+    - **Audit Fix 6: Workspace Auto-Discovery Fallback**:
+      - Added `fetchClickUpWorkspaces(token)` auto-discovery in `TaskBacklog.tsx` and `ActivityCalendar.tsx` so features work immediately upon authentication without requiring manual modal navigation.
+    - **Verification**:
+      - Production build (`tsc -b && vite build`) passed in 1.47s with 0 errors.
+      - 36/36 unit tests passed in Vitest.
+
+

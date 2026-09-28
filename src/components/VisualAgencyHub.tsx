@@ -1246,7 +1246,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
       }
       if (!wsId) return;
 
-      const liveTasks = await fetchClickUpTasks(token, wsId);
+      const liveTasks = await fetchClickUpTasks(token, wsId, { includeClosed: true });
       if (liveTasks && liveTasks.length > 0) {
         setProjectsList((prev) =>
           prev.map((proj) => {
@@ -1312,11 +1312,49 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     if (!tasks || tasks.length === 0) return;
     setClickUpSyncStatus('syncing');
     setTimeout(() => {
-      setProjectsList((prev) =>
-        prev.map((proj, idx) => {
-          const projectTasks = tasks.slice(idx * 2, idx * 2 + 2);
-          const clickUpDeliverables = projectTasks.map((t: any, i: number) => {
-            // Smart Assignee & Capacity Mirroring (Feature E)
+      setProjectsList((prev) => {
+        // Track tasks matched to avoid duplicates across projects
+        const assignedTaskIds = new Set<string>();
+
+        return prev.map((proj, idx) => {
+          // Smart Project Matching by list name, folder name, client name, or existing breakdown
+          const matchingTasks = tasks.filter((t: any) => {
+            const tId = String(t.id);
+            if (assignedTaskIds.has(tId)) return false;
+
+            const existingInProj = proj.taskBreakdown?.some((tb) => tb.clickUpTaskId === tId);
+            if (existingInProj) {
+              assignedTaskIds.add(tId);
+              return true;
+            }
+
+            const projNameLower = (proj.name || '').toLowerCase();
+            const clientLower = (proj.client || '').toLowerCase();
+            const listName = (t.list?.name || '').toLowerCase();
+            const folderName = (t.folder?.name || '').toLowerCase();
+            const taskName = (t.name || '').toLowerCase();
+
+            const isMatch =
+              (listName && (projNameLower.includes(listName) || listName.includes(projNameLower))) ||
+              (folderName && (projNameLower.includes(folderName) || folderName.includes(projNameLower))) ||
+              (clientLower && (taskName.includes(clientLower) || listName.includes(clientLower)));
+
+            if (isMatch) {
+              assignedTaskIds.add(tId);
+              return true;
+            }
+
+            // Fallback for remaining unmapped tasks on first project
+            if (idx === 0 && tasks.length <= 4 && !existingInProj) {
+              assignedTaskIds.add(tId);
+              return true;
+            }
+
+            return false;
+          });
+
+          const clickUpDeliverables = matchingTasks.map((t: any, i: number) => {
+            // Smart Assignee & Capacity Mirroring
             let matchedAssigneeId = customMembers[i % customMembers.length]?.id || customMembers[0].id;
             if (t.assignees && t.assignees.length > 0) {
               const cuAssignee = t.assignees[0];
@@ -1340,9 +1378,21 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
               ? 'in_progress'
               : 'assigned';
 
+            // Semantic task type inference from title
+            const tTitleLower = (t.name || '').toLowerCase();
+            const inferredSkill = tTitleLower.includes('content') || tTitleLower.includes('copy')
+              ? 'Content Writing'
+              : tTitleLower.includes('link') || tTitleLower.includes('guest') || tTitleLower.includes('outreach')
+              ? 'Link Building'
+              : tTitleLower.includes('speed') || tTitleLower.includes('vitals') || tTitleLower.includes('core web')
+              ? 'Core Web Vitals'
+              : tTitleLower.includes('audit') || tTitleLower.includes('technical') || tTitleLower.includes('schema')
+              ? 'Technical SEO'
+              : 'On-Page Optimization';
+
             return {
               id: `cu-live-${t.id || i}-${Date.now()}`,
-              taskType: (i % 2 === 0 ? 'Technical SEO' : 'On-Page SEO') as any,
+              taskType: inferredSkill as any,
               assigneeId: matchedAssigneeId,
               hours: rawEstimatedHours || 5,
               clickUpTaskId: String(t.id),
@@ -1364,8 +1414,8 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
             taskBreakdown: updatedBreakdown,
             activeHours: updatedBreakdown.reduce((sum, tb) => sum + tb.hours, 0)
           };
-        })
-      );
+        });
+      });
       setLastSyncedTime(new Date());
       setClickUpSyncStatus('idle');
       setCopiedToast(`⚡ Synced ${tasks.length} live ClickUp tasks into active projects!`);
@@ -2197,7 +2247,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         return;
       }
 
-      const tasks = await fetchClickUpTasks(token, wsId);
+      const tasks = await fetchClickUpTasks(token, wsId, { includeClosed: true });
       let updatedCount = 0;
 
       const assigneeCompletedMap: Record<number, number> = {};

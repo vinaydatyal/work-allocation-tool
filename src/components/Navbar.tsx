@@ -22,7 +22,8 @@ import {
   Zap,
   Flame,
   RefreshCw,
-  Layers
+  Layers,
+  LogOut
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -38,6 +39,7 @@ interface NavbarProps {
   onToggleTheme?: () => void;
   onOpenBatchSync?: () => void;
   slaRiskCount?: number;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -52,7 +54,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   isWhiteTheme,
   onToggleTheme,
   onOpenBatchSync,
-  slaRiskCount = 0
+  slaRiskCount = 0,
+  onLogout
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
@@ -556,6 +559,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                         );
                       })}
                     </div>
+
+                    {onLogout && (
+                      <div className="pt-1 mt-1 border-t border-slate-700/40">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowProfileMenu(false);
+                            onLogout();
+                          }}
+                          className="w-full flex items-center gap-2 p-2 rounded-xl text-left text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Sign Out / Switch ClickUp</span>
+                        </button>
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

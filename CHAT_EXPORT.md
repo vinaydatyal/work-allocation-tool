@@ -6609,4 +6609,72 @@ Again, dummy click-up sync
    - `npm run build` compiled with 0 errors.
    - All 36/36 Vitest unit tests passed.
 
+---
+
+## 👤 User (Turn #209)
+
+<USER_REQUEST>
+look at the other parts of the app and flag same issues
+yes, also i opened the app in a private window, now locially, it should not open my profile by default and rather ask for clickup login and open the dashboard as per the personal profile role
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+### 🚀 ClickUp Auth Gateway, Role-Based Landing & Global App Consistency Audit Fixes Deployed!
+
+### 🔍 Issues Flagged & Addressed
+1. **Unauthenticated / Private Window Profile Fallback**: Opening in incognito/private windows defaulted to `prof_vinay` instead of requiring authentication.
+2. **Root Task State Not Persisted (`App.tsx`)**: The global `tasks` state initialized with 9 mock tasks and reverted on page reload instead of persisting to `localStorage`.
+3. **ClickUp `include_closed` Dropping Completed Deliverables**: `fetchClickUpTasks` omitted `include_closed=true` by default, causing completed/closed tasks and restored capacity to vanish across 6 components.
+4. **Synthetic Task-to-Project Slicing (`VisualAgencyHub.tsx`)**: Tasks were arbitrarily sliced into 2-task chunks per project instead of matching by project, list name, folder name, or client.
+5. **Task Backlog & Calendar Client Name Fallback**: Used `t.status?.status` instead of list or folder names.
+6. **Local DSR Submissions Dropped in Review Queue (`DSRApprovalQueue.tsx`)**: Specialist DSR submissions synced from Member Profiles (`vat_all_dsr_submissions_v1`) were ignored when Supabase was offline or unconfigured.
+7. **Missing Workspace Auto-Discovery Fallback**: `TaskBacklog.tsx` and `ActivityCalendar.tsx` failed if the user had not opened the batch sync modal first.
+
+---
+
+### 🛠️ Architecture & Solutions Implemented
+
+1. **ClickUp Auth Gateway (`ClickUpAuthGateway.tsx`)**:
+   - Built a dedicated authentication gateway for fresh, unauthenticated, or private browsing sessions.
+   - When no ClickUp session (`hasClickUpAuth`) exists and the app is not in Demo Mode, `App.tsx` renders `ClickUpAuthGateway` instead of the main application shell.
+   - Supports 1-Click ClickUp OAuth 2.0 authorization, Personal API Token entry, and an interactive Sandbox Demo persona switcher (Vinay Datyal, Agam Grover, Khuvaish, Anshum Sharma).
+
+2. **Personal Profile Role-Based Dynamic Routing**:
+   - `resolveProfileForClickUpUser` inspects authenticated ClickUp user details (email, username, ID) and matches against `appUserProfiles` and `teamMembers`.
+   - Automatically navigates the user to their role-specific dashboard upon login or sandbox selection:
+     - **Executive Leadership (CEO - Vinay Datyal)**: Monday War Room (`/war-room`)
+     - **Operations & SEO Management (Agam Grover)**: Executive Capacity Hub / Allocations (`/projects`)
+     - **Team Leads (Khuvaish)**: Pod Management & DSR Review Queue (`/dsr`)
+     - **Specialists / Executives (Anshum Sharma & others)**: Direct Member Profile workspace (`/member/:id`) or Sprints Kanban (`/kanban`)
+   - Added a "Sign Out / Switch ClickUp" action in the floating dock profile popover (`Navbar.tsx`) with full session cleanup (`handleLogout`).
+
+3. **Persistent Task State (`App.tsx`)**:
+   - `tasks` in `App.tsx` now loads from and syncs with `localStorage.getItem('vat_agency_tasks_v1')`.
+   - Edits, imports, batch syncs, and deletions now persist across page reloads.
+
+4. **Closed Tasks Ingestion Default (`clickupOAuth.ts`)**:
+   - `fetchClickUpTasks` now defaults `include_closed` to `'true'` unless explicitly set to `false`.
+   - Updated `MemberProfilePage.tsx`, `VisualAgencyHub.tsx` (`performSilentClickUpSync`, `handleSyncClickUpCapacity`), and `ActivityCalendar.tsx` to ensure complete sprint history and restored capacity remain visible.
+
+5. **Semantic Project Reconciliation (`VisualAgencyHub.tsx`)**:
+   - Sliced allocation logic replaced with semantic matching against `listName`, `folderName`, `client`, and task titles.
+   - Inferred required skills from task names (Content, SEO, Dev, UI/UX, Video).
+
+6. **Client Name Normalization (`TaskBacklog.tsx` & `ActivityCalendar.tsx`)**:
+   - Normalized client name to `t.list?.name || t.folder?.name || 'ClickUp Workspace'`.
+
+7. **Local DSR Queue Ingestion (`DSRApprovalQueue.tsx`)**:
+   - Ingests `vat_all_dsr_submissions_v1` from `localStorage` whenever Supabase is empty or offline, so specialist DSRs immediately surface for review.
+
+8. **Workspace Auto-Discovery Fallback**:
+   - Added automatic fallback to `fetchClickUpWorkspaces(token)` in `TaskBacklog.tsx` and `ActivityCalendar.tsx`.
+
+---
+
+### 🧪 Verification
+- `npm test`: **36/36 unit tests passed** in Vitest.
+- `npm run build`: Compiled cleanly with **0 errors**.
+- Synchronized technical developer notes across both workspaces.
+
 

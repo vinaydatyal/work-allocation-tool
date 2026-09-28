@@ -489,8 +489,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
         sonnerToast.loading(`Querying ClickUp for tasks assigned to ${cuUsername || member.name}...`, { id: 'cu-member-fetch' });
       }
 
-      // Direct Assignee Query across the entire workspace
-      const liveTasks = await fetchClickUpTasks(token, wsId, { assignees: [String(targetUserId)] });
+      // Direct Assignee Query across the entire workspace (including closed for completed sprint cards)
+      const liveTasks = await fetchClickUpTasks(token, wsId, { assignees: [String(targetUserId)], includeClosed: true });
 
       if (liveTasks && liveTasks.length > 0) {
         const mapped: Task[] = liveTasks.map((t, idx) => {

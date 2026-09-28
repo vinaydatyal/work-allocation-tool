@@ -547,7 +547,7 @@ export async function fetchClickUpTasks(
 ): Promise<ClickUpTask[]> {
   const params = new URLSearchParams();
   params.set('subtasks', 'true');
-  params.set('include_closed', options.includeClosed ? 'true' : 'false');
+  params.set('include_closed', options.includeClosed === false ? 'false' : 'true');
   if (options.page !== undefined) params.set('page', String(options.page));
   if (options.dueDateGt) params.set('due_date_gt', String(options.dueDateGt));
   if (options.dueDateLt) params.set('due_date_lt', String(options.dueDateLt));

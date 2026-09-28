@@ -19,6 +19,7 @@ import { SlaRiskRadar } from './components/SlaRiskRadarModal';
 import { Breadcrumbs } from './components/Breadcrumbs';
 import { ClickUpBatchSyncModal } from './components/ClickUpBatchSyncModal';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
+import { ClickUpAuthGateway } from './components/ClickUpAuthGateway';
 import { initialTeamMembers, initialTasks } from './data/mockData';
 import { appUserProfiles } from './data/userProfiles';
 import type { TeamMember, Task, SkillCategory, TaskStatus, AppUserProfile, ProjectResourceBlock, ClientReadyTier } from './types';
@@ -26,16 +27,138 @@ import { calculateMemberAllocatedHours } from './utils/matchingEngine';
 import { daysFromToday } from './utils/dateUtils';
 import { useAppRouter, navigate } from './utils/router';
 import { supabase } from './lib/supabase';
+import {
+  handleClickUpCallback,
+  isClickUpConnected,
+  getClickUpToken,
+  fetchClickUpUser,
+  disconnectClickUp,
+  getClickUpUser
+} from './services/clickupOAuth';
 
 import { Toaster } from 'sonner';
 
 export function App() {
   const router = useAppRouter();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(initialTeamMembers);
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [currentProfile, setCurrentProfile] = useState<AppUserProfile>(
-    appUserProfiles.find(p => p.id === 'prof_vinay') || appUserProfiles[0]
-  );
+
+  // Persistent agency tasks state (reconciled across reloads)
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    try {
+      const saved = localStorage.getItem('vat_agency_tasks_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load tasks from localStorage', e);
+    }
+    return initialTasks;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vat_agency_tasks_v1', JSON.stringify(tasks));
+    } catch (e) {
+      console.error('Failed to save tasks to localStorage', e);
+    }
+  }, [tasks]);
+
+  // Authentication & Demo Mode State
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(() => {
+    return localStorage.getItem('vat_demo_mode') === 'true';
+  });
+
+  const [hasClickUpAuth, setHasClickUpAuth] = useState<boolean>(() => {
+    const callbackRes = handleClickUpCallback();
+    return Boolean(callbackRes.token || isClickUpConnected());
+  });
+
+  const [currentProfile, setCurrentProfile] = useState<AppUserProfile>(() => {
+    const savedProfId = localStorage.getItem('vat_active_profile_id');
+    if (savedProfId) {
+      const found = appUserProfiles.find((p) => p.id === savedProfId);
+      if (found) return found;
+    }
+    const cuUser = getClickUpUser();
+    if (cuUser) {
+      const matched = appUserProfiles.find((p) =>
+        p.name.toLowerCase().includes(cuUser.toLowerCase()) || cuUser.toLowerCase().includes(p.name.toLowerCase())
+      );
+      if (matched) return matched;
+    }
+    return appUserProfiles.find((p) => p.id === 'prof_vinay') || appUserProfiles[0];
+  });
+
+  const isAuthenticated = hasClickUpAuth || isDemoMode;
+
+  // On OAuth return: match ClickUp user and navigate to role dashboard
+  useEffect(() => {
+    const handleAuthRedirect = async () => {
+      const result = handleClickUpCallback();
+      const token = result.token || getClickUpToken();
+      if (token) {
+        setHasClickUpAuth(true);
+        try {
+          const user = await fetchClickUpUser(token);
+          if (user && user.username) {
+            const uName = user.username.toLowerCase();
+            const matched = appUserProfiles.find((p) =>
+              p.name.toLowerCase().includes(uName) || uName.includes(p.name.toLowerCase())
+            );
+            if (matched) {
+              setCurrentProfile(matched);
+              localStorage.setItem('vat_active_profile_id', matched.id);
+              if (matched.roleType === 'EXECUTIVE') {
+                const member = teamMembers.find((m) =>
+                  m.name.toLowerCase().includes(matched.name.toLowerCase()) || matched.name.toLowerCase().includes(m.name.toLowerCase())
+                );
+                if (member) navigate(`/member/${member.id}`);
+                else navigate('/kanban');
+              } else if (matched.roleType === 'TEAM_LEAD') {
+                navigate('/dsr');
+              } else if (matched.roleType === 'CEO') {
+                navigate('/war-room');
+              } else {
+                navigate('/projects');
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('OAuth redirect profile match notice:', e);
+        }
+      }
+    };
+    handleAuthRedirect();
+  }, [teamMembers]);
+
+  const handleAuthenticated = (profile: AppUserProfile, defaultRoute?: string) => {
+    setHasClickUpAuth(true);
+    setCurrentProfile(profile);
+    localStorage.setItem('vat_active_profile_id', profile.id);
+    if (defaultRoute) {
+      navigate(defaultRoute);
+    }
+  };
+
+  const handleEnterDemoMode = (profile: AppUserProfile, defaultRoute?: string) => {
+    setIsDemoMode(true);
+    localStorage.setItem('vat_demo_mode', 'true');
+    setCurrentProfile(profile);
+    localStorage.setItem('vat_active_profile_id', profile.id);
+    if (defaultRoute) {
+      navigate(defaultRoute);
+    }
+  };
+
+  const handleLogout = () => {
+    disconnectClickUp();
+    localStorage.removeItem('vat_demo_mode');
+    localStorage.removeItem('vat_active_profile_id');
+    setHasClickUpAuth(false);
+    setIsDemoMode(false);
+    navigate('/projects');
+  };
 
   // Sync activeTab with router.route (or default to 'projects')
   const activeTab = router.route === 'member' ? 'projects' : (router.route || 'projects');
@@ -347,6 +470,21 @@ export function App() {
     setTasks((prev) => [...newTasks, ...prev]);
   };
 
+  if (!isAuthenticated) {
+    return (
+      <ToastProvider>
+        <Toaster theme="dark" position="bottom-right" />
+        <ClickUpAuthGateway
+          allProfiles={appUserProfiles}
+          teamMembers={teamMembers}
+          onAuthenticated={handleAuthenticated}
+          onEnterDemoMode={handleEnterDemoMode}
+          isWhiteTheme={isWhiteTheme}
+        />
+      </ToastProvider>
+    );
+  }
+
   return (
     <ToastProvider>
       <Toaster theme="dark" position="bottom-right" />
@@ -359,11 +497,15 @@ export function App() {
           onExportPlan={handleExportPlan}
           currentProfile={currentProfile}
           allProfiles={appUserProfiles}
-          onSwitchProfile={setCurrentProfile}
+          onSwitchProfile={(prof) => {
+            setCurrentProfile(prof);
+            localStorage.setItem('vat_active_profile_id', prof.id);
+          }}
           isWhiteTheme={isWhiteTheme}
           onToggleTheme={() => setIsWhiteTheme(!isWhiteTheme)}
           onOpenBatchSync={() => setShowBatchSyncModal(true)}
           slaRiskCount={slaRiskCount}
+          onLogout={handleLogout}
         />
 
         <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
@@ -589,7 +731,10 @@ export function App() {
         onClose={() => setShowBatchSyncModal(false)}
         tasks={tasks}
         teamMembers={teamMembers}
-        onUpdateTasks={(updated) => setTasks(updated)}
+        onUpdateTasks={(updated) => {
+          setTasks(updated);
+          localStorage.setItem('vat_agency_tasks_v1', JSON.stringify(updated));
+        }}
       />
     </ToastProvider>
   );

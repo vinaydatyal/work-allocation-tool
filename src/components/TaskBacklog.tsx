@@ -18,6 +18,8 @@ import {
   isClickUpConnected,
   getClickUpToken,
   getClickUpWorkspaceId,
+  setClickUpWorkspaceId,
+  fetchClickUpWorkspaces,
   fetchClickUpTasks
 } from '../services/clickupOAuth';
 
@@ -59,9 +61,26 @@ export const TaskBacklog: React.FC<TaskBacklogProps> = ({
   const handleImportClickUpBacklog = async () => {
     if (!isClickUpConnected() || importingClickUp) return;
     const token = getClickUpToken();
-    const wsId = getClickUpWorkspaceId();
-    if (!token || !wsId) {
+    if (!token) {
       sonnerToast.error('Please connect ClickUp first');
+      return;
+    }
+
+    let wsId = getClickUpWorkspaceId();
+    if (!wsId) {
+      try {
+        const wsList = await fetchClickUpWorkspaces(token);
+        if (wsList && wsList.length > 0) {
+          wsId = wsList[0].id;
+          setClickUpWorkspaceId(wsId);
+        }
+      } catch (wsErr) {
+        console.warn('Workspace discovery fallback in backlog:', wsErr);
+      }
+    }
+
+    if (!wsId) {
+      sonnerToast.error('No ClickUp workspace found.');
       return;
     }
 
@@ -82,10 +101,12 @@ export const TaskBacklog: React.FC<TaskBacklogProps> = ({
             ? 'Link Building'
             : 'Technical SEO';
 
+          const client = t.list?.name || t.folder?.name || 'ClickUp Workspace';
+
           const newTask: Task = {
             id: `tsk_cu_backlog_${t.id}_${Date.now()}_${idx}`,
             title: t.name,
-            clientName: t.status?.status || 'ClickUp Workspace',
+            clientName: client,
             requiredSkill: skill,
             estimatedHours: hours,
             actualHoursLogged: 0,

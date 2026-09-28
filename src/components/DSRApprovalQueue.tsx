@@ -322,11 +322,113 @@ export const DSRApprovalQueue: React.FC<DSRApprovalQueueProps> = ({
         );
         setDsrItems(mapped);
       } else {
-        // Fallback to calibrated 23-person mock data
-        setDsrItems(generateInitialMockDSRs(members));
+        // Fallback to local synced DSR submissions merged with calibrated mock data
+        const initialMock = generateInitialMockDSRs(members);
+        try {
+          const localSavedStr = localStorage.getItem('vat_all_dsr_submissions_v1');
+          if (localSavedStr) {
+            const localSubs = JSON.parse(localSavedStr);
+            if (Array.isArray(localSubs) && localSubs.length > 0) {
+              const localMapped: ReviewDsrItem[] = localSubs.map((s: any) => {
+                const member = members.find((m) => m.id === s.memberId || m.name === s.memberName) || {
+                  id: s.memberId,
+                  name: s.memberName,
+                  role: s.memberRole || 'Executive',
+                  avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+                  skills: ['SEO Execution']
+                };
+                const podInfo = getMemberPodInfo(member.name);
+                return {
+                  id: `local-sub-${s.memberId}-${s.date}`,
+                  userId: s.memberId,
+                  userName: member.name,
+                  userAvatar: member.avatar,
+                  roleTitle: member.role || 'Executive',
+                  roleType: 'EXECUTIVE',
+                  assignedTeamName: podInfo.podName,
+                  assignedTeamLead: podInfo.leadName,
+                  teamColor: podInfo.color,
+                  skills: (member.skills || ['SEO']) as string[],
+                  date: s.date,
+                  status: s.status || 'pending_review',
+                  submittedAt: s.syncedAt || new Date().toISOString(),
+                  totalDurationMs: s.totalDurationMs || (s.totalHours ? s.totalHours * 3600000 : 28800000),
+                  timeLogs: (s.timeLogs || []).map((tl: any) => ({
+                    id: tl.id,
+                    taskName: tl.taskName,
+                    category: tl.category || 'General',
+                    durationMs: tl.durationMs || 3600000,
+                    notes: tl.notes,
+                    source: tl.source || 'ClickUp'
+                  }))
+                };
+              });
+
+              const merged = [
+                ...localMapped,
+                ...initialMock.filter((m) => !localMapped.some((lm) => lm.userId === m.userId || lm.userName === m.userName))
+              ];
+              setDsrItems(merged);
+              return;
+            }
+          }
+        } catch (localErr) {
+          console.warn('Error reading local DSR submissions:', localErr);
+        }
+        setDsrItems(initialMock);
       }
     } catch (err) {
       console.warn('Using local fallback for DSR approval queue:', err);
+      const initialMock = generateInitialMockDSRs(members);
+      try {
+        const localSavedStr = localStorage.getItem('vat_all_dsr_submissions_v1');
+        if (localSavedStr) {
+          const localSubs = JSON.parse(localSavedStr);
+          if (Array.isArray(localSubs) && localSubs.length > 0) {
+            const localMapped: ReviewDsrItem[] = localSubs.map((s: any) => {
+              const member = members.find((m) => m.id === s.memberId || m.name === s.memberName) || {
+                id: s.memberId,
+                name: s.memberName,
+                role: s.memberRole || 'Executive',
+                avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+                skills: ['SEO Execution']
+              };
+              const podInfo = getMemberPodInfo(member.name);
+              return {
+                id: `local-sub-${s.memberId}-${s.date}`,
+                userId: s.memberId,
+                userName: member.name,
+                userAvatar: member.avatar,
+                roleTitle: member.role || 'Executive',
+                roleType: 'EXECUTIVE',
+                assignedTeamName: podInfo.podName,
+                assignedTeamLead: podInfo.leadName,
+                teamColor: podInfo.color,
+                skills: (member.skills || ['SEO']) as string[],
+                date: s.date,
+                status: s.status || 'pending_review',
+                submittedAt: s.syncedAt || new Date().toISOString(),
+                totalDurationMs: s.totalDurationMs || (s.totalHours ? s.totalHours * 3600000 : 28800000),
+                timeLogs: (s.timeLogs || []).map((tl: any) => ({
+                  id: tl.id,
+                  taskName: tl.taskName,
+                  category: tl.category || 'General',
+                  durationMs: tl.durationMs || 3600000,
+                  notes: tl.notes,
+                  source: tl.source || 'ClickUp'
+                }))
+              };
+            });
+            const merged = [
+              ...localMapped,
+              ...initialMock.filter((m) => !localMapped.some((lm) => lm.userId === m.userId || lm.userName === m.userName))
+            ];
+            setDsrItems(merged);
+            return;
+          }
+        }
+      } catch {}
+      setDsrItems(initialMock);
     } finally {
       setIsRefreshing(false);
     }
