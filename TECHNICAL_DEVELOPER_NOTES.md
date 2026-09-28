@@ -1196,3 +1196,19 @@ Agencies frequently maintain their complete client roster inside a specific Clic
     - **Verification**:
       - Production build (`tsc -b && vite build`) passed in 618ms with exit code 0.
       - All 36/36 unit tests passed in 329ms.
+
+  52. **System Readiness Audit & Pending Roadmap Opportunities**:
+    - **Current Complete State (Member Profile & ClickUp Suite)**:
+      - 1-Click "Link ClickUp Account" modal with live auto-refresh and account recommendation.
+      - Real ClickUp tasks fetching by direct assignee query with 3-way source filtering.
+      - Task status badges with live ClickUp colors, priority flags, and two-way status syncing.
+      - Time spent vs. estimate tracking with color-shifting progress bars and overage alerts.
+      - Expandable task pocket with full briefs, assignees chips, and live ClickUp comments with inline reply composer.
+      - Native ClickUp tag chips with 1-click filtering and ClickUp custom fields responsive grid.
+      - Multi-attribute sorting (Due Date, Time Spent, Time Estimate, Project, Task Name, Priority, Status) and filtering control bar (Search, Project, Tag, Reset).
+      - Background silent polling (60s daemon) and instant cache flushing.
+    - **Remaining Opportunities & Next Iterations**:
+      - 1. **Direct In-Card Time Logging to ClickUp**: 1-click modal or timer allowing specialists to log hours to ClickUp's `POST /team/{id}/time_entries` directly from the task card.
+      - 2. **Subtasks & Checklist Progress**: Expandable checklist breakdown within the task pocket showing completed vs pending checklist items.
+      - 3. **Sync ClickUp Time Entries to Member Weekly DSR**: 1-click button reconciling ClickUp logged hours directly into the member's DSR weekly record.
+      - 4. **Supabase Cloud Production Migration**: Applying `supabase/schema.sql` to live cloud Supabase instance to transition from client-side persistence to multi-user PostgreSQL.
