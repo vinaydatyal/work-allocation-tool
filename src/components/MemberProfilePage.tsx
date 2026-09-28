@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { TeamMember, Task, TaskStatus, PriorityLevel } from '../types';
 import type { ActiveProjectItem } from './VisualAgencyHub';
 import { navigate } from '../utils/router';
@@ -181,6 +181,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
   const [isLoadingCuUsers, setIsLoadingCuUsers] = useState(false);
   const [cuUserSearchQuery, setCuUserSearchQuery] = useState('');
   const [taskSourceFilter, setTaskSourceFilter] = useState<'all' | 'clickup' | 'allocations'>('all');
+  const [lastAutoRefreshedAt, setLastAutoRefreshedAt] = useState<string | null>(null);
+  const [lastWorkspaceUsersRefreshedAt, setLastWorkspaceUsersRefreshedAt] = useState<string | null>(null);
 
   // 1-Click Handler: Assign Member to an existing project
   const handleConfirmAssignProject = (e: React.FormEvent) => {
@@ -353,17 +355,19 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
     }
   };
 
-  // Fetch real tasks assigned to ClickUp user
-  const fetchTasksForClickUpUser = async (targetUserId: string | number, cuUsername?: string) => {
+  // Fetch real tasks assigned to ClickUp user with optional silent mode
+  const fetchTasksForClickUpUser = useCallback(async (targetUserId: string | number, cuUsername?: string, isSilent = false) => {
     setIsSyncingClickUp(true);
     const token = getClickUpToken();
     let wsId = getClickUpWorkspaceId();
 
     try {
       if (!token) {
-        sonnerToast.error('ClickUp is not connected.', {
-          description: 'Please connect ClickUp in the top bar to fetch live tasks.'
-        });
+        if (!isSilent) {
+          sonnerToast.error('ClickUp is not connected.', {
+            description: 'Please connect ClickUp in the top bar to fetch live tasks.'
+          });
+        }
         return;
       }
       if (!wsId) {
@@ -374,11 +378,13 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
         }
       }
       if (!wsId) {
-        sonnerToast.error('No ClickUp workspace found.');
+        if (!isSilent) sonnerToast.error('No ClickUp workspace found.');
         return;
       }
 
-      sonnerToast.loading(`Querying ClickUp for tasks assigned to ${cuUsername || member.name}...`, { id: 'cu-member-fetch' });
+      if (!isSilent) {
+        sonnerToast.loading(`Querying ClickUp for tasks assigned to ${cuUsername || member.name}...`, { id: 'cu-member-fetch' });
+      }
 
       // Direct Assignee Query across the entire workspace
       const liveTasks = await fetchClickUpTasks(token, wsId, { assignees: [String(targetUserId)] });
@@ -416,22 +422,92 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
 
         localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(mapped));
         setClickUpSyncedTasks(mapped);
-        sonnerToast.success(`⚡ Synced ${mapped.length} real ClickUp tasks assigned to ${member.name}!`, { id: 'cu-member-fetch' });
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastAutoRefreshedAt(timeStr);
+        if (!isSilent) {
+          sonnerToast.success(`⚡ Synced ${mapped.length} real ClickUp tasks assigned to ${member.name}!`, { id: 'cu-member-fetch' });
+        }
       } else {
         localStorage.removeItem(`vat_clickup_member_tasks_${member.id}`);
         setClickUpSyncedTasks([]);
-        sonnerToast.info(`No active tasks assigned to ${member.name} in ClickUp.`, {
-          description: `Query completed for ClickUp User #${targetUserId}.`,
-          id: 'cu-member-fetch'
-        });
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastAutoRefreshedAt(timeStr);
+        if (!isSilent) {
+          sonnerToast.info(`No active tasks assigned to ${member.name} in ClickUp.`, {
+            description: `Query completed for ClickUp User #${targetUserId}.`,
+            id: 'cu-member-fetch'
+          });
+        }
       }
     } catch (err: any) {
       console.error('Failed to pick ClickUp tasks for member:', err);
-      sonnerToast.error('ClickUp Task Query Failed', { description: err.message, id: 'cu-member-fetch' });
+      if (!isSilent) {
+        sonnerToast.error('ClickUp Task Query Failed', { description: err.message, id: 'cu-member-fetch' });
+      }
     } finally {
       setIsSyncingClickUp(false);
     }
-  };
+  }, [member.id, member.name, member.skills]);
+
+  // Dedicated Auto-Refresh method for ClickUp Workspace Members
+  const refreshClickUpWorkspaceUsers = useCallback(async (showToast = false) => {
+    const token = getClickUpToken();
+    let wsId = getClickUpWorkspaceId();
+    if (!token) return;
+
+    try {
+      setIsLoadingCuUsers(true);
+      if (!wsId) {
+        const ws = await fetchClickUpWorkspaces(token);
+        if (ws && ws.length > 0) {
+          wsId = ws[0].id;
+          setClickUpWorkspaceId(wsId);
+        }
+      }
+      if (wsId) {
+        const members = await fetchClickUpTeamMembers(token, wsId);
+        setCuWorkspaceUsers(members);
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastWorkspaceUsersRefreshedAt(timeStr);
+        if (showToast) {
+          sonnerToast.success(`🔄 Auto-refreshed ${members.length} ClickUp workspace members (${timeStr})`);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to load ClickUp team members:', err);
+      if (showToast) {
+        sonnerToast.error('Failed to refresh members: ' + err.message);
+      }
+    } finally {
+      setIsLoadingCuUsers(false);
+    }
+  }, []);
+
+  // Auto-refresh member ClickUp tasks on mount and poll in background
+  useEffect(() => {
+    const token = getClickUpToken();
+    if (!token) return;
+
+    const targetUserId = linkedClickUpUser?.id || member.clickUpUserId;
+    if (!targetUserId) return;
+
+    // Initial background auto-refresh on mount / profile view
+    fetchTasksForClickUpUser(targetUserId, linkedClickUpUser?.username || member.name, true);
+
+    // 60-second periodic background refresh
+    const interval = setInterval(() => {
+      fetchTasksForClickUpUser(targetUserId, linkedClickUpUser?.username || member.name, true);
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [member.id, member.name, member.clickUpUserId, linkedClickUpUser?.id, linkedClickUpUser?.username, fetchTasksForClickUpUser]);
+
+  // Auto-refresh workspace members when the link modal is opened
+  useEffect(() => {
+    if (isLinkUserModalOpen) {
+      refreshClickUpWorkspaceUsers(false);
+    }
+  }, [isLinkUserModalOpen, refreshClickUpWorkspaceUsers]);
 
   // Pick/Fetch tasks assigned to this member from ClickUp
   const handlePickTasksFromClickUp = async () => {
@@ -486,44 +562,24 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
       return;
     }
 
-    await fetchTasksForClickUpUser(targetUserId, targetUsername);
+    await fetchTasksForClickUpUser(targetUserId, targetUsername, false);
   };
 
   const handleOpenLinkUserModal = async () => {
     setIsLinkUserModalOpen(true);
-    const token = getClickUpToken();
-    let wsId = getClickUpWorkspaceId();
-    if (!token) {
-      sonnerToast.info('Please connect ClickUp first in the top bar.');
-      return;
-    }
-    try {
-      setIsLoadingCuUsers(true);
-      if (!wsId) {
-        const ws = await fetchClickUpWorkspaces(token);
-        if (ws && ws.length > 0) {
-          wsId = ws[0].id;
-          setClickUpWorkspaceId(wsId);
-        }
-      }
-      if (wsId) {
-        const members = await fetchClickUpTeamMembers(token, wsId);
-        setCuWorkspaceUsers(members);
-      }
-    } catch (err: any) {
-      sonnerToast.error('Failed to load ClickUp team members: ' + err.message);
-    } finally {
-      setIsLoadingCuUsers(false);
-    }
+    await refreshClickUpWorkspaceUsers(false);
   };
 
   const handleSelectClickUpUser = (u: { id: number; username: string; email: string }) => {
     const mapping = { id: u.id, username: u.username, email: u.email };
     setLinkedClickUpUser(mapping);
     localStorage.setItem(`vat_member_clickup_mapping_${member.id}`, JSON.stringify(mapping));
+    // Immediately clear previous task cache so no stale cards linger
+    localStorage.removeItem(`vat_clickup_member_tasks_${member.id}`);
+    setClickUpSyncedTasks([]);
     setIsLinkUserModalOpen(false);
-    sonnerToast.success(`⚡ Linked ${member.name} to ClickUp user @${u.username} (#${u.id})!`);
-    fetchTasksForClickUpUser(u.id, u.username);
+    sonnerToast.success(`⚡ Linked ${member.name} to ClickUp user @${u.username} (#${u.id})! Auto-refreshing tasks...`);
+    fetchTasksForClickUpUser(u.id, u.username, false);
   };
 
   const handleUnlinkClickUpUser = () => {
@@ -531,12 +587,14 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
     localStorage.removeItem(`vat_member_clickup_mapping_${member.id}`);
     localStorage.removeItem(`vat_clickup_member_tasks_${member.id}`);
     setClickUpSyncedTasks([]);
+    setLastAutoRefreshedAt(null);
     sonnerToast.info(`Unlinked ClickUp user for ${member.name} and cleared task cache.`);
   };
 
   const handleClearTaskCache = () => {
     localStorage.removeItem(`vat_clickup_member_tasks_${member.id}`);
     setClickUpSyncedTasks([]);
+    setLastAutoRefreshedAt(null);
     sonnerToast.success(`🧹 Cleared task cache for ${member.name}!`);
   };
 
@@ -1172,6 +1230,14 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                   </button>
                 )}
 
+                {/* Auto-Sync Live Indicator */}
+                {lastAutoRefreshedAt && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-950/40 border border-purple-500/30 text-purple-300 text-xs font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Auto-sync: {lastAutoRefreshedAt}</span>
+                  </span>
+                )}
+
                 {/* Clear Cache Trigger */}
                 {clickUpSyncedTasks.length > 0 && (
                   <button
@@ -1747,19 +1813,37 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                   <Link2 className="w-5 h-5 text-purple-400" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Link ClickUp Account</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white">Link ClickUp Account</h3>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Auto-Refresh Active
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Pair {member.name} with their ClickUp user account
+                    Pair {member.name} with their live ClickUp user account
+                    {lastWorkspaceUsersRefreshedAt ? ` • Refreshed at ${lastWorkspaceUsersRefreshedAt}` : ''}
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsLinkUserModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => refreshClickUpWorkspaceUsers(true)}
+                  disabled={isLoadingCuUsers}
+                  className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Re-query ClickUp workspace members list"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoadingCuUsers ? 'animate-spin text-purple-400' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLinkUserModalOpen(false)}
+                  className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="p-5 space-y-4">
@@ -1874,14 +1958,29 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-800 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsLinkUserModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                Close
-              </button>
+            <div className="p-4 border-t border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <RefreshCw className={`w-3.5 h-3.5 text-purple-400 ${isLoadingCuUsers ? 'animate-spin' : ''}`} />
+                <span>Auto-refreshes on open & selection</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => refreshClickUpWorkspaceUsers(true)}
+                  disabled={isLoadingCuUsers}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/30 text-purple-200 transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isLoadingCuUsers ? 'animate-spin' : ''}`} />
+                  <span>Refresh Users</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLinkUserModalOpen(false)}
+                  className="px-4 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

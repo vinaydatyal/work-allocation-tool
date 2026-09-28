@@ -1129,5 +1129,23 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Added `🧹 Reset Cache` button allowing users to flush obsolete synthetic task caches with 1 click.
       - When no tasks are assigned in ClickUp, renders an honest empty state rather than manufacturing fake cards.
 
+  49. **ClickUp Link Modal & Task Auto-Refresh Engine (`MemberProfilePage.tsx`)**:
+    - **Requirement**: The "Link ClickUp Account" modal and linked tasks must auto-refresh without requiring manual page reloads or multi-step clicking.
+    - **Workspace Members Auto-Refresh on Modal Open**:
+      - Integrated `useEffect` bound to `isLinkUserModalOpen`: automatically triggers `refreshClickUpWorkspaceUsers(false)` on open to fetch live workspace users from the ClickUp API.
+      - Added manual `🔄 Refresh Users` button in both modal header and modal footer for instantaneous re-query.
+      - Added visual status badges: pulsing green dot (`Auto-Refresh Active`) and timestamp (`• Refreshed at HH:MM:SS`).
+    - **Instant Task Auto-Refresh on User Selection**:
+      - `handleSelectClickUpUser` automatically purges stale cached task entries from `localStorage` (`vat_clickup_member_tasks_${member.id}`).
+      - Resets task state to empty and immediately triggers `fetchTasksForClickUpUser(u.id, u.username, false)` with live toast feedback (`Auto-refreshing tasks...`).
+    - **Background Auto-Refresh on Profile Mount & 60s Polling**:
+      - Added `useEffect` running on mount: if a member is linked to a ClickUp account, automatically performs a silent background fetch (`isSilent = true`) to ensure tasks are always up to date.
+      - Implemented 60-second periodic background polling with cleanup on unmount.
+      - Added live indicator chip in the task action bar: `🟢 Auto-sync: HH:MM`.
+    - **Verification**:
+      - Production build (`tsc -b && vite build`) passed in 722ms with exit code 0.
+      - 36/36 unit tests passed in 509ms.
+
+
 
 

@@ -6428,6 +6428,35 @@ Implemented and verified the complete real-time ClickUp account linking and dire
    - `npm run build` (`tsc -b && vite build`): bundle compiled cleanly in 997ms with zero errors.
    - `npm test`: 36/36 unit tests passed in 625ms.
 
+---
+
+## 👤 User (Turn #203)
+
+<USER_REQUEST>
+1-Click "Link ClickUp Account" Modal: it should also get auto refreshed
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+### ⚡ ClickUp Link Modal & Task Auto-Refresh Engine Deployed
+
+Enhanced [MemberProfilePage.tsx](file:///e:/Antigravity/Work%20Allocation%20Tool/src/components/MemberProfilePage.tsx) with a multi-tier auto-refresh system:
+
+1. **Workspace Members Auto-Refresh on Modal Open**:
+   - Integrated `useEffect` that listens to `isLinkUserModalOpen`: whenever the modal opens, it automatically re-queries the ClickUp API (`fetchClickUpTeamMembers`) to load the freshest list of workspace users.
+   - Added a live `🔄 Refresh Users` button in both the modal header and modal footer for instantaneous on-demand re-querying.
+   - Added real-time visual feedback: a pulsing green indicator (`Auto-Refresh Active`) and last sync timestamp (`• Refreshed at HH:MM:SS`).
+2. **Instant Auto-Refresh on User Selection**:
+   - When a user is selected in the modal (`handleSelectClickUpUser`), the old task cache in `localStorage` is instantly purged (`localStorage.removeItem('vat_clickup_member_tasks_${member.id}')`), active task state is reset, the modal closes, and `fetchTasksForClickUpUser` is immediately triggered.
+3. **Background Auto-Refresh on Mount & 60-Second Polling**:
+   - Added a `useEffect` that automatically fetches the linked member's tasks in silent mode (`isSilent = true`) upon navigating to their profile or switching tabs.
+   - Mounts a 60-second periodic background refresh daemon that polls ClickUp silently, ensuring tasks stay up to date without manual intervention.
+   - Added an active sync chip to the tasks toolbar: `🟢 Auto-sync: HH:MM`.
+4. **Verification**:
+   - `npm run build` (`tsc -b && vite build`): compiled cleanly in **722ms** with exit code 0.
+   - `npm test`: **36/36 unit tests passed** in 509ms.
+
+
 
 
 
