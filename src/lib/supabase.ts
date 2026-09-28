@@ -207,3 +207,59 @@ export async function submitDsr(userId: string, date: string) {
     }, { onConflict: 'user_id,date' });
 }
 
+// ─── Real-Time WebSockets Subscriptions (Phase 5: supabase.channel) ──────────
+
+export function subscribeToDsrEntries(callback: (payload: any) => void) {
+  return supabase
+    .channel('realtime-dsr-entries')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'dsr_entries'
+      },
+      (payload) => {
+        callback(payload);
+      }
+    )
+    .subscribe();
+}
+
+export function subscribeToPresence(callback: (payload: any) => void) {
+  return supabase
+    .channel('realtime-presence')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'presence'
+      },
+      (payload) => {
+        callback(payload);
+      }
+    )
+    .subscribe();
+}
+
+export function subscribeToTasks(callback: (payload: any) => void, filterUserId?: string) {
+  const filter = filterUserId ? `assigned_user_id=eq.${filterUserId}` : undefined;
+  return supabase
+    .channel(`realtime-tasks${filterUserId ? `-${filterUserId}` : ''}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'tasks',
+        filter
+      },
+      (payload) => {
+        callback(payload);
+      }
+    )
+    .subscribe();
+}
+
+

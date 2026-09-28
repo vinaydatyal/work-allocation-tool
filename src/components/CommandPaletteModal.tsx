@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { TeamMember, Task } from '../types';
 import type { ActiveProjectItem } from './VisualAgencyHub';
 import { navigate } from '../utils/router';
+import { openDSRTrackerDashboard, openDSRTrackerMini, triggerDSRSync } from '../utils/dsrProtocol';
 import {
   Search,
   Kanban,
@@ -269,6 +270,40 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         action: () => {
           onClose();
           onOpenShortcutsGuide();
+        }
+      },
+      {
+        id: 'action-dsr-desktop-open',
+        title: 'Open DSR Tracker Desktop App',
+        category: 'Quick Actions',
+        subtitle: 'Focus native Electron DSR Tracker timer dashboard',
+        icon: Zap,
+        shortcut: 'T',
+        action: () => {
+          openDSRTrackerDashboard();
+          onClose();
+        }
+      },
+      {
+        id: 'action-dsr-desktop-mini',
+        title: 'Switch DSR Desktop to Mini Bar',
+        category: 'Quick Actions',
+        subtitle: 'Float compact always-on-top timer widget',
+        icon: Flame,
+        action: () => {
+          openDSRTrackerMini();
+          onClose();
+        }
+      },
+      {
+        id: 'action-dsr-desktop-sync',
+        title: 'Sync DSR Desktop & Offline Logs',
+        category: 'Quick Actions',
+        subtitle: 'Trigger background cloud sync to Work Allocation Tool',
+        icon: RefreshCw,
+        action: () => {
+          triggerDSRSync();
+          onClose();
         }
       }
     );

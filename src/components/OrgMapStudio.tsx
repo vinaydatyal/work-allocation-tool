@@ -15,7 +15,7 @@ import {
   Clock
 } from 'lucide-react';
 import type { AppUserProfile, UserRoleType, TeamMember, Task } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, subscribeToPresence } from '../lib/supabase';
 import { navigate } from '../utils/router';
 import { calculateMemberAllocatedHours } from '../utils/matchingEngine';
 
@@ -145,8 +145,44 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
   const [dragOverPodId, setDragOverPodId] = useState<string | null>(null);
   const [editingRoleMemberId, setEditingRoleMemberId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [presenceMap, setPresenceMap] = useState<Record<string, { status: 'active' | 'idle' | 'offline'; taskName?: string }>>({});
 
   const canManage = currentProfile.permissions.canManageOrgMap;
+
+  // Real-Time WebSockets: Team Presence Pulse (Phase 5)
+  useEffect(() => {
+    const fetchPresence = async () => {
+      try {
+        const { data, error } = await supabase.from('presence').select('*');
+        if (!error && data) {
+          const map: Record<string, { status: 'active' | 'idle' | 'offline'; taskName?: string }> = {};
+          data.forEach((p: any) => {
+            map[p.user_id] = { status: p.status, taskName: p.task_name };
+          });
+          setPresenceMap(map);
+        }
+      } catch (e) {}
+    };
+    fetchPresence();
+
+    const channel = subscribeToPresence((payload) => {
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        const row = payload.new;
+        if (row && row.user_id) {
+          setPresenceMap((prev) => ({
+            ...prev,
+            [row.user_id]: { status: row.status, taskName: row.task_name }
+          }));
+        }
+      }
+    });
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []);
 
   // Initialize member assignments and roles from teamMembers list
   useEffect(() => {
@@ -748,6 +784,33 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                                 alt={member.name}
                                 className="w-8 h-8 rounded-full object-cover border border-slate-700"
                               />
+                              {/* Real-Time Presence Indicator (Phase 5) */}
+                              {(() => {
+                                const pres = presenceMap[member.id];
+                                const status = pres?.status || 'offline';
+                                if (status === 'active') {
+                                  return (
+                                    <span
+                                      className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-900 ring-2 ring-emerald-500/30 animate-pulse"
+                                      title={`Active in DSR Tracker${pres?.taskName ? ': ' + pres.taskName : ''}`}
+                                    />
+                                  );
+                                }
+                                if (status === 'idle') {
+                                  return (
+                                    <span
+                                      className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-slate-900"
+                                      title="Idle in DSR Tracker"
+                                    />
+                                  );
+                                }
+                                return (
+                                  <span
+                                    className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-slate-500/60 border-2 border-slate-900"
+                                    title="Offline"
+                                  />
+                                );
+                              })()}
                               {isLeadOfThisPod && (
                                 <Crown className="w-3.5 h-3.5 text-amber-400 absolute -top-1.5 -right-1.5 drop-shadow" />
                               )}

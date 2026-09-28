@@ -18,11 +18,13 @@ import {
 import { toast as sonnerToast } from 'sonner';
 import type { TeamMember } from '../types';
 import {
+  supabase,
   fetchDsrEntries,
   fetchTimeLogsForDsr,
   approveDsrEntry,
   requestDsrRevision,
-  batchApproveDsrEntries
+  batchApproveDsrEntries,
+  subscribeToDsrEntries
 } from '../lib/supabase';
 
 export interface DSRApprovalQueueProps {
@@ -332,6 +334,28 @@ export const DSRApprovalQueue: React.FC<DSRApprovalQueueProps> = ({
 
   useEffect(() => {
     loadDsrSubmissions();
+
+    // Real-Time WebSockets: Instant update when specialist submits or lead reviews DSR
+    const channel = subscribeToDsrEntries((payload) => {
+      console.log('[Realtime] DSR entry change:', payload);
+      loadDsrSubmissions();
+
+      if (payload.eventType === 'INSERT' && payload.new?.status === 'pending_review') {
+        sonnerToast.info('📥 New DSR Submitted', {
+          description: 'A team specialist submitted their daily report for review.'
+        });
+      } else if (payload.eventType === 'UPDATE' && payload.new?.status === 'approved') {
+        sonnerToast.success('✅ DSR Approved', {
+          description: 'DSR entry has been marked approved in real time.'
+        });
+      }
+    });
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [loadDsrSubmissions]);
 
   // ─── Extract dynamic filter options ─────────────────────────────────────────

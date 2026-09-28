@@ -2167,6 +2167,71 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     });
   };
 
+  // ClickUp Capacity & Workload Sync (Phase 7 Tab 3)
+  const [isSyncingCapacity, setIsSyncingCapacity] = useState(false);
+
+  const handleSyncClickUpCapacity = async () => {
+    if (!isClickUpConnected() || isSyncingCapacity) {
+      if (!isClickUpConnected()) {
+        sonnerToast.info('Please connect ClickUp first in the top bar to sync capacity.');
+        setShowClickUpModal(true);
+      }
+      return;
+    }
+    const token = getClickUpToken();
+    if (!token) return;
+
+    try {
+      setIsSyncingCapacity(true);
+      sonnerToast.loading('Fetching ClickUp task estimates & capacity...', { id: 'cu-capacity' });
+      let wsId = getClickUpWorkspaceId();
+      if (!wsId) {
+        const workspaces = await fetchClickUpWorkspaces(token);
+        if (workspaces && workspaces.length > 0) {
+          wsId = workspaces[0].id;
+          setClickUpWorkspaceId(wsId);
+        }
+      }
+      if (!wsId) {
+        sonnerToast.dismiss('cu-capacity');
+        return;
+      }
+
+      const tasks = await fetchClickUpTasks(token, wsId, 100);
+      let updatedCount = 0;
+
+      const assigneeCompletedMap: Record<number, number> = {};
+      tasks.forEach((t) => {
+        const isClosed = isClickUpTaskClosed(t.status?.status || '');
+        (t.assignees || []).forEach((a) => {
+          if (isClosed) {
+            assigneeCompletedMap[a.id] = (assigneeCompletedMap[a.id] || 0) + 1;
+          }
+        });
+      });
+
+      setCustomMembers((prev) =>
+        prev.map((m) => {
+          const cuId = m.clickUpUserId ? Number(m.clickUpUserId) : null;
+          if (cuId && assigneeCompletedMap[cuId] !== undefined) {
+            updatedCount++;
+            return {
+              ...m,
+              completedSprintTasks: Math.max(m.completedSprintTasks || 0, assigneeCompletedMap[cuId] || 0)
+            };
+          }
+          return m;
+        })
+      );
+
+      sonnerToast.success(`⚡ Synced ClickUp capacity and task data across ${updatedCount} team members!`, { id: 'cu-capacity' });
+    } catch (err: any) {
+      sonnerToast.error(`Failed to sync ClickUp capacity: ${err.message || 'Unknown error'}`, { id: 'cu-capacity' });
+    } finally {
+      setIsSyncingCapacity(false);
+    }
+  };
+
   // Modal State for Editing Existing Project
   const [editingProject, setEditingProject] = useState<ActiveProjectItem | null>(null);
 
@@ -8193,16 +8258,25 @@ Due Date: ${proj.paymentDueDate}
                   <Flame className="w-3.5 h-3.5 text-amber-400" />
                   <span>🔥 Workload Heatmap & Shield</span>
                 </button>
-              </div>
+                <button
+                  type="button"
+                  onClick={handleSyncClickUpCapacity}
+                  disabled={isSyncingCapacity}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/50 text-purple-200 font-bold text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer hover:scale-105 disabled:opacity-50"
+                  title="Sync active task estimates and capacity from ClickUp"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCapacity ? 'animate-spin' : 'text-purple-400'}`} />
+                  <span>{isSyncingCapacity ? 'Syncing...' : '⚡ Sync ClickUp Capacity'}</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setShowAddMemberModal(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/25 transition-all cursor-pointer hover:scale-105"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Team Member</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddMemberModal(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/25 transition-all cursor-pointer hover:scale-105"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Team Member</span>
+                </button>
 
               <div className="hidden sm:flex items-center gap-3 text-xs font-bold bg-slate-950/80 px-3.5 py-2 rounded-xl border border-slate-700">
                 <div className="flex items-center gap-1.5">
@@ -8725,6 +8799,11 @@ Due Date: ${proj.paymentDueDate}
                         ) : member.generalCompetency.lastTestedDate ? (
                           <span className="text-[10px] font-medium text-slate-400">
                             Tested: {member.generalCompetency.lastTestedDate}
+                          </span>
+                        ) : null}
+                        {member.completedSprintTasks ? (
+                          <span className="text-[10px] font-semibold text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded-md border border-purple-500/30 flex items-center gap-1 shadow-sm">
+                            ⚡ {member.completedSprintTasks} CU Tasks Done
                           </span>
                         ) : null}
                       </div>
@@ -9293,6 +9372,23 @@ Due Date: ${proj.paymentDueDate}
                           </span>
                         </div>
                       </div>
+
+                      {/* Retainer Overage Calculator & P&L Sync (Phase 7 Tab 7) */}
+                      {proj.billingType?.includes('Retainer') && (
+                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] flex items-center justify-between">
+                          <span className="text-slate-400">Retainer: {proj.totalHours || 20}h/mo</span>
+                          {proj.activeHours > (proj.totalHours || 20) ? (
+                            <span className="text-rose-400 font-bold flex items-center gap-1">
+                              <span>⚠️ +{proj.activeHours - (proj.totalHours || 20)}h Overage</span>
+                              <span className="text-rose-300 font-mono">(+${((proj.activeHours - (proj.totalHours || 20)) * 85).toLocaleString()})</span>
+                            </span>
+                          ) : (
+                            <span className="text-emerald-400 font-semibold">
+                              {(proj.totalHours || 20) - proj.activeHours}h remaining
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800">
@@ -9315,6 +9411,16 @@ Due Date: ${proj.paymentDueDate}
                       </div>
 
                       <div className="flex items-center gap-2 ml-auto">
+                        <button
+                          type="button"
+                          onClick={() => setActivePnLProject(proj)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/40 text-purple-200 font-bold text-xs transition-all cursor-pointer shadow-sm"
+                          title="View Client P&L and Margin Optimizer"
+                        >
+                          <DollarSign className="w-3.5 h-3.5 text-purple-400" />
+                          <span>P&amp;L Optimizer</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => setViewingProjectDetail(proj)}

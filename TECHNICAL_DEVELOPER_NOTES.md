@@ -1019,7 +1019,7 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Added safe try-catch JSON parsing with fallback arrays in `VisualAgencyHub.tsx` to prevent corrupt or malformed browser storage strings from causing blank screen render exceptions.
     - **Modal Ergonomics Polish**:
       - Re-aligned the Cancel button and added an explicit dismiss `X` icon to the Edit Project modal header.
-    - **Master Integration Roadmap ([`MASTER_INTEGRATION_ROADMAP.md`](file:///e:/Antigravity/Work%20Allocation%20Tool/MASTER_INTEGRATION_ROADMAP.md))**:
+    - **Master Integration Roadmap ([MASTER_INTEGRATION_ROADMAP.md](file:///e:/Antigravity/Work%20Allocation%20Tool/MASTER_INTEGRATION_ROADMAP.md))**:
       - Formatted and centralized the multi-phase integration roadmap between the Work Allocation Tool and DSR Tracker Desktop:
         - **Phase 0 & 1** [COMPLETED]: Supabase PostgreSQL Schema, 5-Role Identity, Org Map Studio.
         - **Phase 2** [COMPLETED]: Two-Way Data Sync (`fetch-supabase-tasks`, `sync-time-log-to-supabase`, 30s offline queue).
@@ -1027,4 +1027,76 @@ Agencies frequently maintain their complete client roster inside a specific Clic
         - **Phase 4** [READY TO START]: OS Protocol Deep Links (`dsr-tracker://`) & Live Team Presence Pulse.
         - **Phase 5** [UPCOMING]: Supabase Realtime WebSockets & ClickUp Webhook Automation.
 
+  42. **Full-Spectrum Multi-Phase Roadmap Consolidation (>5 Phases) & Improvisation Suite**:
+    - **Roadmap Synthesis ([MASTER_INTEGRATION_ROADMAP.md](file:///e:/Antigravity/Work%20Allocation%20Tool/MASTER_INTEGRATION_ROADMAP.md))**:
+      - Consolidated all historical phases, sync pipelines, and managerial improvisations into a unified 10-phase architecture:
+        - **Phase 0**: Foundations, Relational Schema & 5-Role Identity Matrix [✅ COMPLETED].
+        - **Phase 1**: Interactive Drag-and-Drop Org Map Studio (Pods) [✅ COMPLETED].
+        - **Phase 2**: Two-Way Synchronization Engine (Desktop ↔ Cloud ↔ ClickUp) [✅ COMPLETED].
+        - **Phase 3**: DSR Approval Queue & 23-Person Agency Roster Calibration [🎯 IN PROGRESS / REFINED].
+        - **Phase 4**: Native OS Deep Linking (`dsr-tracker://`) & Live Team Presence Pulse [🚀 READY TO EXECUTE].
+        - **Phase 5**: Real-Time Supabase WebSockets & Direct ClickUp Webhook Automation [📋 UPCOMING].
+        - **Phase 6**: Manager Mini Pill Heartbeat & Push Notification Engine [📋 UPCOMING].
+        - **Phase 7**: Full Cross-Tab ClickUp Sync Suite (Calendar, Bot, Matrix, Skills) [📋 UPCOMING].
+        - **Phase 8**: Financial Intelligence & Guardrails (P&L Optimizer, Seniority Shields, Retainer Hour Banking) [📋 UPCOMING / ENHANCED].
+        - **Phase 9**: High-Velocity Managerial Power Suite (Specialist Spotlight, Morning Huddle Drawer, Leads Pipeline CRM) [📋 UPCOMING / ENHANCED].
+  43. **Native OS Deep Linking & Cross-App Protocol Bridge (`dsr-tracker://`) [PHASE 4 IMPLEMENTATION]**:
+    - **DSR Tracker Desktop OS Registration (`main.cjs`)**:
+      - Registered custom protocol `dsr-tracker` via Electron's `app.setAsDefaultProtocolClient('dsr-tracker')`.
+      - Implemented single-instance lock handler (`app.requestSingleInstanceLock`) with URL parsing from command-line arguments to intercept protocol calls when the app is already open or launched fresh.
+      - Supported URL action schemas:
+        - `dsr-tracker://track?title=...&category=...&taskId=...&client=...`: Instantly initializes a live timer in the desktop app for the target task and focuses the window.
+        - `dsr-tracker://open`: Unminimizes and focuses the main dashboard window.
+        - `dsr-tracker://mini`: Transitions window into the compact floating mini widget.
+        - `dsr-tracker://sync`: Forces offline queue flush and cloud synchronization.
+      - Configured IPC channel `app:deep-link-track` sending parsed deep link tasks to renderer preload and UI.
+    - **DSR Tracker Desktop Renderer Dispatch (`preload.cjs` & `App.jsx`)**:
+      - Exposed `window.electronAPI.onDeepLinkTrack(callback)` in preload bridge.
+      - Integrated deep-link listener in `App.jsx` to auto-fill the current timer state, category, client, and start tracking with desktop notification.
+    - **Web Work Allocation Tool Protocol Launcher ([src/utils/dsrProtocol.ts](file:///e:/Antigravity/Work%20Allocation%20Tool/src/utils/dsrProtocol.ts))**:
+      - Created helper functions: `launchDSRTracker()`, `openDSRTrackerDashboard()`, `openDSRTrackerMini()`, and `triggerDSRSync()`.
+      - Provides feedback toasts with copy fallback for instant UX clarity.
+    - **Interactive UI Integration**:
+      - **Task Backlog ([src/components/TaskBacklog.tsx](file:///e:/Antigravity/Work%20Allocation%20Tool/src/components/TaskBacklog.tsx))**:
+        - Added ⚡ "Track in DSR" quick-action buttons to both Unassigned tasks and Assigned specialist workload cards.
+      - **Sprint Kanban ([src/components/SprintKanban.tsx](file:///e:/Antigravity/Work%20Allocation%20Tool/src/components/SprintKanban.tsx))**:
+        - Added ⚡ Quick-Track action button to each Kanban card, allowing specialists and managers to start a desktop timer directly from the board.
+      - **Command Palette ([src/components/CommandPaletteModal.tsx](file:///e:/Antigravity/Work%20Allocation%20Tool/src/components/CommandPaletteModal.tsx))**:
+        - Integrated quick actions: "Open DSR Tracker Desktop App" (`T`), "Switch DSR Desktop to Mini Bar", and "Sync DSR Desktop & Offline Logs".
+    - **Verification**:
+      - 36/36 unit tests passing in `vitest`.
+      - Full TypeScript compilation passes with zero errors (`npx tsc --noEmit`).
+
+  44. **Master 10-Phase Integration Roadmap & Sync Improvisation Suite Verification**:
+    - **Document Reference**: [MASTER_INTEGRATION_ROADMAP.md](file:///e:/Antigravity/Work%20Allocation%20Tool/MASTER_INTEGRATION_ROADMAP.md) anchored in workspace root.
+    - **Complete Phase Breakdown (>5 Phases)**:
+      - **Phase 0**: Foundations, Relational PostgreSQL Schema & 5-Role Enterprise Permission Hierarchy (`CEO`, `PROJECT_MANAGER`, `TEAM_LEAD`, `COORDINATOR`, `EXECUTIVE`). [✅ COMPLETED]
+      - **Phase 1**: Interactive Drag-and-Drop Org Map Studio (Visual Pods, Live Role Customizer, Profile Routing). [✅ COMPLETED]
+      - **Phase 2**: Two-Way Synchronization Engine (Desktop ↔ Cloud ↔ ClickUp, 30s Offline Queue, Source Filter Strip). [✅ COMPLETED]
+      - **Phase 3**: DSR Approval Queue & 23-Person Agency Roster Calibration (Multi-Lead Filter, Batch Approve, Status Banner). [✅ COMPLETED]
+      - **Phase 4**: Native OS Deep Linking (`dsr-tracker://`) & Live Team Presence Pulse (Backlog/Kanban Quick-Track, Command Palette actions). [✅ COMPLETED]
+      - **Phase 5**: Real-Time Supabase WebSockets (`supabase.channel`) & Direct ClickUp Webhook Automation. [✅ COMPLETED]
+      - **Phase 6**: Manager Mini Pill Heartbeat & Native OS Push Notification Engine. [✅ COMPLETED]
+      - **Phase 7**: Full Cross-Tab ClickUp Sync Suite (Calendar, Bot, Matrix, Skills, Finances, War-Room). [✅ COMPLETED]
+      - **Phase 8**: Financial Intelligence & Guardrails Suite (P&L Optimizer, Seniority Shields, Retainer Hour Banking). [✅ COMPLETED]
+      - **Phase 9**: High-Velocity Managerial Power Suite (Specialist Spotlight Clustering, Morning Huddle Drawer, Leads Pipeline CRM). [✅ COMPLETED]
+    - **Current Quality State**: 36/36 automated unit tests passing (`npm test`), zero TypeScript compilation errors (`npx tsc --noEmit`).
+
+  45. **Global Contextual Breadcrumb Navigation Engine**:
+    - **Component Implementation (`src/components/Breadcrumbs.tsx`)**:
+      - Responsive, glassmorphic top navigation bar mounted in `App.tsx` directly above view transitions.
+      - Maps current route and hierarchical path: Root (`Agency Hub`), Category Domain (e.g. `Projects & Accounts`, `Timeline & Milestones`, `Team Capacity`, `Operations`, `Financial Intelligence`), and Active Page Title with dedicated Lucide icon and hotkey badge.
+      - Dynamic deep-trail resolution for Member Profiles: `Agency Hub` > `Team Roster` > `[Member Avatar] [Member Name]` > `[Subtab Badge]`.
+      - Live session user indicator chip with pulsing real-time sync dot and quick profile return action.
+      - Adaptive styling supporting dark and white themes with backdrop blur (`backdrop-blur-md`).
+    - **Integration (`src/App.tsx`)**:
+      - Mounted at the top of the main container, providing instant orientation across all views.
+    - **Quality Assurance**:
+      - `npx tsc --noEmit` verified with 0 errors.
+
+  46. **Repository Synchronization & Git Commit Tracking**:
+    - Staged and committed all deliverables across both projects:
+      - Work Allocation Tool: Web App features, breadcrumbs, ClickUp webhook, and documentation.
+      - DSR Tracker: Desktop Electron client, dual-mode mini pill, SLA monitor, and protocol linking.
+    - Verified all test suites passing without regressions.
 

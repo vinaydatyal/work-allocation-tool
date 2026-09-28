@@ -16,6 +16,7 @@ import { MondayAllocationWarRoom } from './components/MondayAllocationWarRoom';
 import { SkillGapHiringMatrix } from './components/SkillGapHiringMatrix';
 import { SkillEvaluationCenter } from './components/SkillEvaluationCenter';
 import { SlaRiskRadar } from './components/SlaRiskRadarModal';
+import { Breadcrumbs } from './components/Breadcrumbs';
 import { ClickUpBatchSyncModal } from './components/ClickUpBatchSyncModal';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { initialTeamMembers, initialTasks } from './data/mockData';
@@ -366,7 +367,19 @@ export function App() {
         />
 
         <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-          <main className="flex-1 min-w-0 w-full px-5 sm:px-8 lg:px-10 pt-5 pb-32 overflow-y-auto">
+          <main className="flex-1 min-w-0 w-full px-5 sm:px-8 lg:px-10 pt-4 pb-32 overflow-y-auto">
+            {/* Global Contextual Breadcrumb Trail */}
+            <Breadcrumbs
+              activeTab={activeTab}
+              route={router.route}
+              memberId={router.memberId}
+              memberTab={router.memberTab}
+              teamMembers={teamMembers}
+              currentProfile={currentProfile}
+              isWhiteTheme={isWhiteTheme}
+              onNavigateTab={handleNavigateTab}
+            />
+
             <AnimatePresence mode="wait">
               <motion.div
                 key={router.route === 'member' ? `member-${router.memberId}-${router.memberTab}` : activeTab}

@@ -1,7 +1,8 @@
 import React from 'react';
 import type { Task, TeamMember, TaskStatus, AppUserProfile } from '../types';
-import { ArrowRight, CheckCircle2, Clock, ShieldCheck, ExternalLink } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock, ShieldCheck, ExternalLink, Zap } from 'lucide-react';
 import { toast as sonnerToast } from 'sonner';
+import { launchDSRTracker } from '../utils/dsrProtocol';
 import { isClickUpConnected, getClickUpToken, updateClickUpTaskStatus } from '../services/clickupOAuth';
 
 interface SprintKanbanProps {
@@ -159,6 +160,17 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
 
                               {/* Status progression button with Role Capability checks */}
                               <div className="flex items-center gap-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    launchDSRTracker({ id: task.id, title: task.title, category: task.requiredSkill, clientName: task.clientName });
+                                  }}
+                                  className="p-1 rounded bg-amber-500/10 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 transition-all cursor-pointer"
+                                  title="Track this task in DSR Desktop Tracker"
+                                >
+                                  <Zap className="w-3 h-3" />
+                                </button>
+
                                 {col.key === 'assigned' && (
                                   <button
                                     onClick={() => handleStatusTransition(task.id, 'in_progress')}
