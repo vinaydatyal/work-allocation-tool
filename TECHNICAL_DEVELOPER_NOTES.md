@@ -1244,3 +1244,30 @@ Agencies frequently maintain their complete client roster inside a specific Clic
     - **Verification**:
       - Production build (`tsc -b && vite build`) passed with 0 errors.
       - All 36/36 Vitest unit tests passed.
+
+  54. **Real Full-Agency ClickUp Bi-Directional Batch Sync Engine (Overhauled)**:
+    - **Root Cause of Prior "Dummy" Sync**:
+      - `ClickUpBatchSyncModal.tsx` previously iterated only over the in-memory `tasks` array (which contained initial mock tasks `tsk_1`...`tsk_9`), attempting to fetch `task.clickUpTaskId` or calling `fetchClickUpTask` with mock IDs.
+      - Because mock IDs do not exist in ClickUp, the calls silently caught, resulting in 0 status updates and +0h capacity restored despite active OAuth authorization.
+    - **Authentic Workspace Discovery & Team Member Mapping**:
+      - Added dynamic workspace discovery via `fetchClickUpWorkspaces(token)`, retrieving active workspace details and auto-selecting the active workspace ID.
+      - Queries workspace team members via `fetchClickUpTeamMembers(token, wsId)` to facilitate automatic specialist assignee pairing.
+    - **Live Workspace Task Stream & Specialist Queries**:
+      - Queries real ClickUp tasks across the workspace via `fetchClickUpTasks(token, wsId, { includeClosed: true })`.
+      - Iterates through all squad members (`teamMembers`), matching them via `clickUpUserId`, linked mappings in `localStorage` (`vat_member_clickup_mapping_${member.id}`), ClickUp email, or username matching to fetch assigned ClickUp tasks.
+    - **Two-Way Reconciliation & Dynamic Task Importer**:
+      - Existing local deliverables matching ClickUp tasks are updated with live ClickUp status, hours spent (`time_spent`), estimates (`time_estimate`), due dates, checklists, subtasks, tags, and custom fields.
+      - Unlinked active ClickUp tasks are automatically imported into the agency backlog/sprint pool as `tsk_cu_live_${id}` and assigned to the matching specialist.
+      - Closed/completed ClickUp tasks trigger capacity restoration calculations (`+Xh`), crediting specialist availability.
+    - **Local State & Storage Cache Synchronization**:
+      - Persists updated tasks to member caches (`vat_clickup_member_tasks_${member.id}`) and active projects (`vat_projects_list_v1`).
+      - Commits updated tasks to the global task pool via `onUpdateTasks(updatedTasks)`.
+    - **Live Terminal Logging & Re-Sync Controls**:
+      - Real-time timestamped terminal log showing workspace connection, member directory queries, retrieved task counts, and individual task reconciliations.
+      - Added `🔄 Re-Sync Live ClickUp` button allowing managers to re-trigger batch sync without closing the modal.
+    - **Dev Proxy Optimization**:
+      - Enhanced `clickupRequest` in `src/services/clickupOAuth.ts` to route directly to `/api/clickup${path}` when `import.meta.env.DEV` is true, avoiding 404 delays on `/api/clickup/proxy`.
+    - **Verification**:
+      - Production build (`tsc -b && vite build`) passed with 0 errors.
+      - All 36/36 Vitest unit tests passed.
+

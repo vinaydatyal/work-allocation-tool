@@ -110,11 +110,16 @@ export function handleClickUpCallback(): ClickUpCallbackResult {
 // ─── ClickUp API Helpers ───────────────────────────────────────────────────────
 
 export async function clickupRequest(path: string, token: string, options: RequestInit = {}) {
-  const proxyUrl = `/api/clickup/proxy?endpoint=${encodeURIComponent(path)}`;
+  // In Vite local development, Vite proxies /api/clickup directly to https://api.clickup.com/api/v2
+  // In production (e.g. Vercel), serverless function /api/clickup/proxy handles it
+  const isDev = Boolean(import.meta.env.DEV);
+  const targetUrl = isDev
+    ? `/api/clickup${path}`
+    : `/api/clickup/proxy?endpoint=${encodeURIComponent(path)}`;
 
   let res: Response;
   try {
-    res = await fetch(proxyUrl, {
+    res = await fetch(targetUrl, {
       ...options,
       headers: {
         Authorization: token,
@@ -122,7 +127,7 @@ export async function clickupRequest(path: string, token: string, options: Reque
       },
     });
     // In local dev without serverless proxy, fallback to Vite proxy if 404
-    if (!res.ok && res.status === 404) {
+    if (!res.ok && res.status === 404 && !isDev) {
       res = await fetch(`/api/clickup${path}`, {
         ...options,
         headers: {
@@ -530,15 +535,30 @@ export async function registerClickUpWebhook(
 export async function fetchClickUpTasks(
   token: string,
   teamId: string,
-  options: { assignees?: string[]; dueDateGt?: number; dueDateLt?: number } = {}
+  options: {
+    assignees?: string[];
+    dueDateGt?: number;
+    dueDateLt?: number;
+    includeClosed?: boolean;
+    page?: number;
+    spaceIds?: string[];
+    listIds?: string[];
+  } = {}
 ): Promise<ClickUpTask[]> {
   const params = new URLSearchParams();
   params.set('subtasks', 'true');
-  params.set('include_closed', 'false');
+  params.set('include_closed', options.includeClosed ? 'true' : 'false');
+  if (options.page !== undefined) params.set('page', String(options.page));
   if (options.dueDateGt) params.set('due_date_gt', String(options.dueDateGt));
   if (options.dueDateLt) params.set('due_date_lt', String(options.dueDateLt));
   if (options.assignees?.length) {
     options.assignees.forEach((a) => params.append('assignees[]', a));
+  }
+  if (options.spaceIds?.length) {
+    options.spaceIds.forEach((s) => params.append('space_ids[]', s));
+  }
+  if (options.listIds?.length) {
+    options.listIds.forEach((l) => params.append('list_ids[]', l));
   }
 
   const data = await clickupFetch(`/team/${teamId}/task?${params}`, token);

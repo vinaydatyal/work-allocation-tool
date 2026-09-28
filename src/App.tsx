@@ -588,6 +588,7 @@ export function App() {
         isOpen={showBatchSyncModal}
         onClose={() => setShowBatchSyncModal(false)}
         tasks={tasks}
+        teamMembers={teamMembers}
         onUpdateTasks={(updated) => setTasks(updated)}
       />
     </ToastProvider>
