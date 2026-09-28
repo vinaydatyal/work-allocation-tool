@@ -20,6 +20,8 @@ import { Breadcrumbs } from './components/Breadcrumbs';
 import { ClickUpBatchSyncModal } from './components/ClickUpBatchSyncModal';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { ClickUpAuthGateway } from './components/ClickUpAuthGateway';
+import type { ActiveProjectItem } from './components/VisualAgencyHub';
+import { getPDFMasterProjects } from './data/pdfMasterProjectsData';
 import { initialTeamMembers, initialTasks } from './data/mockData';
 import { appUserProfiles } from './data/userProfiles';
 import type { TeamMember, Task, SkillCategory, TaskStatus, AppUserProfile, ProjectResourceBlock, ClientReadyTier } from './types';
@@ -33,14 +35,72 @@ import {
   getClickUpToken,
   fetchClickUpUser,
   disconnectClickUp,
-  getClickUpUser
+  getClickUpUser,
+  updateClickUpTaskAssignees
 } from './services/clickupOAuth';
 
-import { Toaster } from 'sonner';
+import { Toaster, toast as sonnerToast } from 'sonner';
 
 export function App() {
   const router = useAppRouter();
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(initialTeamMembers);
+
+  // Persistent team members state (reconciled across reloads)
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
+    try {
+      const saved = localStorage.getItem('vat_team_members_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load team members from localStorage', e);
+    }
+    return initialTeamMembers;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vat_team_members_v1', JSON.stringify(teamMembers));
+    } catch (e) {
+      console.error('Failed to save team members to localStorage', e);
+    }
+  }, [teamMembers]);
+
+  // Persistent active projects state (reconciled across reloads)
+  const [projects, setProjects] = useState<ActiveProjectItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('vat_projects_list_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load projects from localStorage', e);
+    }
+    return getPDFMasterProjects(initialTeamMembers);
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vat_projects_list_v1', JSON.stringify(projects));
+    } catch (e) {
+      console.error('Failed to save projects to localStorage', e);
+    }
+  }, [projects]);
+
+  // Sync projects if updated from other views / storage events
+  useEffect(() => {
+    const handleStorageUpdate = (e: StorageEvent) => {
+      if (e.key === 'vat_projects_list_v1' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setProjects(parsed);
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorageUpdate);
+    return () => window.removeEventListener('storage', handleStorageUpdate);
+  }, []);
 
   // Persistent agency tasks state (reconciled across reloads)
   const [tasks, setTasks] = useState<Task[]>(() => {
@@ -296,10 +356,40 @@ export function App() {
     teamMembers.reduce((sum, m) => sum + calculateMemberAllocatedHours(m.id, tasks), 0).toFixed(1)
   );
 
-  const handleDispatchTask = (taskId: string, memberId: string) => {
+  const handleDispatchTask = async (taskId: string, memberId: string) => {
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, assignedUserId: memberId, status: 'assigned' } : t))
     );
+
+    // If ClickUp is connected, push assignee update to ClickUp
+    if (isClickUpConnected()) {
+      const token = getClickUpToken();
+      const task = tasks.find((t) => t.id === taskId);
+      const rawClickUpId = task?.clickUpTaskId || (taskId.startsWith('cu-') ? taskId.replace(/^cu-(live-)?/, '').split('-')[0] : null);
+      if (token && rawClickUpId && memberId) {
+        const targetMember = teamMembers.find((m) => m.id === memberId);
+        let cuUserId: string | null = targetMember?.clickUpUserId ? String(targetMember.clickUpUserId) : null;
+        if (!cuUserId) {
+          try {
+            const mapped = localStorage.getItem(`vat_member_clickup_mapping_${memberId}`);
+            if (mapped) {
+              const parsed = JSON.parse(mapped);
+              if (parsed?.id) cuUserId = String(parsed.id);
+            }
+          } catch {}
+        }
+        if (cuUserId) {
+          try {
+            await updateClickUpTaskAssignees(token, rawClickUpId, [Number(cuUserId)], []);
+            sonnerToast.success('⚡ ClickUp Assignee Synchronized', {
+              description: `Assigned "${task?.title || 'Deliverable'}" to ${targetMember?.name || 'specialist'} in ClickUp.`
+            });
+          } catch (err: any) {
+            console.warn('Failed to sync assignee to ClickUp:', err);
+          }
+        }
+      }
+    }
   };
 
   const handleAddTask = (newTask: Task) => {
@@ -594,6 +684,7 @@ export function App() {
                   <MondayAllocationWarRoom
                     teamMembers={teamMembers}
                     tasks={tasks}
+                    projects={projects}
                     onDispatchTask={handleDispatchTask}
                     onAddTask={handleAddTask}
                     onUpdateTaskStatus={handleUpdateTaskStatus}
@@ -667,6 +758,7 @@ export function App() {
                   <SkillGapHiringMatrix
                     teamMembers={teamMembers}
                     tasks={tasks}
+                    projects={projects}
                     isWhiteTheme={isWhiteTheme}
                   />
                 )}
@@ -715,6 +807,7 @@ export function App() {
         onClose={() => setShowCommandPalette(false)}
         teamMembers={teamMembers}
         tasks={tasks}
+        projects={projects}
         isWhiteTheme={isWhiteTheme}
         onToggleTheme={() => setIsWhiteTheme((prev) => !prev)}
         onOpenShortcutsGuide={() => setShowShortcutsModal(true)}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, BarChart3, CheckCircle2 } from 'lucide-react';
 import { toast as sonnerToast } from 'sonner';
 import {
@@ -54,13 +54,27 @@ export const DSRTrackerStudio: React.FC<DSRTrackerStudioProps> = ({
   const [showAssignDropdown, setShowAssignDropdown] = useState<boolean>(false);
   const [selectedProjectIdToAssign, setSelectedProjectIdToAssign] = useState<string>('');
 
-  // Local state for interactive logging override (so users can test logging right on the UI)
-  const [customLogs, setCustomLogs] = useState<{ [key: string]: { [weekId: string]: { log: number; int: number } } }>({
-    'usr_aakash': { 'w1': { log: 25, int: 5 }, 'w2': { log: 28, int: 2 }, 'w3': { log: 30, int: 0 }, 'w4': { log: 25, int: 5 }, 'w5': { log: 22, int: 3 } },
-    'usr_abhishek': { 'w1': { log: 30, int: 5 }, 'w2': { log: 32, int: 3 }, 'w3': { log: 30, int: 5 }, 'w4': { log: 35, int: 0 }, 'w5': { log: 28, int: 2 } },
-    'usr_akhil': { 'w1': { log: 35, int: 0 }, 'w2': { log: 35, int: 0 }, 'w3': { log: 34, int: 1 }, 'w4': { log: 35, int: 0 }, 'w5': { log: 30, int: 5 } },
-    'usr_anshita': { 'w1': { log: 28, int: 4 }, 'w2': { log: 30, int: 2 }, 'w3': { log: 32, int: 0 }, 'w4': { log: 30, int: 2 }, 'w5': { log: 27, int: 3 } }
+  // Local state for interactive logging override with localStorage persistence
+  const [customLogs, setCustomLogs] = useState<{ [key: string]: { [weekId: string]: { log: number; int: number } } }>(() => {
+    try {
+      const saved = localStorage.getItem('vat_dsr_custom_logs_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed === 'object' && parsed !== null) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load customLogs from localStorage', e);
+    }
+    return {};
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vat_dsr_custom_logs_v1', JSON.stringify(customLogs));
+    } catch (e) {
+      console.error('Failed to save customLogs to localStorage', e);
+    }
+  }, [customLogs]);
 
   const [syncingTime, setSyncingTime] = useState<boolean>(false);
   const [lastTimeSyncedAt, setLastTimeSyncedAt] = useState<Date | null>(null);
@@ -101,11 +115,20 @@ export const DSRTrackerStudio: React.FC<DSRTrackerStudioProps> = ({
         const updated = { ...prev };
 
         entries.forEach((entry) => {
-          const matchedMember = members.find((m) =>
-            (m.clickUpUserId && Number(m.clickUpUserId) === Number(entry.user?.id)) ||
-            (m.clickUpEmail && entry.user?.email && m.clickUpEmail.toLowerCase() === entry.user.email.toLowerCase()) ||
-            (m.name.toLowerCase() === (entry.user?.username || '').toLowerCase())
-          );
+          const matchedMember = members.find((m) => {
+            let mappedId: string | null = null;
+            try {
+              const mappedRaw = localStorage.getItem(`vat_member_clickup_mapping_${m.id}`);
+              if (mappedRaw) mappedId = String(JSON.parse(mappedRaw).id);
+            } catch {}
+
+            return (
+              (m.clickUpUserId && Number(m.clickUpUserId) === Number(entry.user?.id)) ||
+              (mappedId && Number(mappedId) === Number(entry.user?.id)) ||
+              (m.clickUpEmail && entry.user?.email && m.clickUpEmail.toLowerCase() === entry.user.email.toLowerCase()) ||
+              (m.name.toLowerCase() === (entry.user?.username || '').toLowerCase())
+            );
+          });
 
           if (matchedMember) {
             const entryDate = new Date(entry.start);
@@ -134,6 +157,10 @@ export const DSRTrackerStudio: React.FC<DSRTrackerStudioProps> = ({
           }
         });
 
+        try {
+          localStorage.setItem('vat_dsr_custom_logs_v1', JSON.stringify(updated));
+        } catch {}
+
         return updated;
       });
 
@@ -152,6 +179,73 @@ export const DSRTrackerStudio: React.FC<DSRTrackerStudioProps> = ({
   };
 
   const weeks = DSR_WEEKS;
+
+  // Helper: Read real member logged hours from time logs and DSR submissions
+  const getMemberRealLoggedHours = (memberId: string): { [weekId: string]: number } => {
+    const res: { [weekId: string]: number } = { w1: 0, w2: 0, w3: 0, w4: 0, w5: 0 };
+
+    // 1. Check time logs
+    try {
+      const logsRaw = localStorage.getItem(`vat_time_logs_${memberId}`);
+      if (logsRaw) {
+        const logs = JSON.parse(logsRaw);
+        if (Array.isArray(logs)) {
+          logs.forEach((log: any) => {
+            const date = log.timestamp ? new Date(log.timestamp) : new Date();
+            const day = date.getDate();
+            const dur = Number(log.durationHours) || 0;
+            if (day <= 5) res.w1 += dur;
+            else if (day <= 12) res.w2 += dur;
+            else if (day <= 19) res.w3 += dur;
+            else if (day <= 26) res.w4 += dur;
+            else res.w5 += dur;
+          });
+        }
+      }
+    } catch {}
+
+    // 2. Check individual DSR submissions
+    try {
+      const subRaw = localStorage.getItem(`vat_dsr_member_submission_${memberId}`);
+      if (subRaw) {
+        const sub = JSON.parse(subRaw);
+        const dur = Number(sub?.totalHours) || 0;
+        if (dur > 0) {
+          const date = sub.date ? new Date(sub.date) : new Date();
+          const day = date.getDate();
+          if (day <= 5) res.w1 = Math.max(res.w1, dur);
+          else if (day <= 12) res.w2 = Math.max(res.w2, dur);
+          else if (day <= 19) res.w3 = Math.max(res.w3, dur);
+          else if (day <= 26) res.w4 = Math.max(res.w4, dur);
+          else res.w5 = Math.max(res.w5, dur);
+        }
+      }
+    } catch {}
+
+    // 3. Check all DSR submissions pool
+    try {
+      const allSubRaw = localStorage.getItem('vat_all_dsr_submissions_v1');
+      if (allSubRaw) {
+        const allSubs = JSON.parse(allSubRaw);
+        if (Array.isArray(allSubs)) {
+          allSubs.filter((s: any) => s.memberId === memberId).forEach((s: any) => {
+            const dur = Number(s?.totalHours) || 0;
+            if (dur > 0) {
+              const date = s.date ? new Date(s.date) : new Date();
+              const day = date.getDate();
+              if (day <= 5) res.w1 = Math.max(res.w1, dur);
+              else if (day <= 12) res.w2 = Math.max(res.w2, dur);
+              else if (day <= 19) res.w3 = Math.max(res.w3, dur);
+              else if (day <= 26) res.w4 = Math.max(res.w4, dur);
+              else res.w5 = Math.max(res.w5, dur);
+            }
+          });
+        }
+      }
+    } catch {}
+
+    return res;
+  };
 
   // Exclude CEOs who do not have specialist hourly targets
   const trackedMembers = useMemo(() => {
@@ -200,15 +294,16 @@ export const DSRTrackerStudio: React.FC<DSRTrackerStudioProps> = ({
       let mLog = 0;
       let mInt = 0;
 
-      weeks.forEach((w, wIdx) => {
+      const memberRealLogs = getMemberRealLoggedHours(member.id);
+
+      weeks.forEach((w) => {
         const plan = weeklyPlan;
         const custom = customLogs[member.id]?.[w.id];
-        // Default simulated logged hours if not customized yet
-        const defaultLog = Math.round(Math.min(member.weeklyCapacityHours || 35, plan * (0.9 + ((idx + wIdx) % 3) * 0.1)));
-        const defaultInt = (idx + wIdx) % 4 === 0 ? 3 : 0;
+        const realLog = Math.round((memberRealLogs[w.id] || 0) * 10) / 10;
         
-        const log = custom ? custom.log : defaultLog;
-        const int = custom ? custom.int : defaultInt;
+        // Grounded in custom override if present, else real logged hours, else scheduled plan
+        const log = custom !== undefined ? custom.log : (realLog > 0 ? realLog : plan);
+        const int = custom !== undefined ? custom.int : 0;
 
         weeksData[w.id] = { plan, log, int };
         mPlan += plan;

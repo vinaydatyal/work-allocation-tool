@@ -1740,6 +1740,14 @@ export const ClickUpOAuthModal: React.FC<ClickUpOAuthModalProps> = ({
                               style={{ color: '#ffffff' }}
                               required
                             />
+                            {webhookUrl.includes('localhost') && (
+                              <div className="p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[11px] text-amber-200 flex items-start gap-2 mt-2">
+                                <span className="text-amber-400 font-bold shrink-0">⚠️ Localhost Notice:</span>
+                                <span>
+                                  ClickUp servers cannot deliver webhooks to <code>localhost</code>. Use a public HTTPS URL (e.g. ngrok or deployed domain) or rely on the automatic 60-second background polling.
+                                </span>
+                              </div>
+                            )}
                           </div>
 
                           <div className="space-y-1.5">

@@ -13,6 +13,7 @@ interface SprintKanbanProps {
 }
 
 const KANBAN_COLUMNS: { key: TaskStatus; label: string; badgeColor: string }[] = [
+  { key: 'backlog', label: 'Sprint Backlog', badgeColor: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
   { key: 'assigned', label: 'Assigned / Ready', badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
   { key: 'in_progress', label: 'In Progress', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
   { key: 'review', label: 'Quality Review (QA)', badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
@@ -71,13 +72,13 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
             {isSEOManager
-              ? 'SEO Manager Governance: Review deliverables in QA and provide final sign-off to complete sprint items.'
-              : 'Coordinator Dispatch Mode: Move tasks through execution to Quality Review awaiting SEO Manager sign-off.'}
+              ? 'SEO Manager Governance: Review deliverables in QA, approve sign-offs, or reject back for revisions.'
+              : 'Coordinator Dispatch Mode: Move tasks from Backlog through execution to Quality Review.'}
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
         {KANBAN_COLUMNS.map((col) => {
           const colTasks = tasks.filter((t) => t.status === col.key);
 
@@ -147,31 +148,55 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
                             </span>
                           </div>
 
-                          {assignee && (
-                            <div className="pt-2 border-t border-slate-900 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <img
-                                  src={assignee.avatar}
-                                  alt={assignee.name}
-                                  className="w-6 h-6 rounded-full object-cover"
-                                />
-                                <span className="text-xs font-semibold text-slate-200">{assignee.name}</span>
-                              </div>
+                          <div className="pt-2 border-t border-slate-900 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {assignee ? (
+                                <>
+                                  <img
+                                    src={assignee.avatar}
+                                    alt={assignee.name}
+                                    className="w-6 h-6 rounded-full object-cover"
+                                  />
+                                  <span className="text-xs font-semibold text-slate-200">{assignee.name}</span>
+                                </>
+                              ) : (
+                                <span className="text-[11px] font-semibold text-slate-500 italic">Unassigned</span>
+                              )}
+                            </div>
 
-                              {/* Status progression button with Role Capability checks */}
-                              <div className="flex items-center gap-1">
+                            {/* Status progression button with Bi-Directional controls */}
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  launchDSRTracker({ id: task.id, title: task.title, category: task.requiredSkill, clientName: task.clientName });
+                                }}
+                                className="p-1 rounded bg-amber-500/10 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 transition-all cursor-pointer"
+                                title="Track this task in DSR Desktop Tracker"
+                              >
+                                <Zap className="w-3 h-3" />
+                              </button>
+
+                              {col.key === 'backlog' && (
                                 <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    launchDSRTracker({ id: task.id, title: task.title, category: task.requiredSkill, clientName: task.clientName });
-                                  }}
-                                  className="p-1 rounded bg-amber-500/10 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 transition-all cursor-pointer"
-                                  title="Track this task in DSR Desktop Tracker"
+                                  onClick={() => handleStatusTransition(task.id, 'assigned')}
+                                  className="px-2 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500 text-cyan-300 hover:text-slate-950 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer"
+                                  title="Move to ready / assigned"
                                 >
-                                  <Zap className="w-3 h-3" />
+                                  <span>Ready</span>
+                                  <ArrowRight className="w-3 h-3" />
                                 </button>
+                              )}
 
-                                {col.key === 'assigned' && (
+                              {col.key === 'assigned' && (
+                                <>
+                                  <button
+                                    onClick={() => handleStatusTransition(task.id, 'backlog')}
+                                    className="px-1.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-bold text-[10px] transition-all cursor-pointer"
+                                    title="Move back to backlog"
+                                  >
+                                    <span>←</span>
+                                  </button>
                                   <button
                                     onClick={() => handleStatusTransition(task.id, 'in_progress')}
                                     className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer"
@@ -180,9 +205,18 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
                                     <span>Start</span>
                                     <ArrowRight className="w-3 h-3" />
                                   </button>
-                                )}
+                                </>
+                              )}
 
-                                {col.key === 'in_progress' && (
+                              {col.key === 'in_progress' && (
+                                <>
+                                  <button
+                                    onClick={() => handleStatusTransition(task.id, 'assigned')}
+                                    className="px-1.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-bold text-[10px] transition-all cursor-pointer"
+                                    title="Move back to Ready"
+                                  >
+                                    <span>←</span>
+                                  </button>
                                   <button
                                     onClick={() => handleStatusTransition(task.id, 'review')}
                                     className="px-2 py-1 rounded bg-purple-500/20 hover:bg-purple-500 text-purple-300 hover:text-slate-950 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer"
@@ -191,28 +225,47 @@ export const SprintKanban: React.FC<SprintKanbanProps> = ({
                                     <span>To QA</span>
                                     <ArrowRight className="w-3 h-3" />
                                   </button>
-                                )}
+                                </>
+                              )}
 
-                                {col.key === 'review' && (
-                                  isSEOManager ? (
+                              {col.key === 'review' && (
+                                <>
+                                  <button
+                                    onClick={() => handleStatusTransition(task.id, 'in_progress')}
+                                    className="px-1.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-slate-950 font-bold text-[10px] transition-all cursor-pointer"
+                                    title="Reject / Return for re-work"
+                                  >
+                                    <span>Reject ↩</span>
+                                  </button>
+                                  {isSEOManager ? (
                                     <button
                                       onClick={() => handleStatusTransition(task.id, 'completed')}
-                                      className="px-2.5 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow-md"
+                                      className="px-2 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow-md"
                                       title="SEO Manager Final QA Sign-Off"
                                     >
                                       <CheckCircle2 className="w-3 h-3" />
-                                      <span>QA Approve</span>
+                                      <span>Approve</span>
                                     </button>
                                   ) : (
                                     <span className="px-2 py-0.5 rounded bg-purple-950/40 border border-purple-500/30 text-purple-300 text-[9px] font-semibold flex items-center gap-1">
                                       <ShieldCheck className="w-3 h-3" />
-                                      <span>Pending SEO Lead QA</span>
+                                      <span>In QA</span>
                                     </span>
-                                  )
-                                )}
-                              </div>
+                                  )}
+                                </>
+                              )}
+
+                              {col.key === 'completed' && (
+                                <button
+                                  onClick={() => handleStatusTransition(task.id, 'in_progress')}
+                                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-[10px] transition-all cursor-pointer"
+                                  title="Re-open sprint deliverable"
+                                >
+                                  <span>Reopen ↺</span>
+                                </button>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </div>
                       );
                     })

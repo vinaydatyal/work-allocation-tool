@@ -1302,4 +1302,35 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Production build (`tsc -b && vite build`) passed in 1.47s with 0 errors.
       - 36/36 unit tests passed in Vitest.
 
+  56. **Full-Spectrum App Consistency, Persistence & Cross-Touchpoint Overhaul**:
+    - **Team Members State Persistence (`vat_team_members_v1`)**:
+      - In `App.tsx`, `teamMembers` is now initialized from and continuously persisted to `localStorage.getItem('vat_team_members_v1')`.
+      - Adding specialists via `TeamRosterStudio`, updating competency in `SkillEvaluationCenter`, or updating skills preserves data across page reloads.
+    - **Global Active Projects Ingestion & Financial Cockpit Connectivity**:
+      - In `App.tsx`, active projects are initialized and synced via `vat_projects_list_v1`.
+      - Passed `projects={projects}` directly to `<MondayAllocationWarRoom />`, `<SkillGapHiringMatrix />`, and `<CommandPaletteModal />`.
+      - Executive War Room calculates real agency revenue, squad costs, and blended profit margins against active client accounts rather than defaulting to empty array.
+      - Universal Command Palette (`Ctrl + K`) now displays and filters active projects and clients.
+    - **Live Bi-Directional Assignee Synchronization (`handleDispatchTask`)**:
+      - In `App.tsx`, `handleDispatchTask` now detects when an assigned task originated from or is linked to ClickUp (`clickUpTaskId` / `cu-`).
+      - Resolves the target specialist's ClickUp user ID (checking `clickUpUserId` and linked local mappings in `vat_member_clickup_mapping_${memberId}`).
+      - Remotely synchronizes task assignees with ClickUp via `updateClickUpTaskAssignees` and dispatches live confirmation toasts.
+    - **DSR Tracker Studio Complete Overhaul (`DSRTrackerStudio.tsx`)**:
+      - Removed 4-user hardcoded mock logs and modulo synthetic hour generation.
+      - `customLogs` is now initialized from and persisted to `vat_dsr_custom_logs_v1`.
+      - Added `getMemberRealLoggedHours` which extracts actual logged deliverables from `vat_time_logs_${memberId}`, `vat_dsr_member_submission_${memberId}`, and `vat_all_dsr_submissions_v1`.
+      - In `handleSyncClickUpTime`, member matching resolves through linked account mappings in `localStorage.getItem('vat_member_clickup_mapping_' + m.id)`.
+    - **5-Column Sprint Kanban Board & Bi-Directional QA Rejection / Reopen (`SprintKanban.tsx`)**:
+      - Added `backlog` column to `KANBAN_COLUMNS` (`Sprint Backlog`), making unassigned/backlog deliverables visible.
+      - Upgraded grid layout to responsive 5-column display (`xl:grid-cols-5`).
+      - Added backwards transitions: `← Back to Ready` from in-progress, `Reject / Return for re-work ↩` from QA review, and `Reopen ↺` from completed. All transitions sync remotely to ClickUp via `updateClickUpTaskStatus`.
+    - **Project Allocation Wizard 1-Click "Deploy to ClickUp" (`ProjectAllocationWizard.tsx`)**:
+      - Step 3 now features a direct `🚀 Deploy to ClickUp` button.
+      - Automatically checks workspace, discovers space lists, matches assigned specialists, and calls `createClickUpTask` to create live deliverables in ClickUp before locking the squad schedule.
+    - **ClickUp OAuth Modal Localhost Webhook Warning (`ClickUpOAuthModal.tsx`)**:
+      - Added clear explanatory banner when webhook destination URL points to `localhost`, noting that ClickUp cloud servers require a public HTTPS endpoint or ngrok tunnel.
+    - **Verification**:
+      - Production build (`tsc -b && vite build`) passed with 0 errors.
+      - All 36/36 Vitest unit tests passed.
+
 

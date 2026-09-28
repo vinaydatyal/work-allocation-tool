@@ -19,8 +19,19 @@ import {
   Check,
   Send,
   Award,
-  ChevronDown
+  ChevronDown,
+  ExternalLink
 } from 'lucide-react';
+import { toast as sonnerToast } from 'sonner';
+import {
+  isClickUpConnected,
+  getClickUpToken,
+  getClickUpWorkspaceId,
+  fetchClickUpWorkspaces,
+  fetchClickUpSpaces,
+  fetchClickUpLists,
+  createClickUpTask
+} from '../services/clickupOAuth';
 
 interface ProjectAllocationWizardProps {
   teamMembers: TeamMember[];
@@ -80,6 +91,100 @@ export const ProjectAllocationWizard: React.FC<ProjectAllocationWizardProps> = (
   const [openSwapForBlockId, setOpenSwapForBlockId] = useState<string | null>(null);
   const [copiedClickUp, setCopiedClickUp] = useState(false);
   const [confirmedSuccess, setConfirmedSuccess] = useState(false);
+  const [deployingClickUp, setDeployingClickUp] = useState(false);
+
+  const handleDeployToClickUp = async () => {
+    if (!isClickUpConnected()) {
+      sonnerToast.error('ClickUp Not Connected', {
+        description: 'Please connect your ClickUp workspace from the navbar first.'
+      });
+      return;
+    }
+    const token = getClickUpToken();
+    if (!token) return;
+
+    try {
+      setDeployingClickUp(true);
+      let wsId = getClickUpWorkspaceId();
+      if (!wsId) {
+        const ws = await fetchClickUpWorkspaces(token);
+        if (ws && ws.length > 0) wsId = ws[0].id;
+      }
+      if (!wsId) {
+        sonnerToast.error('No ClickUp Workspace found.');
+        return;
+      }
+
+      // Discover an active list to deploy into
+      let targetListId: string | null = null;
+      try {
+        const spaces = await fetchClickUpSpaces(token, wsId);
+        if (spaces && spaces.length > 0) {
+          for (const space of spaces) {
+            const lists = await fetchClickUpLists(token, space.id);
+            if (lists && lists.length > 0) {
+              targetListId = lists[0].id;
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Could not auto-discover space list:', e);
+      }
+
+      if (!targetListId) {
+        sonnerToast.error('No ClickUp List found in workspace to deploy tasks into.');
+        return;
+      }
+
+      let createdCount = 0;
+      for (const item of finalProposalItems) {
+        const targetMember = teamMembers.find((m) => m.id === item.assignedMember.id);
+        let assigneeIds: number[] = [];
+        if (targetMember?.clickUpUserId) {
+          assigneeIds.push(Number(targetMember.clickUpUserId));
+        } else {
+          try {
+            const mappedRaw = localStorage.getItem(`vat_member_clickup_mapping_${targetMember?.id}`);
+            if (mappedRaw) {
+              const mapped = JSON.parse(mappedRaw);
+              if (mapped?.id) assigneeIds.push(Number(mapped.id));
+            }
+          } catch {}
+        }
+
+        const taskPriorityMap: Record<PriorityLevel, number> = {
+          High: 2,
+          Medium: 3,
+          Low: 4
+        };
+
+        await createClickUpTask(token, targetListId, {
+          name: `[${projectName}] ${item.block.title}`,
+          description: `Allocated Specialist: ${targetMember?.name || 'Unassigned'}\nClient: ${clientName}\nEstimated: ${item.block.hours}h\nSkill: ${item.block.skill}\n\nAuto-deployed by Smart Work Allocation Engine.`,
+          assignees: assigneeIds,
+          time_estimate: item.block.hours * 3600000,
+          due_date: Date.now() + 7 * 86400000,
+          priority: taskPriorityMap[item.block.priority || 'High'] || 2
+        });
+        createdCount++;
+      }
+
+      // Lock squad into local roster as well
+      handleConfirmAllocation();
+
+      sonnerToast.success(`🚀 Deployed ${createdCount} Tasks to ClickUp!`, {
+        description: `Deliverables created under list #${targetListId} and squad schedule locked.`
+      });
+    } catch (err: any) {
+      console.error('Failed to deploy tasks to ClickUp:', err);
+      sonnerToast.error('Deployment to ClickUp Failed', {
+        description: err.message || 'Check connection or permissions.'
+      });
+    } finally {
+      setDeployingClickUp(false);
+    }
+  };
 
   const intakeRequest: ProjectIntakeRequest = useMemo(() => {
     return {
@@ -589,7 +694,7 @@ export const ProjectAllocationWizard: React.FC<ProjectAllocationWizardProps> = (
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <button
                     onClick={handleCopyClickUp}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all cursor-pointer shadow-sm"
@@ -603,6 +708,25 @@ export const ProjectAllocationWizard: React.FC<ProjectAllocationWizardProps> = (
                       <>
                         <Copy className="w-4 h-4 text-emerald-400" />
                         <span>Copy for ClickUp</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleDeployToClickUp}
+                    disabled={deployingClickUp}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-700 text-xs font-bold transition-all cursor-pointer shadow-md disabled:opacity-50"
+                    title="Directly create tasks in ClickUp workspace and assign specialists"
+                  >
+                    {deployingClickUp ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 text-purple-300 animate-spin" />
+                        <span>Deploying to ClickUp...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink className="w-4 h-4 text-purple-300" />
+                        <span>🚀 Deploy to ClickUp</span>
                       </>
                     )}
                   </button>
