@@ -36,7 +36,11 @@ import {
   Zap,
   RefreshCw,
   PlusCircle,
-  X
+  X,
+  Link2,
+  Trash2,
+  Search,
+  UserCheck
 } from 'lucide-react';
 
 interface MemberProfilePageProps {
@@ -157,6 +161,26 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
     return [];
   });
   const [isSyncingClickUp, setIsSyncingClickUp] = useState(false);
+
+  // Persistent ClickUp User Account Mapping
+  const [linkedClickUpUser, setLinkedClickUpUser] = useState<{ id: string | number; username: string; email: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem(`vat_member_clickup_mapping_${member.id}`);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    if (member.clickUpUserId) {
+      return { id: member.clickUpUserId, username: member.name, email: member.clickUpEmail || '' };
+    }
+    return null;
+  });
+
+  const [isLinkUserModalOpen, setIsLinkUserModalOpen] = useState(false);
+  const [cuWorkspaceUsers, setCuWorkspaceUsers] = useState<Array<{ id: number; username: string; email: string; profilePicture?: string | null; role?: string }>>([]);
+  const [isLoadingCuUsers, setIsLoadingCuUsers] = useState(false);
+  const [cuUserSearchQuery, setCuUserSearchQuery] = useState('');
+  const [taskSourceFilter, setTaskSourceFilter] = useState<'all' | 'clickup' | 'allocations'>('all');
 
   // 1-Click Handler: Assign Member to an existing project
   const handleConfirmAssignProject = (e: React.FormEvent) => {
@@ -329,46 +353,19 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
     }
   };
 
-  // Pick/Fetch tasks assigned to this member from ClickUp
-  const handlePickTasksFromClickUp = async () => {
+  // Fetch real tasks assigned to ClickUp user
+  const fetchTasksForClickUpUser = async (targetUserId: string | number, cuUsername?: string) => {
     setIsSyncingClickUp(true);
     const token = getClickUpToken();
     let wsId = getClickUpWorkspaceId();
 
     try {
       if (!token) {
-        // Not connected via OAuth yet: synthesize assigned project deliverables with full ClickUp linkages
-        const derived: Task[] = memberProjects.map((p) => {
-          const hours = p.memberHoursMap?.[member.id] || Math.round((p.activeHours || 10) / Math.max(1, p.members?.length || 1));
-          const cuId = p.clickUpTaskId || `86b${p.id.replace(/\D/g, '')}${member.id.slice(-3)}`;
-          return {
-            id: `tsk_cu_picked_${p.id}_${member.id}`,
-            title: `[ClickUp] ${member.role} - Sprint Deliverables - ${p.name}`,
-            clientName: p.client,
-            projectName: p.name,
-            requiredSkill: member.skills[0] || 'Web Development',
-            estimatedHours: hours || 4,
-            actualHoursLogged: 0,
-            assignedUserId: member.id,
-            priority: (p.priorityLevel === 'URGENT' ? 'High' : 'Medium') as any,
-            status: 'in_progress' as TaskStatus,
-            dueDate: p.dueDateOrRenewal || '2026-07-31',
-            categoryColor: '#8B5CF6',
-            clickUpTaskId: cuId,
-            clickUpUrl: p.clientFolderUrl || `https://app.clickup.com/t/${cuId}`,
-            clickUpStatus: 'in progress'
-          };
-        });
-
-        localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(derived));
-        setClickUpSyncedTasks(derived);
-        sonnerToast.success(`⚡ Picked ${derived.length} assigned ClickUp tasks for ${member.name}!`, {
-          description: 'Loaded active deliverables linked to ClickUp task IDs & milestones.'
+        sonnerToast.error('ClickUp is not connected.', {
+          description: 'Please connect ClickUp in the top bar to fetch live tasks.'
         });
         return;
       }
-
-      // If token is present, ensure workspace ID
       if (!wsId) {
         const workspaces = await fetchClickUpWorkspaces(token);
         if (workspaces && workspaces.length > 0) {
@@ -376,50 +373,18 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
           setClickUpWorkspaceId(wsId);
         }
       }
-
       if (!wsId) {
-        sonnerToast.error('No ClickUp workspace found');
+        sonnerToast.error('No ClickUp workspace found.');
         return;
       }
 
-      sonnerToast.loading(`Fetching tasks assigned to ${member.name} from ClickUp...`, { id: 'cu-member-fetch' });
+      sonnerToast.loading(`Querying ClickUp for tasks assigned to ${cuUsername || member.name}...`, { id: 'cu-member-fetch' });
 
-      // Fetch live workspace tasks
-      const liveTasks = await fetchClickUpTasks(token, wsId);
+      // Direct Assignee Query across the entire workspace
+      const liveTasks = await fetchClickUpTasks(token, wsId, { assignees: [String(targetUserId)] });
 
-      // Match target member ClickUp user ID
-      let targetCuUserId = member.clickUpUserId;
-      if (!targetCuUserId) {
-        try {
-          const cuMembers = await fetchClickUpTeamMembers(token, wsId);
-          const matched = cuMembers.find(
-            (cm) =>
-              (member.clickUpEmail && cm.email?.toLowerCase() === member.clickUpEmail.toLowerCase()) ||
-              cm.username?.toLowerCase().includes(member.name.toLowerCase()) ||
-              member.name.toLowerCase().includes(cm.username?.toLowerCase())
-          );
-          if (matched) {
-            targetCuUserId = matched.id;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      // Filter tasks assigned to this member
-      const assignedToMember = liveTasks.filter((t) => {
-        if (!t.assignees || t.assignees.length === 0) return false;
-        return t.assignees.some((a) => {
-          if (targetCuUserId && Number(a.id) === Number(targetCuUserId)) return true;
-          if (member.clickUpEmail && a.email?.toLowerCase() === member.clickUpEmail.toLowerCase()) return true;
-          const aName = (a.username || '').toLowerCase();
-          const mName = member.name.toLowerCase();
-          return aName.includes(mName) || mName.includes(aName);
-        });
-      });
-
-      if (assignedToMember.length > 0) {
-        const mapped: Task[] = assignedToMember.map((t, idx) => {
+      if (liveTasks && liveTasks.length > 0) {
+        const mapped: Task[] = liveTasks.map((t, idx) => {
           const hours = t.time_estimate ? Math.max(1, Math.round(t.time_estimate / 3600000)) : 4;
           const rawStatus = (t.status?.status || '').toLowerCase();
           const mappedStatus: TaskStatus = (rawStatus.includes('complete') || rawStatus.includes('done') || rawStatus.includes('closed'))
@@ -439,7 +404,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
             estimatedHours: hours,
             actualHoursLogged: 0,
             assignedUserId: member.id,
-            priority: (t.priority?.priority === 'urgent' ? 'High' : 'Medium') as any,
+            priority: (t.priority?.priority === 'urgent' ? 'High' : t.priority?.priority === 'high' ? 'High' : 'Medium') as any,
             status: mappedStatus,
             dueDate: t.due_date ? new Date(Number(t.due_date)).toISOString().split('T')[0] : '2026-07-31',
             categoryColor: '#8B5CF6',
@@ -451,40 +416,128 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
 
         localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(mapped));
         setClickUpSyncedTasks(mapped);
-        sonnerToast.success(`⚡ Synced ${mapped.length} live ClickUp tasks assigned to ${member.name}!`, { id: 'cu-member-fetch' });
+        sonnerToast.success(`⚡ Synced ${mapped.length} real ClickUp tasks assigned to ${member.name}!`, { id: 'cu-member-fetch' });
       } else {
-        // Fallback to active project deliverables with ClickUp task links
-        const projectTasks: Task[] = memberProjects.map((p) => {
-          const hours = p.memberHoursMap?.[member.id] || Math.round((p.activeHours || 10) / Math.max(1, p.members?.length || 1));
-          const cuId = p.clickUpTaskId || `86b${p.id.replace(/\D/g, '')}${member.id.slice(-3)}`;
-          return {
-            id: `tsk_cu_proj_${p.id}_${member.id}`,
-            title: `[ClickUp] ${member.role} - Sprint Deliverables - ${p.name}`,
-            clientName: p.client,
-            projectName: p.name,
-            requiredSkill: member.skills[0] || 'Web Development',
-            estimatedHours: hours || 4,
-            actualHoursLogged: 0,
-            assignedUserId: member.id,
-            priority: (p.priorityLevel === 'URGENT' ? 'High' : 'Medium') as any,
-            status: 'in_progress' as TaskStatus,
-            dueDate: p.dueDateOrRenewal || '2026-07-31',
-            categoryColor: '#8B5CF6',
-            clickUpTaskId: cuId,
-            clickUpUrl: p.clientFolderUrl || `https://app.clickup.com/t/${cuId}`,
-            clickUpStatus: 'in progress'
-          };
+        localStorage.removeItem(`vat_clickup_member_tasks_${member.id}`);
+        setClickUpSyncedTasks([]);
+        sonnerToast.info(`No active tasks assigned to ${member.name} in ClickUp.`, {
+          description: `Query completed for ClickUp User #${targetUserId}.`,
+          id: 'cu-member-fetch'
         });
-        localStorage.setItem(`vat_clickup_member_tasks_${member.id}`, JSON.stringify(projectTasks));
-        setClickUpSyncedTasks(projectTasks);
-        sonnerToast.info(`Picked ${projectTasks.length} ClickUp tasks from active project deliverables for ${member.name}!`, { id: 'cu-member-fetch' });
       }
     } catch (err: any) {
       console.error('Failed to pick ClickUp tasks for member:', err);
-      sonnerToast.error('ClickUp Task Picking Failed', { description: err.message, id: 'cu-member-fetch' });
+      sonnerToast.error('ClickUp Task Query Failed', { description: err.message, id: 'cu-member-fetch' });
     } finally {
       setIsSyncingClickUp(false);
     }
+  };
+
+  // Pick/Fetch tasks assigned to this member from ClickUp
+  const handlePickTasksFromClickUp = async () => {
+    const token = getClickUpToken();
+    let wsId = getClickUpWorkspaceId();
+    if (!token) {
+      sonnerToast.error('ClickUp is not connected.', {
+        description: 'Please connect ClickUp in the top bar to fetch real tasks.'
+      });
+      return;
+    }
+
+    let targetUserId = linkedClickUpUser?.id || member.clickUpUserId;
+    let targetUsername = linkedClickUpUser?.username;
+
+    if (!targetUserId) {
+      try {
+        if (!wsId) {
+          const ws = await fetchClickUpWorkspaces(token);
+          if (ws && ws.length > 0) {
+            wsId = ws[0].id;
+            setClickUpWorkspaceId(wsId);
+          }
+        }
+        if (wsId) {
+          const cuMembers = await fetchClickUpTeamMembers(token, wsId);
+          setCuWorkspaceUsers(cuMembers);
+          const matched = cuMembers.find(
+            (cm) =>
+              (member.clickUpEmail && cm.email?.toLowerCase() === member.clickUpEmail.toLowerCase()) ||
+              cm.username?.toLowerCase().includes(member.name.toLowerCase()) ||
+              member.name.toLowerCase().includes(cm.username?.toLowerCase()) ||
+              cm.username?.toLowerCase().includes(member.name.split(' ')[0].toLowerCase())
+          );
+          if (matched) {
+            targetUserId = matched.id;
+            targetUsername = matched.username;
+            const mapping = { id: matched.id, username: matched.username, email: matched.email };
+            setLinkedClickUpUser(mapping);
+            localStorage.setItem(`vat_member_clickup_mapping_${member.id}`, JSON.stringify(mapping));
+            sonnerToast.success(`⚡ Auto-matched ClickUp account: @${matched.username}!`);
+          }
+        }
+      } catch (err) {
+        console.warn('Auto match failed', err);
+      }
+    }
+
+    if (!targetUserId) {
+      handleOpenLinkUserModal();
+      sonnerToast.info(`Please select ${member.name}'s ClickUp user account from the list.`);
+      return;
+    }
+
+    await fetchTasksForClickUpUser(targetUserId, targetUsername);
+  };
+
+  const handleOpenLinkUserModal = async () => {
+    setIsLinkUserModalOpen(true);
+    const token = getClickUpToken();
+    let wsId = getClickUpWorkspaceId();
+    if (!token) {
+      sonnerToast.info('Please connect ClickUp first in the top bar.');
+      return;
+    }
+    try {
+      setIsLoadingCuUsers(true);
+      if (!wsId) {
+        const ws = await fetchClickUpWorkspaces(token);
+        if (ws && ws.length > 0) {
+          wsId = ws[0].id;
+          setClickUpWorkspaceId(wsId);
+        }
+      }
+      if (wsId) {
+        const members = await fetchClickUpTeamMembers(token, wsId);
+        setCuWorkspaceUsers(members);
+      }
+    } catch (err: any) {
+      sonnerToast.error('Failed to load ClickUp team members: ' + err.message);
+    } finally {
+      setIsLoadingCuUsers(false);
+    }
+  };
+
+  const handleSelectClickUpUser = (u: { id: number; username: string; email: string }) => {
+    const mapping = { id: u.id, username: u.username, email: u.email };
+    setLinkedClickUpUser(mapping);
+    localStorage.setItem(`vat_member_clickup_mapping_${member.id}`, JSON.stringify(mapping));
+    setIsLinkUserModalOpen(false);
+    sonnerToast.success(`⚡ Linked ${member.name} to ClickUp user @${u.username} (#${u.id})!`);
+    fetchTasksForClickUpUser(u.id, u.username);
+  };
+
+  const handleUnlinkClickUpUser = () => {
+    setLinkedClickUpUser(null);
+    localStorage.removeItem(`vat_member_clickup_mapping_${member.id}`);
+    localStorage.removeItem(`vat_clickup_member_tasks_${member.id}`);
+    setClickUpSyncedTasks([]);
+    sonnerToast.info(`Unlinked ClickUp user for ${member.name} and cleared task cache.`);
+  };
+
+  const handleClearTaskCache = () => {
+    localStorage.removeItem(`vat_clickup_member_tasks_${member.id}`);
+    setClickUpSyncedTasks([]);
+    sonnerToast.success(`🧹 Cleared task cache for ${member.name}!`);
   };
 
   // Tasks assigned to member: combines sprint tasks, live ClickUp tasks, and active project deliverables
@@ -513,7 +566,7 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
             ? 'in_progress'
             : 'assigned';
 
-          const cuId = tb.clickUpTaskId || proj.clickUpTaskId || `86b${proj.id.replace(/\D/g, '')}${member.id.slice(-3)}`;
+          const cuId = tb.clickUpTaskId || proj.clickUpTaskId;
           const cuUrl = tb.clickUpUrl || (cuId ? `https://app.clickup.com/t/${cuId}` : undefined);
 
           return {
@@ -561,8 +614,8 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
         ? 'completed'
         : 'in_progress';
 
-      const cuId = proj.clickUpTaskId || `86b${proj.id.replace(/\D/g, '')}${member.id.slice(-3)}`;
-      const cuUrl = proj.clientFolderUrl || `https://app.clickup.com/t/${cuId}`;
+      const cuId = proj.clickUpTaskId;
+      const cuUrl = proj.clientFolderUrl || (cuId ? `https://app.clickup.com/t/${cuId}` : undefined);
 
       return [{
         id: `proj_deliv_${proj.id}_${member.id}`,
@@ -629,9 +682,15 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
 
   // Filtered tasks
   const filteredTasks = useMemo(() => {
-    if (taskStatusFilter === 'all') return memberTasks;
-    return memberTasks.filter((t) => t.status === taskStatusFilter);
-  }, [memberTasks, taskStatusFilter]);
+    let list = memberTasks;
+    if (taskSourceFilter === 'clickup') {
+      list = list.filter((t) => t.id.startsWith('tsk_cu_live_') || (!!t.clickUpTaskId && !t.id.startsWith('proj_deliv_')));
+    } else if (taskSourceFilter === 'allocations') {
+      list = list.filter((t) => t.id.startsWith('proj_deliv_') || t.id.startsWith('tb_'));
+    }
+    if (taskStatusFilter === 'all') return list;
+    return list.filter((t) => t.status === taskStatusFilter);
+  }, [memberTasks, taskStatusFilter, taskSourceFilter]);
 
   // Workload calculations
   const weeklyCap = member.weeklyCapacityHours || 40;
@@ -1053,68 +1112,150 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
       {/* TAB CONTENT 2: ACTIVE TASKS */}
       {activeSubTab === 'tasks' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h3 className={`text-sm font-bold ${isWhiteTheme ? 'text-slate-800' : 'text-slate-200'}`}>
-                Tasks Assigned to {member.name} ({filteredTasks.length})
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setTaskProject(memberProjects[0]?.name || '');
-                  setTaskClient(memberProjects[0]?.client || '');
-                  setIsAssignTaskOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md shadow-cyan-600/25 transition-all cursor-pointer"
-                title="Create or assign a task directly to this member"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>Assign Task</span>
-              </button>
-              <button
-                type="button"
-                onClick={handlePickTasksFromClickUp}
-                disabled={isSyncingClickUp}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md shadow-purple-600/25 transition-all cursor-pointer disabled:opacity-75"
-                title="Fetch or pick assigned tasks and deliverables from ClickUp"
-              >
-                {isSyncingClickUp ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h3 className={`text-sm font-bold ${isWhiteTheme ? 'text-slate-800' : 'text-slate-200'}`}>
+                  Tasks Assigned to {member.name} ({filteredTasks.length})
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTaskProject(memberProjects[0]?.name || '');
+                    setTaskClient(memberProjects[0]?.client || '');
+                    setIsAssignTaskOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md shadow-cyan-600/25 transition-all cursor-pointer"
+                  title="Create or assign a task directly to this member"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Assign Task</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePickTasksFromClickUp}
+                  disabled={isSyncingClickUp}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md shadow-purple-600/25 transition-all cursor-pointer disabled:opacity-75"
+                  title="Fetch real assigned tasks directly from ClickUp workspace"
+                >
+                  {isSyncingClickUp ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                  ) : (
+                    <Zap className="w-3.5 h-3.5 text-amber-300" />
+                  )}
+                  <span className="text-white font-bold">{isSyncingClickUp ? 'Fetching from ClickUp...' : 'Fetch ClickUp Tasks'}</span>
+                </button>
+
+                {/* ClickUp User Link Pill / Trigger */}
+                {linkedClickUpUser ? (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-950/70 border border-purple-500/50 text-purple-200 text-xs font-semibold shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>ClickUp: <strong className="text-white">@{linkedClickUpUser.username}</strong></span>
+                    <button
+                      type="button"
+                      onClick={handleOpenLinkUserModal}
+                      className="ml-1 px-1.5 py-0.5 rounded bg-purple-900/80 hover:bg-purple-800 text-[10px] text-purple-200 hover:text-white transition-colors cursor-pointer"
+                      title="Switch or unlink ClickUp account"
+                    >
+                      Change
+                    </button>
+                  </div>
                 ) : (
-                  <Zap className="w-3.5 h-3.5 text-amber-300" />
+                  <button
+                    type="button"
+                    onClick={handleOpenLinkUserModal}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-purple-900 border border-purple-500/50 text-purple-200 font-bold text-xs shadow-md transition-all cursor-pointer hover:scale-105"
+                    title="Pair this member with their ClickUp user account"
+                  >
+                    <Link2 className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Link ClickUp Account</span>
+                  </button>
                 )}
-                <span className="text-white font-bold">{isSyncingClickUp ? 'Picking ClickUp Tasks...' : 'Pick Tasks from ClickUp'}</span>
-              </button>
-              {isClickUpConnected() ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 font-bold text-[10px]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>ClickUp Connected</span>
-                </span>
-              ) : (
-                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border ${
-                  isWhiteTheme ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-slate-800 border-slate-700 text-slate-400'
-                }`}>
-                  <span>Deliverables Mode</span>
-                </span>
-              )}
+
+                {/* Clear Cache Trigger */}
+                {clickUpSyncedTasks.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearTaskCache}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-900/80 hover:bg-rose-950/80 border border-slate-700 hover:border-rose-500/50 text-slate-400 hover:text-rose-300 text-xs font-semibold transition-all cursor-pointer"
+                    title="Clear cached tasks from browser storage"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Reset Cache</span>
+                  </button>
+                )}
+
+                {isClickUpConnected() ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 font-bold text-[10px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>ClickUp Connected</span>
+                  </span>
+                ) : (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border ${
+                    isWhiteTheme ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-slate-800 border-slate-700 text-slate-400'
+                  }`}>
+                    <span>Deliverables Mode</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Status Filter Pills */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(['all', 'assigned', 'in_progress', 'review', 'completed'] as const).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setTaskStatusFilter(st)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer capitalize ${
+                      taskStatusFilter === st
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {st.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Filter Pills */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(['all', 'assigned', 'in_progress', 'review', 'completed'] as const).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setTaskStatusFilter(st)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer capitalize ${
-                    taskStatusFilter === st
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                      : 'bg-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {st.replace('_', ' ')}
-                </button>
-              ))}
+            {/* Task Source Segmented Filter */}
+            <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2.5">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Source:</span>
+              <button
+                type="button"
+                onClick={() => setTaskSourceFilter('all')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  taskSourceFilter === 'all'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white bg-slate-800/50'
+                }`}
+              >
+                All ({memberTasks.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTaskSourceFilter('clickup')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  taskSourceFilter === 'clickup'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white bg-slate-800/50'
+                }`}
+              >
+                <Zap className="w-3 h-3 text-amber-300" />
+                <span>Live ClickUp ({clickUpSyncedTasks.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTaskSourceFilter('allocations')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  taskSourceFilter === 'allocations'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white bg-slate-800/50'
+                }`}
+              >
+                <Briefcase className="w-3 h-3 text-cyan-300" />
+                <span>Project Deliverables ({memberProjects.length})</span>
+              </button>
             </div>
           </div>
 
@@ -1592,6 +1733,156 @@ export const MemberProfilePage: React.FC<MemberProfilePageProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: LINK CLICKUP USER ACCOUNT */}
+      {isLinkUserModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-scale-up">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
+                  <Link2 className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Link ClickUp Account</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Pair {member.name} with their ClickUp user account
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLinkUserModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Currently Linked Pill if any */}
+              {linkedClickUpUser && (
+                <div className="p-3 rounded-2xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-emerald-400" />
+                    <div>
+                      <div className="text-xs font-bold text-white">Currently Linked: @{linkedClickUpUser.username}</div>
+                      <div className="text-[11px] text-purple-300 font-mono">User ID: #{linkedClickUpUser.id} {linkedClickUpUser.email ? `• ${linkedClickUpUser.email}` : ''}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleUnlinkClickUpUser}
+                    className="px-2.5 py-1 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Unlink
+                  </button>
+                </div>
+              )}
+
+              {/* Search ClickUp Members */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search ClickUp team members by name or email..."
+                  value={cuUserSearchQuery}
+                  onChange={(e) => setCuUserSearchQuery(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white focus:outline-none focus:border-purple-400 placeholder-slate-500"
+                />
+              </div>
+
+              {/* Member List */}
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {isLoadingCuUsers ? (
+                  <div className="py-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
+                    <RefreshCw className="w-5 h-5 text-purple-400 animate-spin" />
+                    <span>Loading ClickUp workspace members...</span>
+                  </div>
+                ) : cuWorkspaceUsers.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    No ClickUp team members found. Check your ClickUp connection.
+                  </div>
+                ) : (
+                  cuWorkspaceUsers
+                    .filter((u) => {
+                      if (!cuUserSearchQuery.trim()) return true;
+                      const q = cuUserSearchQuery.toLowerCase();
+                      return u.username.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || String(u.id).includes(q);
+                    })
+                    .map((u) => {
+                      const isSelected = linkedClickUpUser && String(linkedClickUpUser.id) === String(u.id);
+                      const isRecommended = u.username.toLowerCase().includes(member.name.toLowerCase()) ||
+                        member.name.toLowerCase().includes(u.username.toLowerCase()) ||
+                        u.username.toLowerCase().includes(member.name.split(' ')[0].toLowerCase());
+
+                      return (
+                        <div
+                          key={u.id}
+                          className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                            isSelected
+                              ? 'bg-purple-950/60 border-purple-500/80 shadow-md'
+                              : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-800/40'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {u.profilePicture ? (
+                              <img src={u.profilePicture} alt={u.username} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-purple-600/30 border border-purple-500/40 text-purple-200 font-bold text-xs flex items-center justify-center shrink-0">
+                                {u.username.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-white truncate">{u.username}</span>
+                                {isRecommended && !isSelected && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                    Recommended
+                                  </span>
+                                )}
+                                {isSelected && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                    Linked
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-400 truncate">
+                                {u.email || `#${u.id}`} • Role: {u.role || 'Member'}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleSelectClickUpUser(u)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                              isSelected
+                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-sm hover:scale-105'
+                            }`}
+                          >
+                            {isSelected ? 'Re-Sync' : 'Select'}
+                          </button>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsLinkUserModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1114,4 +1114,20 @@ Agencies frequently maintain their complete client roster inside a specific Clic
       - Executed local `npm run build`: transformed 2265 modules, compiled cleanly in 1.18s with exit code 0.
       - 36/36 automated unit tests passing (`vitest`).
 
+  48. **ClickUp Real-User Account Linker & Direct Assignee Query Engine (`MemberProfilePage.tsx`)**:
+    - **Problem Solved**:
+      - Member profiles displayed synthetic dummy deliverables (`[ClickUp] ... - Sprint Deliverables - ... #86b...hil`) because generic workspace task queries hit ClickUp's 100-task cap, member user IDs were unmapped, and fallback manufactured placeholder tasks.
+    - **Direct Assignee Query Implementation**:
+      - Upgraded task fetcher to query ClickUp API directly with `{ assignees: [String(targetUserId)] }`. This bypasses workspace pagination limits and fetches all real tasks assigned to the target user across all lists and folders.
+    - **1-Click ClickUp Member Linker (`isLinkUserModalOpen`)**:
+      - Added interactive account linker modal allowing managers to pair any agency team member with their exact ClickUp workspace user account (displaying avatar, username, email, ClickUp User ID, and role).
+      - Auto-suggests recommended matches based on username/email similarity.
+      - Persists user mapping in `localStorage` (`vat_member_clickup_mapping_${member.id}`) with live `@username` indicator chip.
+    - **Elimination of Fake IDs & Clean Task Categorization**:
+      - Completely removed synthetic `86b...hil` fake task IDs and `[ClickUp]` title prefixes on project deliverables.
+      - Added 3-way Source Segmented Filter (`All`, `Live ClickUp`, `Project Deliverables`).
+      - Added `🧹 Reset Cache` button allowing users to flush obsolete synthetic task caches with 1 click.
+      - When no tasks are assigned in ClickUp, renders an honest empty state rather than manufacturing fake cards.
+
+
 
