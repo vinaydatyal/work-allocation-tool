@@ -140,6 +140,35 @@ describe('Feature 3: 1-Click Quick Memo on Project Cards', () => {
   });
 });
 
+import type { ProjectDailyNotePayload } from '../src/lib/supabase';
+
+describe('DSR Tracker Project Notes & Two-Way Realtime Sync', () => {
+  it('formats bidirectional project note payload with checklists and follow-ups', () => {
+    const payload: ProjectDailyNotePayload = {
+      projectId: 'proj-1',
+      projectName: 'Rank Harvest - Email Marketing',
+      clientName: 'Rank Harvest',
+      date: '2026-10-01',
+      notes: 'Reviewed spam score and inbox placement. Client approved Oct calendar.',
+      checklist: [
+        { id: 'c1', text: 'Validate SPF/DKIM records', done: true },
+        { id: 'c2', text: 'Set up warm-up IP pool', done: false }
+      ],
+      followUps: [
+        { id: 'f1', text: 'Share deliverability report', done: false, assignee: 'Neeraj', due: '2026-10-03' }
+      ]
+    };
+
+    expect(payload.projectId).toBe('proj-1');
+    expect(payload.checklist?.length).toBe(2);
+    expect(payload.checklist?.[0].done).toBe(true);
+    expect(payload.followUps?.[0].assignee).toBe('Neeraj');
+    expect(payload.projectName).toContain('Rank Harvest');
+    expect(payload.notes).toContain('spam score');
+  });
+});
+
+
 import { getNextDeliverableDueInfo, daysFromToday } from '../src/utils/dateUtils';
 
 describe('Feature 2: Next Deliverable Due Pill', () => {

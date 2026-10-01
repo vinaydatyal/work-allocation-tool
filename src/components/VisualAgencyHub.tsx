@@ -57,7 +57,6 @@ import {
   Building2,
   Tag,
   User,
-  StickyNote,
   ClipboardList,
   FileText
 } from 'lucide-react';
@@ -96,6 +95,8 @@ import { ActivityCalendar } from './ActivityCalendar';
 import { AnimatedCounter, ClientTierBadge, DonutChart, EmptyState, GraphicSectionHeader, MiniSparkline, SpotlightCard, VIPPriorityBanner, YieldGauge, useToast } from './TopTierUI';
 import { calculateProjectFinancials, checkProjectNeedsAttention } from '../utils/projectFinancials';
 import { ClientPnLModal } from './ClientPnLModal';
+import { ProjectNotesModal } from './ProjectNotesModal';
+import { openDSRProjectNotes } from '../utils/dsrProtocol';
 
 export interface AgencyNotificationItem {
   id: string;
@@ -2493,47 +2494,15 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   const [quickStatusMenuProjId, setQuickStatusMenuProjId] = useState<string | null>(null);
   const [quickLeadMenuProjId, setQuickLeadMenuProjId] = useState<{ projId: string; role: 'lead' | 'call' } | null>(null);
 
-  // State: 1-Click Quick Memo on Project Cards (Feature 3)
-  const [editingMemoProjId, setEditingMemoProjId] = useState<string | null>(null);
-  const [memoInputText, setMemoInputText] = useState<string>('');
+  // State: Project Notes Studio (Bidirectionally synced with DSR Tracker Desktop & Supabase)
+  const [notesModalProject, setNotesModalProject] = useState<ActiveProjectItem | null>(null);
+  const [isNotesModalOpen, setIsNotesModalOpen] = useState<boolean>(false);
 
-  // Handlers: Quick Memo with Date and Time
-  const handleSaveQuickMemo = (projId: string, text: string) => {
-    const trimmed = text.trim();
-    const now = new Date();
-    const datePart = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const timePart = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    const timestamp = `${datePart}, ${timePart}`;
-
-    setProjectsList((prev) =>
-      prev.map((p) => {
-        if (p.id !== projId) return p;
-        if (!trimmed) {
-          const { quickMemo, quickMemoUpdatedAt, ...rest } = p;
-          return rest as ActiveProjectItem;
-        }
-        return {
-          ...p,
-          quickMemo: trimmed,
-          quickMemoUpdatedAt: timestamp
-        };
-      })
-    );
-    setEditingMemoProjId(null);
-    setMemoInputText('');
-    sonnerToast.success(trimmed ? '📝 Quick memo saved' : 'Memo cleared');
+  const handleOpenProjectNotes = (proj: ActiveProjectItem) => {
+    setNotesModalProject(proj);
+    setIsNotesModalOpen(true);
   };
 
-  const handleClearQuickMemo = (projId: string) => {
-    setProjectsList((prev) =>
-      prev.map((p) => {
-        if (p.id !== projId) return p;
-        const { quickMemo, quickMemoUpdatedAt, ...rest } = p;
-        return rest as ActiveProjectItem;
-      })
-    );
-    sonnerToast.success('Memo removed');
-  };
 
   // In-line Edit Handlers
   const handleQuickUpdateStatus = (projId: string, newStatus: ActiveProjectItem['status']) => {
@@ -5001,13 +4970,26 @@ Due Date: ${proj.paymentDueDate}
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] font-semibold text-slate-300 mt-0.5">{proj.client}</div>
-                            {proj.quickMemo && (
-                              <div className="text-[11px] text-amber-300/90 font-medium flex items-center gap-1 mt-1 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md max-w-fit" title={`Memo: ${proj.quickMemo} (${proj.quickMemoUpdatedAt || ''})`}>
-                                <StickyNote className="w-2.5 h-2.5 text-amber-400 shrink-0" />
-                                <span className="truncate max-w-[220px]">{proj.quickMemo}</span>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenProjectNotes(proj)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 hover:border-cyan-500/40 transition-colors cursor-pointer"
+                                title="Open Project Notes & Comms (Two-Way Synced with DSR Tracker)"
+                              >
+                                <FileText className="w-2.5 h-2.5 text-cyan-400" />
+                                <span>Notes</span>
+                                {proj.quickMemo && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openDSRProjectNotes(proj.id, proj.name)}
+                                className="p-0.5 rounded text-cyan-400 hover:text-cyan-200 transition-colors cursor-pointer"
+                                title="Open in DSR Tracker Desktop"
+                              >
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
                           </td>
                           <td className="py-4 px-5" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
@@ -5401,92 +5383,41 @@ Due Date: ${proj.paymentDueDate}
                         )}
                       </div>
 
-                      {/* Feature 3: 1-Click "Quick Memo" on Project Cards (with date and time) */}
-                      <div className="w-full mt-1" onClick={(e) => e.stopPropagation()}>
-                        {editingMemoProjId === proj.id ? (
-                          <div className="flex items-center gap-1.5 bg-slate-900/95 border border-amber-500/60 p-1.5 rounded-xl shadow-xl animate-fade-in">
-                            <StickyNote className="w-3.5 h-3.5 text-amber-400 shrink-0 ml-1" />
-                            <input
-                              type="text"
-                              value={memoInputText}
-                              onChange={(e) => setMemoInputText(e.target.value)}
-                              placeholder="Type memo (e.g., Client wants review Thursday, waiting on assets)..."
-                              className="flex-1 bg-transparent text-xs text-amber-100 placeholder:text-slate-500 focus:outline-none font-medium px-1"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveQuickMemo(proj.id, memoInputText);
-                                if (e.key === 'Escape') setEditingMemoProjId(null);
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleSaveQuickMemo(proj.id, memoInputText)}
-                              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer shadow-sm transition-all"
-                              title="Save memo (Enter)"
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingMemoProjId(null)}
-                              className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs cursor-pointer transition-all"
-                              title="Cancel (Esc)"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : proj.quickMemo ? (
-                          <div className="group/memo flex items-start justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 text-amber-200/90 text-xs transition-all shadow-sm">
-                            <div className="flex items-start gap-1.5 min-w-0 flex-1">
-                              <StickyNote className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                              <div className="min-w-0 flex-1">
-                                <p className="font-semibold text-amber-100 text-xs leading-relaxed break-words">
-                                  {proj.quickMemo}
-                                </p>
-                                {proj.quickMemoUpdatedAt && (
-                                  <span className="text-[10px] text-amber-400/70 font-mono block mt-0.5">
-                                    🕒 {proj.quickMemoUpdatedAt}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1 opacity-80 group-hover/memo:opacity-100 transition-opacity shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingMemoProjId(proj.id);
-                                  setMemoInputText(proj.quickMemo || '');
-                                }}
-                                className="p-1 rounded hover:bg-amber-500/20 text-amber-300 hover:text-white transition-colors cursor-pointer"
-                                title="Edit Memo"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleClearQuickMemo(proj.id)}
-                                className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 transition-colors cursor-pointer"
-                                title="Clear Memo"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingMemoProjId(proj.id);
-                                setMemoInputText('');
-                              }}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30 transition-all cursor-pointer group/addmemo"
-                              title="Add a 1-click quick memo with timestamp"
-                            >
-                              <StickyNote className="w-3 h-3 text-slate-500 group-hover/addmemo:text-amber-400 transition-colors" />
-                              <span>+ Memo</span>
-                            </button>
-                          </div>
+                      {/* Project Notes: Directly Linked to DSR Tracker Desktop & Two-Way Realtime Sync */}
+                      <div className="w-full mt-1.5 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenProjectNotes(proj)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold text-slate-300 hover:text-white bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 hover:border-cyan-500/50 shadow-sm transition-all cursor-pointer group/pnotes"
+                            title="Open Project Notes & Client Comms (Two-Way Realtime Synced with DSR Tracker)"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-cyan-400 group-hover/pnotes:scale-110 transition-transform" />
+                            <span>Project Notes</span>
+                            {proj.quickMemo && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Has active notes" />
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => openDSRProjectNotes(proj.id, proj.name)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-cyan-400 hover:text-cyan-200 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-500/30 hover:border-cyan-400/50 transition-all cursor-pointer shadow-sm"
+                            title="⚡ Launch native DSR Tracker Project Notes window via dsr-tracker://notes protocol"
+                          >
+                            <span>⚡ DSR Desktop</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+
+                        {proj.quickMemo && (
+                          <span
+                            onClick={() => handleOpenProjectNotes(proj)}
+                            className="text-[10px] text-slate-400 hover:text-amber-300 font-mono truncate max-w-[150px] cursor-pointer"
+                            title={`Latest note: "${proj.quickMemo}" (${proj.quickMemoUpdatedAt || ''})`}
+                          >
+                            📝 {proj.quickMemo}
+                          </span>
                         )}
                       </div>
 
@@ -15313,6 +15244,25 @@ Due Date: ${proj.paymentDueDate}
           project={activePnLProject}
           allMembers={customMembers}
           onOptimizeSquad={handleOptimizeSquad}
+        />
+      )}
+
+      {/* Project Notes Studio: Two-Way Realtime Sync with DSR Tracker Desktop */}
+      {isNotesModalOpen && notesModalProject && (
+        <ProjectNotesModal
+          isOpen={isNotesModalOpen}
+          onClose={() => {
+            setIsNotesModalOpen(false);
+            setNotesModalProject(null);
+          }}
+          project={notesModalProject}
+          onNoteSavedLocally={(projId, text, timeStr) => {
+            setProjectsList((prev) =>
+              prev.map((p) =>
+                p.id === projId ? { ...p, quickMemo: text, quickMemoUpdatedAt: timeStr } : p
+              )
+            );
+          }}
         />
       )}
     </div>

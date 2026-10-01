@@ -10,6 +10,8 @@ export const formatLocalDate = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
+export const getLocalDateString = (date: Date = new Date()): string => formatLocalDate(date);
+
 export const todayLocal = (): string => formatLocalDate(new Date());
 
 export const daysFromToday = (days: number): string => {

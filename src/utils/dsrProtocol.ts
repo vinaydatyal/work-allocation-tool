@@ -88,3 +88,47 @@ export function triggerDSRSync(): void {
     console.error('Failed to trigger DSR Sync:', err);
   }
 }
+
+/**
+ * Opens the native DSR Tracker Project Notes window focused on a specific project.
+ * Supports deep linking with project ID and name.
+ */
+export function openDSRProjectNotes(projectId?: string, projectName?: string): boolean {
+  try {
+    const params = new URLSearchParams();
+    if (projectId) params.set('projectId', projectId);
+    if (projectName) params.set('name', projectName);
+    const protocolUrl = `dsr-tracker://notes?${params.toString()}`;
+
+    toast.success('⚡ Opening DSR Project Notes', {
+      description: projectName
+        ? `Focusing notes for "${projectName}" in DSR Tracker Desktop`
+        : 'Focusing DSR Tracker Desktop Project Notes window',
+      action: projectName ? {
+        label: 'Copy Name',
+        onClick: () => {
+          navigator.clipboard.writeText(projectName);
+          toast.info('Project name copied');
+        }
+      } : undefined
+    });
+
+    const link = document.createElement('a');
+    link.href = protocolUrl;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
+    }, 500);
+
+    return true;
+  } catch (err) {
+    console.error('Failed to trigger DSR Project Notes protocol:', err);
+    toast.error('Could not launch DSR Tracker Project Notes');
+    return false;
+  }
+}
+

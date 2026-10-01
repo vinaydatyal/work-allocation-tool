@@ -269,4 +269,112 @@ export function subscribeToTasks(callback: (payload: any) => void, filterUserId?
     .subscribe();
 }
 
+// ─── DSR Tracker Project Notes Real-Time Two-Way Sync ────────────────────────
+
+export interface ProjectNoteChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface ProjectNoteFollowUpItem {
+  id: string;
+  text: string;
+  done: boolean;
+  assignee?: string;
+  due?: string;
+}
+
+export interface ProjectDailyNotePayload {
+  projectId: string;
+  projectName: string;
+  clientName?: string;
+  date: string; // YYYY-MM-DD
+  notes: string;
+  checklist?: ProjectNoteChecklistItem[];
+  followUps?: ProjectNoteFollowUpItem[];
+  updatedAt?: string;
+}
+
+/**
+ * Saves or updates a project note to Supabase sync_queue.
+ * DSR Tracker Desktop listens to this channel and syncs to local store in real-time.
+ */
+export async function saveProjectNoteToSupabase(note: ProjectDailyNotePayload) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id || '00000000-0000-0000-0000-000000000000';
+
+  const fullPayload: ProjectDailyNotePayload = {
+    ...note,
+    updatedAt: new Date().toISOString()
+  };
+
+  return supabase.from('sync_queue').insert({
+    user_id: userId,
+    type: 'project_daily_note',
+    payload: fullPayload as any,
+    processed: false,
+    created_at: new Date().toISOString()
+  });
+}
+
+/**
+ * Fetches recent project notes from Supabase sync_queue.
+ */
+export async function fetchProjectNotes(projectId?: string, date?: string) {
+  let query = supabase
+    .from('sync_queue')
+    .select('*')
+    .eq('type', 'project_daily_note')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  const { data, error } = await query;
+  if (error || !data) return { data: [], error };
+
+  const parsedNotes: ProjectDailyNotePayload[] = [];
+  for (const row of data) {
+    try {
+      const p = (typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload) as ProjectDailyNotePayload;
+      if (projectId && p.projectId !== projectId) continue;
+      if (date && p.date !== date) continue;
+      parsedNotes.push(p);
+    } catch (e) {
+      // ignore malformed items
+    }
+  }
+
+  return { data: parsedNotes, error: null };
+}
+
+/**
+ * Subscribes to real-time project notes updates dispatched by DSR Tracker Desktop or WAT.
+ */
+export function subscribeToProjectNotes(callback: (payload: ProjectDailyNotePayload) => void) {
+  return supabase
+    .channel('realtime-project-notes')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'sync_queue',
+        filter: 'type=eq.project_daily_note'
+      },
+      (payload) => {
+        try {
+          const item = payload.new;
+          if (item && item.payload) {
+            const parsed = (typeof item.payload === 'string' ? JSON.parse(item.payload) : item.payload) as ProjectDailyNotePayload;
+            callback(parsed);
+          }
+        } catch (err) {
+          console.warn('[Realtime] Failed to parse project note event:', err);
+        }
+      }
+    )
+    .subscribe();
+}
+
+
 

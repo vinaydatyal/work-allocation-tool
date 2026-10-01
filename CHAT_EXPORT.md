@@ -7059,5 +7059,51 @@ Explained the purpose, architecture, and behavior of the **`+ Memo`** button on 
    - The card displays an amber badge with the note, timestamp, an `Edit` (pencil) button, and a `Clear` (`✕`) button.
 4. **Data Model & Persistence**: Persisted under `quickMemo` and `quickMemoUpdatedAt` on `ActiveProjectItem` in `src/components/VisualAgencyHub.tsx` and covered by unit tests in `tests/retainerAndMemo.test.ts`.
 
+---
+
+## 👤 User (Turn #223)
+
+<USER_REQUEST>
+We don't need it, rather, I think, ther should be a project notes button directly linked to DSR tracker project notes feature and two way realtime sync
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Removed the isolated `+ Memo` button and implemented the full **Project Notes Studio** directly linked to **DSR Tracker Desktop** with **Two-Way Realtime Synchronization**:
+
+1. **Native OS Deep Linking Protocol (`src/utils/dsrProtocol.ts`)**:
+   - Added `openDSRProjectNotes(projectId?: string, projectName?: string)`:
+     - Directly focuses or launches the native DSR Tracker desktop project notes window via `dsr-tracker://notes?projectId=...&name=...`.
+     - Displays instant feedback toast with 1-click project name copying.
+
+2. **Supabase Real-Time Two-Way Sync Engine (`src/lib/supabase.ts`)**:
+   - Added `ProjectDailyNotePayload`, `ProjectNoteChecklistItem`, `ProjectNoteFollowUpItem` interfaces.
+   - Added `saveProjectNoteToSupabase(payload)` writing notes to Supabase `sync_queue` table under `type: 'project_daily_note'`.
+   - Added `fetchProjectNotes(projectId?, date?)` fetching cloud-synced notes for any date.
+   - Added `subscribeToProjectNotes(callback)` subscribing via Supabase Realtime channel `realtime-project-notes` on `sync_queue`.
+
+3. **DSR Tracker Desktop Companion Engine (`E:\Antigravity\DSR Tracker`)**:
+   - In `main.js`: Added 5th realtime channel subscription `project-notes-sync-channel` listening on `sync_queue` and broadcasting `note-updated-from-cloud` IPC events.
+   - In `project-notes.js`: Added IPC listener `note-updated-from-cloud` that immediately updates the notes, checklists, and follow-ups in the desktop renderer when saved in the web dashboard.
+
+4. **Project Notes Studio Modal (`src/components/ProjectNotesModal.tsx`)**:
+   - Created a comprehensive notes management modal:
+     - Date Selector (Today, Yesterday, Custom Date).
+     - Live Sync Status Pill (`🟢 Two-Way Realtime Sync Active`).
+     - **Tab 1: Daily Notes & Client Comms** (freeform auto-saving notes log).
+     - **Tab 2: Action Checklist** (interactive checkable items with counter and inline adder).
+     - **Tab 3: Follow-ups & Deliverables** (action items with assignee and target due dates).
+     - **`⚡ Open in DSR Desktop`** button to jump directly into the native Electron app.
+
+5. **VisualAgencyHub UI Upgrades (`src/components/VisualAgencyHub.tsx`)**:
+   - Replaced `+ Memo` on project cards with `📝 Project Notes` button + `⚡ DSR Desktop` launch button with live sync status dot.
+   - Replaced table view memo pill with `Notes` action pill and desktop launcher.
+
+6. **Quality Gates & Deployment**:
+   - All 38/38 Vitest unit tests passed.
+   - Production build `tsc -b && vite build` succeeded in 876ms with 0 errors.
+   - Staged, committed, and pushed changes to `origin/main`.
+
+
 
 
