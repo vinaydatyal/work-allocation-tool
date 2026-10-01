@@ -1342,5 +1342,121 @@ Agencies frequently maintain their complete client roster inside a specific Clic
         - Zero-install portable binary for instant execution.
       - Incorporates all recent features: Supabase synchronization, deep linking protocol, manager mini pill HUD, SLA monitor, and time log persistence.
 
+  58. **VisualAgencyHub Header Architecture Audit & Deduplication**:
+    - **Identified Redundant Double-Navigation Structure**:
+      - Top Command Bar (`VisualAgencyHub.tsx`) contained legacy buttons: `Project roster`, `Workload`, `Financial pulse`, `Past Projects & Trash`, and `Business Leads`.
+      - Sub-Hub Segmented Bar contained the dedicated, modern tabs: `Projects & Retainers`, `Squad Workload & Heatmap`, `VIP & Financial Pulse`, `Past Projects & Trash`, and `New Business Leads`.
+      - This created a 100% duplicate set of 5 navigation controls sitting right on top of each other.
+    - **Resolution**:
+      - Removed the 5 duplicate buttons from the top command bar in `VisualAgencyHub.tsx`.
+      - Top Command Bar is now exclusively dedicated to Global Status & Operational Actions: ClickUp Connection Status, Live Sync indicator, 1-Click Sync CRM Accounts, 1-Click Sync Deliverables, Add Employee, and Add Active Project.
+      - Lower Segmented Bar serves as the clean, single source of truth for Sub-Hub Navigation with live specialist counts, financial totals, and archive badges.
+    - **Verification**:
+      - Vitest test suite: 36/36 unit tests passed in 1.40s.
+      - Production build: `tsc -b && vite build` compiled cleanly with 0 errors in 974ms.
 
+  59. **Executive Profile & Leadership Touchpoints Mapping**:
+    - **Persona Switcher & Active Session Indicator**:
+      - Bottom Dock Navbar (`Navbar.tsx`): Profile flyup menu with `allProfiles` (Agam Grover - CEO, Manpreet S. Nagpal - CEO, Vinay Datyal - SEO Manager).
+      - Top Breadcrumbs (`Breadcrumbs.tsx`): Displays `Session: [Name]` with live pulse dot.
+    - **Executive Org Map (`OrgMapStudio.tsx`)**:
+      - Displays `Executive Leadership` pod with crown icons (`Crown`), live presence, and reporting hierarchy.
+    - **Executive Command Center (`MondayAllocationWarRoom.tsx`)**:
+      - Route `/war-room` provides CEO high-level agency MRR, blended margin, and capacity bottlenecks.
+    - **Specialist & Executive Deep-Dive Cards (`MemberProfile.tsx` & `TeamRosterStudio.tsx`)**:
+      - Accessible at `#/member/:id` (e.g. `usr_alex`, `usr_aarav`, `usr_rohan`) displaying 4-tier competency and skill radars.
 
+  60. **Executive Deep-Dive Profile Navigation Gap & Resolution Plan**:
+    - **Identified Gap**:
+      - `MemberProfilePage` route `/member/:id` handles deep-dive cards, but was only linked from project lead pills and Command Palette (`Ctrl + K`).
+      - The Navbar Profile flyup menu (`Navbar.tsx`), Top Breadcrumbs session pill (`Breadcrumbs.tsx`), Org Map Studio nodes (`OrgMapStudio.tsx`), and Team Roster Studio selection panel (`TeamRosterStudio.tsx`) lacked direct click-through navigation to open the executive's profile card.
+    - **Resolution**:
+      1. **Navbar Bottom Dock Navigation & Profile Popover (`Navbar.tsx` & `App.tsx`)**:
+         - Added `Team Roster Studio` (`roster`) to `NAV_ITEMS` in `Navbar.tsx`, making Team Roster accessible directly from the bottom navigation dock.
+         - Passed `teamMembers` prop to `Navbar` from `App.tsx`.
+         - Added prominent top button **"View My Executive Profile ↗"** in the profile flyup popover.
+         - Added individual **`ArrowUpRight`** profile link buttons next to every persona in the switcher list.
+      2. **Top Breadcrumbs Header (`Breadcrumbs.tsx`)**:
+         - Replaced the static `Session: [Name]` text div with an interactive, animated button navigating to `/member/${targetId}` with hover border effects.
+      3. **Org Map Studio (`OrgMapStudio.tsx`)**:
+         - Made Team Lead pod ribbons clickable to `/member/${teamLead.id}`.
+         - Upgraded member card avatar and name click handling to `/member/${member.id}` and added dedicated `ArrowUpRight` profile link buttons on each card.
+      4. **Team Roster Studio (`TeamRosterStudio.tsx`)**:
+         - Added a **"View Profile Card ↗"** button in the header bar beside the member selector dropdown.
+    - **Verification**:
+      - Vitest test suite: 36/36 unit tests passed in 496ms.
+      - Production build: `tsc -b && vite build` compiled cleanly with 0 errors in 1.27s.
+
+  61. **Strategic Roadmap: Project & Assigned Deliverables Command Center (Two-Way Sync & Pure Internal / WAT Tasks)**:
+    - **Context & Objective**:
+      - Elevate the Project & Assigned Deliverables architecture from basic row creation to a unified, bidirectional command center bridging Work Allocation Tool (WAT), Supabase Realtime, ClickUp API, and DSR Tracker Desktop.
+    - **Key Structural Domains Understood**:
+      1. **Deliverables & Allocation Intelligence (The Core Engine)**:
+         - Freeform custom titles & notes per deliverable row alongside standard categories.
+         - Live specialist capacity badges embedded directly in assignee selection dropdowns (`Name (Logged/Cap h • Free h) 🟢/🟡/🔴`).
+         - AI Smart Matchmaker "Best Fit" 1-click specialist recommendation based on skill matrix score and available bandwidth.
+         - Cadence & recurrence tagging (Weekly Recurring, Bi-Weekly, One-Off Sprint Milestone).
+      2. **Live Parity with ClickUp & DSR Tracker Desktop**:
+         - Per-deliverable bidirectional sync status badges (`ClickUp: #ID` direct link, `Desktop: In Bucket` with `dsr-tracker://track?...` deep-link launch).
+         - Planned vs. Actual hours logged progress bar pulled from Supabase `time_logs` / ClickUp with over-budget alerts.
+         - Status progression pill synced bidirectionally (Backlog ➔ Assigned ➔ In Progress ➔ Review ➔ Done).
+      3. **1-Click Agency SOP Deliverable Bundles (Templates)**:
+         - Pre-configured bundles: Full SEO Retainer (18h/wk), Local SEO Jumpstart (11h/wk), Website & Tech Revamp (20h/wk), Enterprise AEO/GEO (20h/wk).
+      4. **Financial & Profitability Health Guardrails**:
+         - Client Retainer vs. Allocated Cost meter (Blended specialist rate vs. client contract retainer).
+         - Gross Margin % indicator with low-margin alerts.
+         - Retainer hour cap breach guardrail (`⚠️ Scope Exceeds Retainer by +X hrs/wk`).
+      5. **Client SLA & Renewal Countdown Header**:
+         - Prominent client tier badge integration (`CLIENT_TIER_CONFIG`: Tier S VIP, Tier A Agency, Tier B Local).
+         - Real-time renewal countdown with progress checks (e.g. alert if <50% completed as renewal approaches).
+         - Visual SLA Health status indicators (Green, Amber, Red).
+      6. **UI / UX & Usability Polish**:
+         - Drag-and-drop row reordering for deliverable prioritization.
+         - 1-click clone/duplicate deliverables to other client accounts.
+         - One-page SOW / formatted Markdown/HTML deliverables exporter for Slack/Email/Proposals.
+  62. **Allocated Weekly Hours & Hourly Account Auto-Calculation Mechanics**:
+    - **Mathematical Model**:
+      - Total Allocated Weekly Hours: $\sum \text{Deliverable Hours}$
+      - Weekly Spend/Billing: $\text{Client Hourly Rate} \times \text{Total Allocated Weekly Hours}$
+      - Projected Monthly Spend: $\text{Weekly Spend} \times 4$ (standard retainer month)
+      - Squad Execution Cost: $\sum (\text{Specialist Assigned Hours} \times \text{Specialist Seniority Rate})$
+      - Projected Gross Profit & Margin: $\text{Projected Monthly Spend} - \text{Squad Execution Cost}$
+    - **Component Integration Points**:
+      - `VisualAgencyHub.tsx` Add/Edit Project Drawers: dynamic price label switching (`Price Tag ($/mo)` ➔ `Hourly Rate ($/hr)`), 4-metric calculation banner (`Rate`, `Scope`, `Weekly Billing`, `Monthly Estimate`), and Tab 3 live auto-calc badges on deliverable changes.
+      - Retainer hour cap breach warnings when deliverable hours exceed contract commitments.
+  63. **Assigned Scope vs. Allocated Hours & Dual-Cap Project Billing Mechanics**:
+    - **Operational Paradigm (Assigned Scope vs. Allocated Hours)**:
+      - **Contracted / Assigned Scope (Weekly Target)**: The contractual hours purchased by or committed to the client per week (e.g. 10 hrs/wk contracted).
+      - **Allocated Hours (Weekly Execution)**: The actual scheduled specialist hours across deliverables in the active squad (e.g. 7 hrs/wk scheduled).
+      - **Delta / Variance**:
+        - $\text{Variance} = \text{Allocated Hours} - \text{Contracted Scope}$
+        - Negative ($\Delta < 0$): Under-allocated account (under-servicing SLA risk; contracted deliverables unassigned).
+        - Zero ($\Delta = 0$): 100% balanced allocation.
+        - Positive ($\Delta > 0$): Over-allocated / scope creep (unbillable agency margin leak or billable extra hours alert).
+    - **Dual-Cap Hourly Billing Model**:
+      - **Weekly Hours Cap**: Maximum billable hours permitted in a single week.
+      - **Total Overall Project Cap**: Maximum lifetime billable hours for the engagement (e.g., 60 total hours budget).
+      - **Banner & Metric Integration**:
+        - Displays Rate, Weekly Allocated vs Weekly Cap, Total Project Hours Cap ($Cap \times Rate$), and Burn Rate / Projected Runway in weeks ($\text{Runway} = \text{Total Cap} / \text{Weekly Allocated}$).
+    - **Deployment Discrepancy Note**:
+      - Verified that top header cleanup (removing duplicated Workload, Financial Pulse, Past Projects, and Business Leads buttons) is complete in local working tree, but pending `git commit && git push origin main` for Vercel deployment.
+  64. **Implementation: Dual-Cap Hourly Billing Governance & Scope Variance Badging**:
+    - **Added Scope Variance Badging**:
+      - Integrated real-time variance calculation ($\Delta = \text{Allocated Deliverable Hours} - \text{Contracted Weekly Scope}$) in both Add Project Drawer and Edit Project Drawer (`VisualAgencyHub.tsx`).
+      - Renders status pills:
+        - `🟢 Balanced: X/Yh (100% Assigned)`
+        - `🟡 Under-Allocated: X/Yh (Zh unassigned)`
+        - `🔴 Scope Leak: +Zh over contracted scope`
+      - Added dynamic badge indicator in Tab 3 Deliverables Allocation header.
+    - **Added Overall Project Lifetime Hours Cap**:
+      - Added optional `totalProjectHoursCap?: number` to `ActiveProjectItem`.
+      - Added input field for `Project Total Cap (Optional Max Hours)` when billing type is `Weekly Hourly Billing`.
+      - Live Preview Banner displays:
+        - Hourly Rate ($/hr)
+        - Weekly Allocation vs. Scope with variance status
+        - Weekly Client Billing ($/wk and monthly equivalent)
+        - Project Total Budget Cap ($Rate \times Cap$) with calculated burn runway in weeks
+        - Over-allocation and scope breach warnings
+    - **Testing & Deployment**:
+      - 36/36 Vitest unit tests pass.
+      - Production build passed in 1.99s. Staged and pushed to `origin/main`.

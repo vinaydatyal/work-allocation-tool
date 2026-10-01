@@ -18,6 +18,7 @@ import { SkillEvaluationCenter } from './components/SkillEvaluationCenter';
 import { SlaRiskRadar } from './components/SlaRiskRadarModal';
 import { Breadcrumbs } from './components/Breadcrumbs';
 import { ClickUpBatchSyncModal } from './components/ClickUpBatchSyncModal';
+import { ClickUpSyncPromptModal } from './components/ClickUpSyncPromptModal';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { ClickUpAuthGateway } from './components/ClickUpAuthGateway';
 import type { ActiveProjectItem } from './components/VisualAgencyHub';
@@ -28,7 +29,7 @@ import type { TeamMember, Task, SkillCategory, TaskStatus, AppUserProfile, Proje
 import { calculateMemberAllocatedHours } from './utils/matchingEngine';
 import { daysFromToday } from './utils/dateUtils';
 import { useAppRouter, navigate } from './utils/router';
-import { supabase } from './lib/supabase';
+import { supabase, dispatchTaskToSupabase } from './lib/supabase';
 import {
   handleClickUpCallback,
   isClickUpConnected,
@@ -36,7 +37,13 @@ import {
   fetchClickUpUser,
   disconnectClickUp,
   getClickUpUser,
-  updateClickUpTaskAssignees
+  updateClickUpTaskAssignees,
+  createClickUpTask,
+  fetchClickUpWorkspaces,
+  fetchClickUpSpaces,
+  fetchClickUpLists,
+  getClickUpWorkspaceId,
+  setClickUpWorkspaceId
 } from './services/clickupOAuth';
 
 import { Toaster, toast as sonnerToast } from 'sonner';
@@ -356,20 +363,69 @@ export function App() {
     teamMembers.reduce((sum, m) => sum + calculateMemberAllocatedHours(m.id, tasks), 0).toFixed(1)
   );
 
-  const handleDispatchTask = async (taskId: string, memberId: string) => {
+  const [pendingSyncTask, setPendingSyncTask] = useState<{
+    taskId: string;
+    memberId: string;
+    task: Task;
+    targetMember: TeamMember;
+    targetListName?: string;
+  } | null>(null);
+
+  const handleDispatchTask = async (taskId: string, memberId: string, alsoCreateClickUp?: boolean) => {
+    const task = tasks.find((t) => t.id === taskId);
+    const targetMember = teamMembers.find((m) => m.id === memberId);
+    if (!task || !targetMember) return;
+
+    const rawClickUpId = task.clickUpTaskId || (taskId.startsWith('cu-') ? taskId.replace(/^cu-(live-)?/, '').split('-')[0] : null);
+
+    // If task already exists in ClickUp, update assignee and dispatch without prompt
+    if (rawClickUpId) {
+      await executeDispatch(taskId, memberId, false);
+      return;
+    }
+
+    // If ClickUp is disconnected, dispatch directly without prompt
+    if (!isClickUpConnected()) {
+      await executeDispatch(taskId, memberId, false);
+      return;
+    }
+
+    // If caller explicitly defined alsoCreateClickUp (e.g. from MatchModal checkbox), use that preference
+    if (alsoCreateClickUp !== undefined) {
+      await executeDispatch(taskId, memberId, alsoCreateClickUp);
+      return;
+    }
+
+    // Otherwise, prompt the manager with the ClickUpSyncPromptModal!
+    const defaultListName = localStorage.getItem('vat_default_clickup_list_name') || 'Deliverables';
+    setPendingSyncTask({
+      taskId,
+      memberId,
+      task,
+      targetMember,
+      targetListName: defaultListName
+    });
+  };
+
+  const executeDispatch = async (taskId: string, memberId: string, shouldCreateInClickUp: boolean) => {
+    // 1. Update local UI state
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, assignedUserId: memberId, status: 'assigned' } : t))
     );
 
-    // If ClickUp is connected, push assignee update to ClickUp
+    const task = tasks.find((t) => t.id === taskId);
+    const targetMember = teamMembers.find((m) => m.id === memberId);
+    if (!task) return;
+
+    let clickUpTaskId = task.clickUpTaskId || (taskId.startsWith('cu-') ? taskId.replace(/^cu-(live-)?/, '').split('-')[0] : null);
+    let clickUpUrl = task.clickUpUrl;
+
+    // 2. ClickUp Synchronization (if requested or already exists)
     if (isClickUpConnected()) {
       const token = getClickUpToken();
-      const task = tasks.find((t) => t.id === taskId);
-      const rawClickUpId = task?.clickUpTaskId || (taskId.startsWith('cu-') ? taskId.replace(/^cu-(live-)?/, '').split('-')[0] : null);
-      if (token && rawClickUpId && memberId) {
-        const targetMember = teamMembers.find((m) => m.id === memberId);
+      if (token) {
         let cuUserId: string | null = targetMember?.clickUpUserId ? String(targetMember.clickUpUserId) : null;
-        if (!cuUserId) {
+        if (!cuUserId && memberId) {
           try {
             const mapped = localStorage.getItem(`vat_member_clickup_mapping_${memberId}`);
             if (mapped) {
@@ -378,17 +434,116 @@ export function App() {
             }
           } catch {}
         }
-        if (cuUserId) {
+
+        const assignees = cuUserId ? [Number(cuUserId)] : [];
+
+        if (clickUpTaskId) {
+          // Task already exists in ClickUp -> update assignee
+          if (assignees.length > 0) {
+            try {
+              await updateClickUpTaskAssignees(token, clickUpTaskId, assignees, []);
+              sonnerToast.success('⚡ ClickUp Assignee Synchronized', {
+                description: `Assigned "${task.title}" to ${targetMember?.name || 'specialist'} in ClickUp.`
+              });
+            } catch (err: any) {
+              console.warn('Failed to sync assignee to ClickUp:', err);
+            }
+          }
+        } else if (shouldCreateInClickUp) {
+          // Internal Task -> User confirmed ClickUp creation!
           try {
-            await updateClickUpTaskAssignees(token, rawClickUpId, [Number(cuUserId)], []);
-            sonnerToast.success('⚡ ClickUp Assignee Synchronized', {
-              description: `Assigned "${task?.title || 'Deliverable'}" to ${targetMember?.name || 'specialist'} in ClickUp.`
-            });
-          } catch (err: any) {
-            console.warn('Failed to sync assignee to ClickUp:', err);
+            let targetListId = localStorage.getItem('vat_default_clickup_list_id');
+            if (!targetListId) {
+              let wsId = getClickUpWorkspaceId();
+              if (!wsId) {
+                const workspaces = await fetchClickUpWorkspaces(token);
+                if (workspaces.length > 0) {
+                  wsId = workspaces[0].id;
+                  setClickUpWorkspaceId(wsId);
+                }
+              }
+              if (wsId) {
+                const spaces = await fetchClickUpSpaces(token, wsId);
+                if (spaces.length > 0) {
+                  const lists = await fetchClickUpLists(token, spaces[0].id, false);
+                  if (lists.length > 0) {
+                    targetListId = lists[0].id;
+                    localStorage.setItem('vat_default_clickup_list_id', targetListId);
+                  }
+                }
+              }
+            }
+
+            if (targetListId) {
+              const priorityNum = task.priority === 'High' ? 2 : task.priority === 'Low' ? 4 : 3;
+              const created = await createClickUpTask(token, targetListId, {
+                name: task.title,
+                description: `Client: ${task.clientName || 'Internal'}\nSkill: ${task.requiredSkill || 'General'}\nAllocated to: ${targetMember?.name || 'Specialist'}\nSource: Work Allocation Tool`,
+                assignees,
+                time_estimate: (task.estimatedHours || 4) * 3600000,
+                priority: priorityNum
+              });
+
+              if (created?.id) {
+                clickUpTaskId = String(created.id);
+                clickUpUrl = created.url;
+                setTasks((prev) =>
+                  prev.map((t) => (t.id === taskId ? { ...t, clickUpTaskId: clickUpTaskId || undefined, clickUpUrl: clickUpUrl || undefined } : t))
+                );
+                sonnerToast.success('⚡ Synced to ClickUp & Desktop', {
+                  description: `Created & assigned "${task.title}" in ClickUp!`
+                });
+              }
+            }
+          } catch (createErr) {
+            console.warn('Failed to auto-create task in ClickUp:', createErr);
           }
         }
       }
+    }
+
+    // 3. Dispatch to Supabase with instant Realtime push to Desktop Companion
+    try {
+      const nameToUUID: Record<string, string> = {
+        'Agam Grover': 'aaaa0001-aaaa-aaaa-aaaa-aaaaaaaa0001',
+        'Manpreet S. Nagpal': 'aaaa0002-aaaa-aaaa-aaaa-aaaaaaaa0002',
+        'Vinay Datyal': 'bbbb0001-bbbb-bbbb-bbbb-bbbbbbbb0001',
+        'Khuvaish': 'cccc0001-cccc-cccc-cccc-cccccccc0001',
+        'Vansh': 'cccc0002-cccc-cccc-cccc-cccccccc0002',
+        'Amrit Kaur': 'cccc0003-cccc-cccc-cccc-cccccccc0003',
+        'Nidhi Verma': 'dddd0001-dddd-dddd-dddd-dddddddd0001',
+        'Nidhi': 'dddd0001-dddd-dddd-dddd-dddddddd0001',
+        'Aakash Jaggi': 'eeee0001-eeee-eeee-eeee-eeeeeeee0001',
+        'Aakash': 'eeee0001-eeee-eeee-eeee-eeeeeeee0001',
+        'Abhishek Katariya': 'eeee0002-eeee-eeee-eeee-eeeeeeee0002',
+        'Akhil': 'eeee0003-eeee-eeee-eeee-eeeeeeee0003',
+        'Rahul': 'eeee0004-eeee-eeee-eeee-eeeeeeee0004'
+      };
+
+      const resolvedUserId = (targetMember?.name && nameToUUID[targetMember.name]) ||
+        (memberId && memberId.includes('-') ? memberId : null);
+
+      if (resolvedUserId) {
+        await dispatchTaskToSupabase({
+          id: taskId.startsWith('alloc_') ? taskId.replace('alloc_', '') : (task.id?.includes('-') ? task.id : undefined),
+          title: task.title,
+          client_name: task.clientName || 'Internal',
+          required_skill: task.requiredSkill || 'General',
+          estimated_hours: task.estimatedHours || 4,
+          assigned_user_id: resolvedUserId,
+          priority: (task.priority?.toLowerCase() as any) || 'medium',
+          clickup_task_id: clickUpTaskId || undefined,
+          clickup_url: clickUpUrl || undefined,
+          source: clickUpTaskId ? 'clickup' : 'allocated'
+        });
+        if (!shouldCreateInClickUp && !clickUpTaskId) {
+          sonnerToast.success('📌 Allocated to Desktop Companion', {
+            description: `Pushed "${task.title}" directly to ${targetMember?.name || 'specialist'}'s DSR Tracker.`
+          });
+        }
+      }
+    } catch (sbErr) {
+      console.warn('Supabase task dispatch error:', sbErr);
     }
   };
 
@@ -587,6 +742,7 @@ export function App() {
           onExportPlan={handleExportPlan}
           currentProfile={currentProfile}
           allProfiles={appUserProfiles}
+          teamMembers={teamMembers}
           onSwitchProfile={(prof) => {
             setCurrentProfile(prof);
             localStorage.setItem('vat_active_profile_id', prof.id);
@@ -828,6 +984,21 @@ export function App() {
           setTasks(updated);
           localStorage.setItem('vat_agency_tasks_v1', JSON.stringify(updated));
         }}
+      />
+
+      {/* Interactive Prompt: Also Create in ClickUp? */}
+      <ClickUpSyncPromptModal
+        isOpen={!!pendingSyncTask}
+        task={pendingSyncTask?.task || null}
+        targetMember={pendingSyncTask?.targetMember || null}
+        targetListName={pendingSyncTask?.targetListName}
+        onConfirm={(createInClickUp) => {
+          if (pendingSyncTask) {
+            executeDispatch(pendingSyncTask.taskId, pendingSyncTask.memberId, createInClickUp);
+            setPendingSyncTask(null);
+          }
+        }}
+        onClose={() => setPendingSyncTask(null)}
       />
     </ToastProvider>
   );

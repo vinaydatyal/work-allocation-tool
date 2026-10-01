@@ -23,9 +23,11 @@ import {
   Grid3X3,
   CalendarRange,
   ShieldAlert,
-  UserCheck
+  UserCheck,
+  ArrowUpRight
 } from 'lucide-react';
 import type { TeamMember, AppUserProfile } from '../types';
+import { navigate } from '../utils/router';
 
 export interface BreadcrumbsProps {
   activeTab: string;
@@ -305,17 +307,29 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
           </span>
         )}
 
-        <div
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-xl text-[11px] font-medium border ${
+        <button
+          type="button"
+          onClick={() => {
+            const targetMember = teamMembers.find(
+              (m) =>
+                m.name.toLowerCase().includes(currentProfile.name.toLowerCase()) ||
+                currentProfile.name.toLowerCase().includes(m.name.toLowerCase())
+            );
+            const targetId = targetMember ? targetMember.id : currentProfile.id;
+            navigate(`/member/${targetId}`);
+          }}
+          title={`Click to view ${currentProfile.name}'s deep-dive profile card`}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-medium border transition-all cursor-pointer hover:border-emerald-500/50 hover:scale-[1.02] shadow-sm ${
             isWhiteTheme
-              ? 'bg-slate-50 border-slate-200 text-slate-600'
-              : 'bg-slate-900/80 border-slate-800 text-slate-400'
+              ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+              : 'bg-slate-900/80 hover:bg-slate-800/90 border-slate-800 text-slate-300'
           }`}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-500/50 animate-pulse" />
           <span className="hidden lg:inline text-[10px] font-semibold text-slate-400">Session:</span>
-          <span className="font-bold text-slate-200 truncate max-w-[100px]">{currentProfile.name}</span>
-        </div>
+          <span className="font-bold text-slate-200 truncate max-w-[110px]">{currentProfile.name}</span>
+          <ArrowUpRight className="w-3 h-3 text-emerald-400 opacity-80" />
+        </button>
       </div>
     </motion.nav>
   );

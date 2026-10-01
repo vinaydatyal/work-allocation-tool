@@ -26,7 +26,7 @@ import {
 interface MondayAllocationWarRoomProps {
   teamMembers: TeamMember[];
   tasks: Task[];
-  onDispatchTask: (taskId: string, memberId: string) => void;
+  onDispatchTask: (taskId: string, memberId: string, alsoCreateClickUp?: boolean) => void;
   onAddTask: (newTask: Task) => void;
   onUpdateTaskStatus?: (taskId: string, newStatus: TaskStatus) => void;
   isWhiteTheme?: boolean;

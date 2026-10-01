@@ -12,7 +12,8 @@ import {
   Layers,
   CheckCircle2,
   RefreshCw,
-  Clock
+  Clock,
+  ArrowUpRight
 } from 'lucide-react';
 import type { AppUserProfile, UserRoleType, TeamMember, Task } from '../types';
 import { supabase, subscribeToPresence } from '../lib/supabase';
@@ -659,16 +660,23 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                       : 'bg-slate-950/60 border-slate-800/80'
                   }`}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div
+                    onClick={() => {
+                      if (teamLead) navigate(`/member/${teamLead.id}`);
+                    }}
+                    className={`flex items-center gap-2 min-w-0 ${teamLead ? 'cursor-pointer hover:opacity-85 transition-opacity' : ''}`}
+                    title={teamLead ? `Click to view ${teamLead.name}'s deep-dive profile card` : undefined}
+                  >
                     <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <div className="min-w-0">
                       <span className="text-[10px] text-slate-400 block leading-tight">Team Lead</span>
                       <span
-                        className={`text-xs font-semibold truncate block ${
+                        className={`text-xs font-semibold truncate block flex items-center gap-1 ${
                           isWhiteTheme ? 'text-slate-800' : 'text-slate-200'
                         }`}
                       >
-                        {teamLead ? teamLead.name : 'Unassigned'}
+                        <span>{teamLead ? teamLead.name : 'Unassigned'}</span>
+                        {teamLead && <ArrowUpRight className="w-3 h-3 text-amber-400 opacity-70" />}
                       </span>
                     </div>
                   </div>
@@ -776,8 +784,9 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                               className="relative cursor-pointer hover:opacity-80 transition-opacity"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate('/member?id=' + member.id);
+                                navigate(`/member/${member.id}`);
                               }}
+                              title={`View ${member.name}'s profile card`}
                             >
                               <img
                                 src={member.avatar}
@@ -805,10 +814,10 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                                   );
                                 }
                                 return (
-                                  <span
-                                    className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-slate-500/60 border-2 border-slate-900"
-                                    title="Offline"
-                                  />
+                                    <span
+                                      className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-slate-500/60 border-2 border-slate-900"
+                                      title="Offline"
+                                    />
                                 );
                               })()}
                               {isLeadOfThisPod && (
@@ -819,8 +828,9 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                               <span
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  navigate('/member?id=' + member.id);
+                                  navigate(`/member/${member.id}`);
                                 }}
+                                title={`View ${member.name}'s profile card`}
                                 className={`text-xs font-semibold truncate block cursor-pointer hover:underline ${
                                   isWhiteTheme ? 'text-slate-900 hover:text-cyan-600' : 'text-slate-100 hover:text-cyan-400'
                                 }`}
@@ -836,6 +846,18 @@ export const OrgMapStudio: React.FC<OrgMapStudioProps> = ({
                               </span>
                             </div>
                           </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/member/${member.id}`);
+                            }}
+                            title={`View ${member.name}'s deep-dive profile card`}
+                            className="p-1 hover:bg-cyan-500/15 rounded-lg text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer shrink-0"
+                          >
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </button>
                         </div>
 
                         {/* Interactive Role Badge */}

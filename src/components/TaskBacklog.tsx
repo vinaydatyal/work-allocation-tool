@@ -26,7 +26,7 @@ import {
 interface TaskBacklogProps {
   tasks: Task[];
   teamMembers: TeamMember[];
-  onDispatchTask: (taskId: string, memberId: string) => void;
+  onDispatchTask: (taskId: string, memberId: string, alsoCreateClickUp?: boolean) => void;
   onAddTask: (task: Task) => void;
 }
 

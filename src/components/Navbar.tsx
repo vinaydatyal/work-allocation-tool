@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { AppUserProfile } from '../types';
+import type { AppUserProfile, TeamMember } from '../types';
 import { ClickUpOAuthModal } from './ClickUpOAuthModal';
 import { handleClickUpCallback, isClickUpConnected, getClickUpUser } from '../services/clickupOAuth';
 import { navigate } from '../utils/router';
@@ -23,7 +23,9 @@ import {
   Flame,
   RefreshCw,
   Layers,
-  LogOut
+  LogOut,
+  User,
+  ArrowUpRight
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -34,6 +36,7 @@ interface NavbarProps {
   onExportPlan: () => void;
   currentProfile: AppUserProfile;
   allProfiles: AppUserProfile[];
+  teamMembers?: TeamMember[];
   onSwitchProfile: (profile: AppUserProfile) => void;
   isWhiteTheme?: boolean;
   onToggleTheme?: () => void;
@@ -50,6 +53,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onExportPlan,
   currentProfile,
   allProfiles,
+  teamMembers,
   onSwitchProfile,
   isWhiteTheme,
   onToggleTheme,
@@ -126,7 +130,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [setActiveTab]);
 
   const NAV_ITEMS: {
-    id: 'projects' | 'calendar' | 'hours' | 'dsr' | 'skills' | 'bot' | 'finances' | 'notifications' | 'brief' | 'war-room' | 'org';
+    id: 'projects' | 'calendar' | 'hours' | 'dsr' | 'skills' | 'bot' | 'finances' | 'notifications' | 'brief' | 'war-room' | 'org' | 'roster';
     label: string;
     shortLabel: string;
     shortcut?: string;
@@ -202,6 +206,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       label: 'Org Map & Pods',
       shortLabel: 'Org Map',
       icon: Layers
+    },
+    {
+      id: 'roster',
+      label: 'Team Roster Studio',
+      shortLabel: 'Roster',
+      icon: Users
     },
     {
       id: 'brief',
@@ -517,45 +527,94 @@ export const Navbar: React.FC<NavbarProps> = ({
                       borderColor: isWhiteTheme ? '#cbd5e1' : '#334155'
                     }}
                   >
-                    <div className="text-[10px] font-black tracking-wider uppercase text-slate-400 px-2 py-1 border-b border-slate-700/40 mb-1">
-                      Switch Role / Persona
+                    <div className="text-[10px] font-black tracking-wider uppercase text-slate-400 px-2 py-1 border-b border-slate-700/40 mb-1.5 flex items-center justify-between">
+                      <span>Switch Role / Persona</span>
+                      <span className="text-[9px] text-emerald-400 font-mono">Live</span>
                     </div>
+
+                    {/* Quick Button: View Current User's Profile */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        const targetMember = teamMembers?.find(
+                          (m) =>
+                            m.name.toLowerCase().includes(currentProfile.name.toLowerCase()) ||
+                            currentProfile.name.toLowerCase().includes(m.name.toLowerCase())
+                        );
+                        const targetId = targetMember ? targetMember.id : currentProfile.id;
+                        navigate(`/member/${targetId}`);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 border border-emerald-500/40 text-emerald-300 hover:text-white transition-all cursor-pointer mb-2 shadow-sm"
+                    >
+                      <span className="flex items-center gap-2">
+                        <User className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>View My Executive Profile</span>
+                      </span>
+                      <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+                    </button>
+
                     <div className="space-y-1 max-h-60 overflow-y-auto no-scrollbar">
                       {allProfiles.map((prof) => {
                         const isActive = prof.id === currentProfile.id;
+                        const matchingMember = teamMembers?.find(
+                          (m) =>
+                            m.name.toLowerCase().includes(prof.name.toLowerCase()) ||
+                            prof.name.toLowerCase().includes(m.name.toLowerCase())
+                        );
+                        const memberId = matchingMember ? matchingMember.id : prof.id;
+
                         return (
-                          <button
+                          <div
                             key={prof.id}
-                            type="button"
-                            onClick={() => {
-                              onSwitchProfile(prof);
-                              setShowProfileMenu(false);
-                            }}
-                            className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left transition-colors cursor-pointer ${
+                            className={`w-full flex items-center justify-between p-1.5 rounded-xl transition-colors ${
                               isActive
                                 ? 'bg-slate-800 text-white border border-slate-700'
                                 : 'hover:bg-slate-800/50 text-slate-300 hover:text-white'
                             }`}
                           >
-                            <img
-                              src={prof.avatar}
-                              alt={prof.name}
-                              className="w-7 h-7 rounded-lg object-cover shrink-0"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold truncate">
-                                  {prof.name}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onSwitchProfile(prof);
+                                setShowProfileMenu(false);
+                              }}
+                              className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer"
+                              title={`Switch persona to ${prof.name}`}
+                            >
+                              <img
+                                src={prof.avatar}
+                                alt={prof.name}
+                                className="w-7 h-7 rounded-lg object-cover shrink-0"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-bold truncate">
+                                    {prof.name}
+                                  </span>
+                                  {isActive && (
+                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-slate-400 block truncate">
+                                  {prof.roleTitle}
                                 </span>
-                                {isActive && (
-                                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                                )}
                               </div>
-                              <span className="text-[10px] text-slate-400 block truncate">
-                                {prof.roleTitle}
-                              </span>
-                            </div>
-                          </button>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowProfileMenu(false);
+                                navigate(`/member/${memberId}`);
+                              }}
+                              title={`View ${prof.name}'s deep-dive profile card`}
+                              className="p-1.5 hover:bg-slate-700/80 rounded-lg text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer shrink-0 ml-1"
+                            >
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         );
                       })}
                     </div>

@@ -58,7 +58,8 @@ import {
   Tag,
   User,
   StickyNote,
-  ClipboardList
+  ClipboardList,
+  FileText
 } from 'lucide-react';
 import { ClickUpOAuthModal } from './ClickUpOAuthModal';
 import { ClickUpTaskActivityModal } from './ClickUpTaskActivityModal';
@@ -135,6 +136,8 @@ export type AgencyTaskCategory =
 export interface ProjectTaskAllocation {
   id: string;
   taskType: string;
+  title?: string;
+  notes?: string;
   assigneeId: string;
   hours: number;
   clickUpTaskId?: string;
@@ -156,6 +159,7 @@ export interface ActiveProjectItem {
   price: string;
   totalHours: number;
   activeHours: number;
+  totalProjectHoursCap?: number;
   actualHoursLogged?: number;
   progress: number;
   color: string;
@@ -872,6 +876,24 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   const [expandedCompletedTasks, setExpandedCompletedTasks] = useState<Record<string, boolean>>({});
   const searchBarRef = useRef<HTMLInputElement>(null);
 
+  // Deliverable Scope Spec Pocket & Custom Deliverable Titles State
+  const [activeScopeSpecPocket, setActiveScopeSpecPocket] = useState<{
+    id: string;
+    projId: string;
+    projName: string;
+    clientName: string;
+    title: string;
+    category: string;
+    notes: string;
+    hours: number;
+    assigneeName?: string;
+    clickUpTaskId?: string;
+    clickUpUrl?: string;
+  } | null>(null);
+  const [isEditingScopeSpecInPocket, setIsEditingScopeSpecInPocket] = useState(false);
+  const [pocketNotesDraft, setPocketNotesDraft] = useState('');
+  const [expandedDeliverableSpecs, setExpandedDeliverableSpecs] = useState<Record<string, boolean>>({});
+
   // Item 5: High-Velocity Keyboard Navigation & Filter Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -964,17 +986,16 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
   const [newMilestonesTotal, setNewMilestonesTotal] = useState(4);
   const [newPrice, setNewPrice] = useState('$3,500 / mo');
   const [newTotalHours, setNewTotalHours] = useState(20);
+  const [newTotalProjectHoursCap, setNewTotalProjectHoursCap] = useState<number | ''>('');
   const [newProjectLeadId, setNewProjectLeadId] = useState<string>(() => initialMembers[0].id);
   const [newClientCallAssigneeId, setNewClientCallAssigneeId] = useState<string>(() => initialMembers[0].id);
   const [newSelectedMemberIds, setNewSelectedMemberIds] = useState<string[]>(() =>
     initialMembers.slice(0, 2).map((m) => m.id)
   );
-  const [newTaskAllocations, setNewTaskAllocations] = useState<
-    Array<{ id: string; taskType: string; assigneeId: string; hours: number }>
-  >(() => [
-    { id: 'tb-1', taskType: 'Technical SEO', assigneeId: initialMembers[0].id, hours: 8 },
-    { id: 'tb-2', taskType: 'On-Page SEO', assigneeId: initialMembers[1]?.id || initialMembers[0].id, hours: 6 },
-    { id: 'tb-3', taskType: 'Off-Page SEO', assigneeId: initialMembers[2]?.id || initialMembers[0].id, hours: 4 }
+  const [newTaskAllocations, setNewTaskAllocations] = useState<ProjectTaskAllocation[]>(() => [
+    { id: 'tb-1', taskType: 'Technical SEO', title: '', notes: '', assigneeId: initialMembers[0].id, hours: 8 },
+    { id: 'tb-2', taskType: 'On-Page SEO', title: '', notes: '', assigneeId: initialMembers[1]?.id || initialMembers[0].id, hours: 6 },
+    { id: 'tb-3', taskType: 'Off-Page SEO', title: '', notes: '', assigneeId: initialMembers[2]?.id || initialMembers[0].id, hours: 4 }
   ]);
 
   // Complete Master Agency Spreadsheet tracking states for Add Project
@@ -1182,8 +1203,8 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
             const assignedMember = customMembers.find((m) => m.id === d.assigneeId);
             const assignees = assignedMember?.clickUpUserId ? [Number(assignedMember.clickUpUserId)] : [];
             const created = await createClickUpTask(token, targetListId!, {
-              name: `[${proj.name}] ${d.taskType}`,
-              description: `Deliverable for client: ${proj.client}\nAllocated Weekly Hours: ${d.hours}h`,
+              name: d.title ? `[${proj.name}] ${d.title}` : `[${proj.name}] ${d.taskType}`,
+              description: `Deliverable for client: ${proj.client}\nCategory: ${d.taskType}\nAllocated Weekly Hours: ${d.hours}h${d.notes ? `\n\nScope Spec / Execution Notes:\n${d.notes}` : ''}`,
               time_estimate: d.hours * 3600000,
               assignees,
               priority: 3
@@ -2449,7 +2470,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         if (p.id !== projId) return p;
         const updatedBreakdown = (p.taskBreakdown || []).map((tb) => {
           if (tb.id !== taskAllocationId) return tb;
-          taskName = tb.taskType;
+          taskName = tb.title ? `${tb.title} (${tb.taskType})` : tb.taskType;
           releasedHours = tb.hours || 0;
           const isCurrentlyDone =
             (tb.clickUpStatus || tb.status || '').toLowerCase().includes('done') ||
@@ -2601,7 +2622,9 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
         const newTb: ProjectTaskAllocation = {
           id: `tb-${Date.now()}`,
           taskType: 'On-Page SEO',
-          assigneeId: customMembers[0].id,
+          title: '',
+          notes: '',
+          assigneeId: customMembers[0]?.id || '',
           hours: 5
         };
         const updatedBreakdown = [...(proj.taskBreakdown || []), newTb];
@@ -2790,6 +2813,7 @@ Due Date: ${proj.paymentDueDate}
       price: finalPrice,
       totalHours: newTotalHours,
       activeHours: effectiveActiveHours,
+      totalProjectHoursCap: typeof newTotalProjectHoursCap === 'number' && newTotalProjectHoursCap > 0 ? newTotalProjectHoursCap : undefined,
       progress: 80,
       color: 'from-emerald-500 to-teal-600',
       members: assignedSquad,
@@ -2839,10 +2863,11 @@ Due Date: ${proj.paymentDueDate}
     setNewClickUpListId(undefined);
     setNewClickUpListName(undefined);
     setNewMilestonesTotal(4);
+    setNewTotalProjectHoursCap('');
     setNewTaskAllocations([
-      { id: 'tb-init-1', taskType: 'On-Page SEO', assigneeId: initialMembers[0]?.id || '', hours: 5 },
-      { id: 'tb-init-2', taskType: 'Off-Page SEO', assigneeId: initialMembers[1]?.id || '', hours: 6 },
-      { id: 'tb-init-3', taskType: 'Technical SEO', assigneeId: initialMembers[0]?.id || '', hours: 4 }
+      { id: 'tb-init-1', taskType: 'On-Page SEO', title: '', notes: '', assigneeId: initialMembers[0]?.id || '', hours: 5 },
+      { id: 'tb-init-2', taskType: 'Off-Page SEO', title: '', notes: '', assigneeId: initialMembers[1]?.id || '', hours: 6 },
+      { id: 'tb-init-3', taskType: 'Technical SEO', title: '', notes: '', assigneeId: initialMembers[0]?.id || '', hours: 4 }
     ]);
   };
 
@@ -3646,37 +3671,6 @@ Due Date: ${proj.paymentDueDate}
                 </button>
               )}
 
-              {hubSubTab !== 'projects' && (
-                <button
-                  type="button"
-                  onClick={() => setHubSubTab('projects')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 font-semibold text-xs transition-colors border border-slate-200"
-                >
-                  <FolderKanban className="w-4 h-4" />
-                  Project roster
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setHubSubTab('projects');
-                  setShowSquadWorkload((current) => !current);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs transition-colors border ${showSquadWorkload ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200'}`}
-              >
-                <Users className="w-4 h-4" />
-                Workload
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setHubSubTab('executive')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs transition-colors border ${hubSubTab === 'executive' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200'}`}
-              >
-                <DollarSign className="w-4 h-4" />
-                Financial pulse
-              </button>
 
               <button
                 type="button"
@@ -3744,35 +3738,6 @@ Due Date: ${proj.paymentDueDate}
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => setHubSubTab('archive')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-all cursor-pointer shadow-sm relative group"
-                title="View Past Projects & Trash Archive"
-              >
-                <FolderArchive className="w-3.5 h-3.5 text-amber-400" />
-                <span>Past Projects &amp; Trash</span>
-                {archivedProjects.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                    {archivedProjects.length}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setHubSubTab('leads')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-all cursor-pointer shadow-sm relative group"
-                title="View New Business Leads & Sales Pipeline"
-              >
-                <Briefcase className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Business Leads</span>
-                {businessLeads.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                    {businessLeads.length}
-                  </span>
-                )}
-              </button>
 
               <button
                 type="button"
@@ -6174,7 +6139,55 @@ Due Date: ${proj.paymentDueDate}
                                         >
                                           ✓
                                         </button>
-                                        <span className="text-cyan-300 font-bold truncate max-w-[120px] sm:max-w-[160px]">{tb.taskType}</span>
+                                        <div className="flex flex-col min-w-0 max-w-[130px] sm:max-w-[200px]">
+                                          <span
+                                            className="text-cyan-300 font-bold truncate text-[11px] leading-tight"
+                                            title={tb.title ? `${tb.title} (${tb.taskType})` : tb.taskType}
+                                          >
+                                            {tb.title || tb.taskType}
+                                          </span>
+                                          {tb.title && (
+                                            <span className="text-[9px] text-slate-400 font-medium truncate leading-none">
+                                              {tb.taskType}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Deliverable Scope Spec Pocket Toggle Button */}
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveScopeSpecPocket(
+                                              activeScopeSpecPocket?.id === tb.id
+                                                ? null
+                                                : {
+                                                    id: tb.id,
+                                                    projId: proj.id,
+                                                    projName: proj.name,
+                                                    clientName: proj.client,
+                                                    title: tb.title || tb.taskType,
+                                                    category: tb.taskType,
+                                                    notes: tb.notes || '',
+                                                    hours: tb.hours,
+                                                    assigneeName: assignee?.name,
+                                                    clickUpTaskId: tb.clickUpTaskId,
+                                                    clickUpUrl: tb.clickUpUrl
+                                                  }
+                                            );
+                                            setPocketNotesDraft(tb.notes || '');
+                                            setIsEditingScopeSpecInPocket(!tb.notes);
+                                          }}
+                                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold transition-all cursor-pointer shrink-0 ${
+                                            tb.notes
+                                              ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 shadow-sm'
+                                              : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700/60'
+                                          }`}
+                                          title={tb.notes ? 'View Deliverable Scope & Technical Spec' : 'Add deliverable scope notes'}
+                                        >
+                                          <FileText className="w-2.5 h-2.5" />
+                                          <span>{tb.notes ? 'Spec' : '+Spec'}</span>
+                                        </button>
                                         {tb.clickUpUrl && (
                                           <a
                                             href={tb.clickUpUrl}
@@ -10001,29 +10014,66 @@ Due Date: ${proj.paymentDueDate}
                             className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
                           />
                         </div>
+
+                        {newBillingType === 'Weekly Hourly Billing' && (
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                              Project Total Cap <span className="text-slate-500 font-normal">(Optional Max Hours)</span>
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={newTotalProjectHoursCap}
+                              onChange={(e) =>
+                                setNewTotalProjectHoursCap(e.target.value === '' ? '' : Number(e.target.value))
+                              }
+                              placeholder="e.g. 50 (leave blank if ongoing)"
+                              className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
+                            />
+                          </div>
+                        )}
                       </div>
 
-                      {/* Add Project Hourly Billing Calculation Preview Banner */}
+                      {/* Add Project Hourly Billing & Cap Governance Preview Banner */}
                       {newBillingType === 'Weekly Hourly Billing' && (() => {
                         const rateMatch = newPrice.match(/\$?([0-9]+(?:\.[0-9]+)?)/);
                         const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
                         const allocatedHrs = newTaskAllocations.reduce((s, a) => s + (Number(a.hours) || 0), 0);
-                        const effectiveHrs = allocatedHrs > 0 ? allocatedHrs : newTotalHours;
-                        const weeklyAmt = Math.round(rate * effectiveHrs);
+                        const contractedScope = newTotalHours;
+                        const variance = allocatedHrs - contractedScope;
+                        const weeklyAmt = Math.round(rate * allocatedHrs);
                         const monthlyAmt = Math.round(weeklyAmt * 4);
+                        const totalCap = typeof newTotalProjectHoursCap === 'number' && newTotalProjectHoursCap > 0 ? newTotalProjectHoursCap : null;
+                        const totalCapVal = totalCap ? Math.round(totalCap * rate) : null;
+                        const runwayWeeks = totalCap && allocatedHrs > 0 ? (totalCap / allocatedHrs).toFixed(1) : null;
 
                         return (
                           <div className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/40 via-slate-900 to-indigo-950/40 border border-cyan-500/40 space-y-2.5 animate-fade-in shadow-lg">
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="flex items-center gap-2">
                                 <Clock className="w-4 h-4 text-cyan-400" />
                                 <span className="text-xs font-black text-white tracking-wide">
-                                  ⚡ Hourly Billing Auto-Calculation
+                                  ⚡ Hourly Billing &amp; Cap Governance
                                 </span>
                               </div>
-                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                                Weekly Hourly Billing ($/hr)
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {variance === 0 ? (
+                                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                    🟢 Balanced: {allocatedHrs}/{contractedScope}h
+                                  </span>
+                                ) : variance < 0 ? (
+                                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                    🟡 Under-Allocated: {allocatedHrs}/{contractedScope}h ({Math.abs(variance)}h unassigned)
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                    🔴 Scope Leak: +{variance}h over contracted scope
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                                  Weekly Hourly Billing ($/hr)
+                                </span>
+                              </div>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1 text-center">
@@ -10032,34 +10082,63 @@ Due Date: ${proj.paymentDueDate}
                                 <div className="text-sm font-black text-cyan-300 font-mono mt-0.5">
                                   ${rate}/hr
                                 </div>
+                                <div className="text-[10px] text-slate-500 mt-0.5">Client Billing Rate</div>
                               </div>
                               <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
-                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Assigned Scope</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Weekly Allocation vs Scope</div>
                                 <div className="text-sm font-black text-indigo-300 font-mono mt-0.5">
-                                  {allocatedHrs} hrs / wk
+                                  {allocatedHrs}h <span className="text-xs text-slate-400 font-normal">/ {contractedScope}h target</span>
+                                </div>
+                                <div className="text-[10px] mt-0.5 font-bold">
+                                  {variance === 0 && <span className="text-emerald-400">100% Assigned</span>}
+                                  {variance < 0 && <span className="text-amber-400">{Math.abs(variance)}h Unassigned</span>}
+                                  {variance > 0 && <span className="text-rose-400">+{variance}h Margin Leak</span>}
                                 </div>
                               </div>
                               <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
-                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Weekly Billing</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Weekly Client Billing</div>
                                 <div className="text-sm font-black text-emerald-400 font-mono mt-0.5">
                                   ${weeklyAmt.toLocaleString()} / wk
                                 </div>
+                                <div className="text-[10px] text-emerald-500/80 mt-0.5 font-mono">
+                                  ~${monthlyAmt.toLocaleString()} / mo (4 wks)
+                                </div>
                               </div>
                               <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
-                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Monthly Est. (4 wks)</div>
-                                <div className="text-sm font-black text-emerald-300 font-mono mt-0.5">
-                                  ${monthlyAmt.toLocaleString()} / mo
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Project Total Cap</div>
+                                <div className="text-sm font-black text-cyan-300 font-mono mt-0.5">
+                                  {totalCap ? `${totalCap} hrs` : 'Ongoing Retainer'}
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  {totalCap ? `$${totalCapVal?.toLocaleString()} max • ~${runwayWeeks} wks runway` : 'No Lifetime Ceiling'}
                                 </div>
                               </div>
                             </div>
 
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
                               <span>
-                                📌 Calculated Price Tag: <strong className="text-white">${rate}/hr × {allocatedHrs} hrs/wk = ${weeklyAmt.toLocaleString()}/wk (~${monthlyAmt.toLocaleString()}/mo)</strong>
+                                📌 Weekly Billing: <strong className="text-white">${rate}/hr × {allocatedHrs} hrs/wk = ${weeklyAmt.toLocaleString()}/wk</strong>
+                                {totalCap && (
+                                  <span className="text-cyan-300 ml-1.5 font-medium">
+                                    • Total Budget Ceiling: <strong>${totalCapVal?.toLocaleString()}</strong> ({totalCap} hrs)
+                                  </span>
+                                )}
                               </span>
-                              {allocatedHrs === 0 && (
+                              {allocatedHrs === 0 ? (
                                 <span className="text-amber-400 font-bold">
                                   ⚠️ 0 hrs assigned. Set deliverable hours in Tab 3.
+                                </span>
+                              ) : variance > 0 ? (
+                                <span className="text-rose-400 font-bold">
+                                  ⚠️ Team allocated hours exceed contracted scope by +{variance}h/wk.
+                                </span>
+                              ) : variance < 0 ? (
+                                <span className="text-amber-300 font-medium">
+                                  ℹ️ {Math.abs(variance)}h contracted scope still unassigned to specialists.
+                                </span>
+                              ) : (
+                                <span className="text-emerald-400 font-bold">
+                                  ✓ Deliverable hours exactly match contracted scope.
                                 </span>
                               )}
                             </div>
@@ -10275,11 +10354,33 @@ Due Date: ${proj.paymentDueDate}
                       </div>
 
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <label className="text-xs font-extrabold text-slate-300">
-                            Deliverable Specialists & Weekly Hours Allocation
+                            Deliverable Specialists &amp; Weekly Hours Allocation
                           </label>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {(() => {
+                              const allocHrs = newTaskAllocations.reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                              const contractedScope = newTotalHours;
+                              const variance = allocHrs - contractedScope;
+                              return (
+                                <>
+                                  {variance === 0 ? (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                      🟢 Balanced Scope ({allocHrs}/{contractedScope}h)
+                                    </span>
+                                  ) : variance < 0 ? (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                      🟡 Under-Allocated: {allocHrs}/{contractedScope}h ({Math.abs(variance)}h unassigned)
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                      🔴 Scope Leak: +{variance}h over target
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
                             {newBillingType === 'Weekly Hourly Billing' && (() => {
                               const allocHrs = newTaskAllocations.reduce((s, a) => s + (Number(a.hours) || 0), 0);
                               const rateMatch = newPrice.match(/\$?([0-9]+(?:\.[0-9]+)?)/);
@@ -10296,89 +10397,179 @@ Due Date: ${proj.paymentDueDate}
                           </div>
                         </div>
 
-                        {newTaskAllocations.map((tb) => (
-                          <div
-                            key={tb.id}
-                            className="grid grid-cols-12 gap-2 items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800/80"
-                          >
-                            <div className="col-span-5">
-                              <select
-                                value={tb.taskType}
-                                onChange={(e) => {
-                                  setNewTaskAllocations((prev) =>
-                                    prev.map((i) => (i.id === tb.id ? { ...i, taskType: e.target.value } : i))
-                                  );
-                                }}
-                                className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold"
-                              >
-                                <option value="On-Page SEO">On-Page SEO</option>
-                                <option value="Off-Page SEO">Off-Page SEO</option>
-                                <option value="Technical SEO">Technical SEO</option>
-                                <option value="Content Optimization">Content Optimization</option>
-                                <option value="AEO & GEO Strategy">AEO & GEO Strategy</option>
-                                <option value="Wordpress Dev">Wordpress Dev</option>
-                              </select>
-                            </div>
+                        {newTaskAllocations.map((tb) => {
+                          const isSpecOpen = expandedDeliverableSpecs[tb.id] ?? false;
+                          return (
+                            <div
+                              key={tb.id}
+                              className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-all space-y-2.5"
+                            >
+                              {/* Row 1: Category (4), Custom Title (5), Hours (2), Delete (1) */}
+                              <div className="grid grid-cols-12 gap-2 items-center">
+                                <div className="col-span-12 sm:col-span-4">
+                                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1 block">Category</label>
+                                  <select
+                                    value={tb.taskType}
+                                    onChange={(e) => {
+                                      setNewTaskAllocations((prev) =>
+                                        prev.map((i) => (i.id === tb.id ? { ...i, taskType: e.target.value } : i))
+                                      );
+                                    }}
+                                    className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg px-2.5 py-1.5 text-xs text-cyan-300 font-bold"
+                                  >
+                                    <option value="On-Page SEO">On-Page SEO</option>
+                                    <option value="Off-Page SEO">Off-Page SEO</option>
+                                    <option value="Technical SEO">Technical SEO</option>
+                                    <option value="Content Optimization">Content Optimization</option>
+                                    <option value="AEO & GEO Strategy">AEO & GEO Strategy</option>
+                                    <option value="Wordpress Dev">Wordpress Dev</option>
+                                    <option value="Local SEO">Local SEO</option>
+                                    <option value="Web Design">Web Design</option>
+                                    <option value="Guest Post">Guest Post</option>
+                                    <option value="Content Strategy">Content Strategy</option>
+                                  </select>
+                                </div>
 
-                            <div className="col-span-4">
-                              <select
-                                value={tb.assigneeId}
-                                onChange={(e) => {
-                                  setNewTaskAllocations((prev) =>
-                                    prev.map((i) => (i.id === tb.id ? { ...i, assigneeId: e.target.value } : i))
-                                  );
-                                }}
-                                className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg px-2 py-1.5 text-xs text-slate-200"
-                              >
-                                <option value="">-- Unassigned --</option>
-                                {customMembers.map((m) => (
-                                  <option key={m.id} value={m.id}>
-                                    {getMemberCapacityLabel(m)}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                                <div className="col-span-12 sm:col-span-5">
+                                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1 block">
+                                    Custom Title <span className="text-slate-500 font-normal lowercase">(optional)</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={tb.title || ''}
+                                    placeholder="e.g. GA4/GTM E-commerce Tracking & Search Console Audit"
+                                    onChange={(e) => {
+                                      setNewTaskAllocations((prev) =>
+                                        prev.map((i) => (i.id === tb.id ? { ...i, title: e.target.value } : i))
+                                      );
+                                    }}
+                                    className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium placeholder:text-slate-600 transition-colors"
+                                  />
+                                </div>
 
-                            <div className="col-span-2">
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={tb.hours}
-                                  onChange={(e) => {
-                                    setNewTaskAllocations((prev) =>
-                                      prev.map((i) =>
-                                        i.id === tb.id ? { ...i, hours: Number(e.target.value) } : i
-                                      )
-                                    );
-                                  }}
-                                  className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg pl-2 pr-5 py-1.5 text-xs text-white font-bold text-right"
-                                />
-                                <span className="absolute right-1.5 top-2 text-[10px] text-slate-500">h</span>
+                                <div className="col-span-8 sm:col-span-2">
+                                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1 block">Allocated</label>
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={tb.hours}
+                                      onChange={(e) => {
+                                        setNewTaskAllocations((prev) =>
+                                          prev.map((i) =>
+                                            i.id === tb.id ? { ...i, hours: Number(e.target.value) } : i
+                                          )
+                                        );
+                                      }}
+                                      className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg pl-2 pr-5 py-1.5 text-xs text-emerald-400 font-bold text-right"
+                                    />
+                                    <span className="absolute right-1.5 top-1.5 text-[10px] text-slate-500 font-bold">h</span>
+                                  </div>
+                                </div>
+
+                                <div className="col-span-4 sm:col-span-1 flex items-end justify-center pb-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setNewTaskAllocations((prev) => prev.filter((i) => i.id !== tb.id))}
+                                    className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg cursor-pointer transition-colors"
+                                    title="Remove deliverable"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
-                            </div>
 
-                            <div className="col-span-1 flex justify-center">
-                              <button
-                                type="button"
-                                onClick={() => setNewTaskAllocations((prev) => prev.filter((i) => i.id !== tb.id))}
-                                className="text-slate-500 hover:text-red-400 p-1 cursor-pointer transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {/* Row 2: Assignee + Scope Spec Pocket Toggle */}
+                              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-900">
+                                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider shrink-0">Assignee:</span>
+                                  <select
+                                    value={tb.assigneeId}
+                                    onChange={(e) => {
+                                      setNewTaskAllocations((prev) =>
+                                        prev.map((i) => (i.id === tb.id ? { ...i, assigneeId: e.target.value } : i))
+                                      );
+                                    }}
+                                    className="w-full max-w-xs glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg px-2 py-1 text-xs text-slate-200"
+                                  >
+                                    <option value="">-- Unassigned --</option>
+                                    {customMembers.map((m) => (
+                                      <option key={m.id} value={m.id}>
+                                        {getMemberCapacityLabel(m)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setExpandedDeliverableSpecs((prev) => ({
+                                      ...prev,
+                                      [tb.id]: !prev[tb.id]
+                                    }));
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                                    tb.notes
+                                      ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
+                                      : isSpecOpen
+                                      ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-300'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                                  }`}
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  <span>{tb.notes ? 'Scope Spec Added' : '+ Add Scope Spec / SOP'}</span>
+                                  <span className="text-[10px]">{isSpecOpen ? '▴' : '▾'}</span>
+                                </button>
+                              </div>
+
+                              {/* Row 3: Deliverable Description / Spec Pocket */}
+                              {isSpecOpen && (
+                                <div className="pt-2 border-t border-slate-900/80 bg-slate-900/50 -mx-3 -mb-3 p-3 rounded-b-xl space-y-1.5">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                                      <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                                      <span>Deliverable Scope &amp; Technical Spec Pocket</span>
+                                    </span>
+                                    <span className="text-[10px] text-slate-500">
+                                      Specialists can view this scope directly from the project card
+                                    </span>
+                                  </div>
+                                  <textarea
+                                    rows={2}
+                                    value={tb.notes || ''}
+                                    placeholder="Write brief deliverable scope, SOP doc links, required deliverables, target URLs, or acceptance checklist..."
+                                    onChange={(e) => {
+                                      setNewTaskAllocations((prev) =>
+                                        prev.map((i) => (i.id === tb.id ? { ...i, notes: e.target.value } : i))
+                                      );
+                                    }}
+                                    className="w-full glass-panel border-slate-700/60 focus:border-cyan-400 rounded-lg p-2.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none resize-y"
+                                  />
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
 
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                           <button
                             type="button"
-                            onClick={() =>
+                            onClick={() => {
+                              const newId = `tb-${Date.now()}`;
                               setNewTaskAllocations((prev) => [
                                 ...prev,
-                                { id: `tb-${Date.now()}`, taskType: 'On-Page SEO', assigneeId: customMembers[0]?.id || '', hours: 5 }
-                              ])
-                            }
+                                {
+                                  id: newId,
+                                  taskType: 'On-Page SEO',
+                                  title: '',
+                                  notes: '',
+                                  assigneeId: customMembers[0]?.id || '',
+                                  hours: 5
+                                }
+                              ]);
+                              setExpandedDeliverableSpecs((prev) => ({ ...prev, [newId]: true }));
+                            }}
                             className="px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1 transition-all cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
@@ -10889,29 +11080,69 @@ Due Date: ${proj.paymentDueDate}
                         className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 focus:outline-none focus:border-cyan-500"
                       />
                     </div>
+
+                    {editingProject.billingType === 'Weekly Hourly Billing' && (
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Project Total Cap <span className="text-slate-500 font-normal">(Optional Max Hours)</span>
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={editingProject.totalProjectHoursCap ?? ''}
+                          onChange={(e) =>
+                            setEditingProject({
+                              ...editingProject,
+                              totalProjectHoursCap: e.target.value === '' ? undefined : Number(e.target.value)
+                            })
+                          }
+                          placeholder="e.g. 50 (leave blank if ongoing)"
+                          className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Edit Project Hourly Billing Calculation Preview Banner */}
+                  {/* Edit Project Hourly Billing & Cap Governance Preview Banner */}
                   {editingProject.billingType === 'Weekly Hourly Billing' && (() => {
                     const rateMatch = (editingProject.price || '').match(/\$?([0-9]+(?:\.[0-9]+)?)/);
                     const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
                     const allocatedHrs = (editingProject.taskBreakdown || []).reduce((s, a) => s + (Number(a.hours) || 0), 0);
-                    const effectiveHrs = allocatedHrs > 0 ? allocatedHrs : (Number(editingProject.activeHours) || Number(editingProject.totalHours) || 0);
-                    const weeklyAmt = Math.round(rate * effectiveHrs);
+                    const contractedScope = Number(editingProject.totalHours) || 0;
+                    const variance = allocatedHrs - contractedScope;
+                    const weeklyAmt = Math.round(rate * allocatedHrs);
                     const monthlyAmt = Math.round(weeklyAmt * 4);
+                    const totalCap = typeof editingProject.totalProjectHoursCap === 'number' && editingProject.totalProjectHoursCap > 0 ? editingProject.totalProjectHoursCap : null;
+                    const totalCapVal = totalCap ? Math.round(totalCap * rate) : null;
+                    const runwayWeeks = totalCap && allocatedHrs > 0 ? (totalCap / allocatedHrs).toFixed(1) : null;
 
                     return (
                       <div className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/40 via-slate-900 to-indigo-950/40 border border-cyan-500/40 space-y-2.5 animate-fade-in shadow-lg">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-cyan-400" />
                             <span className="text-xs font-black text-white tracking-wide">
-                              ⚡ Hourly Billing Auto-Calculation
+                              ⚡ Hourly Billing &amp; Cap Governance
                             </span>
                           </div>
-                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                            Weekly Hourly Billing ($/hr)
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {variance === 0 ? (
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                🟢 Balanced: {allocatedHrs}/{contractedScope}h
+                              </span>
+                            ) : variance < 0 ? (
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                🟡 Under-Allocated: {allocatedHrs}/{contractedScope}h ({Math.abs(variance)}h unassigned)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                🔴 Scope Leak: +{variance}h over contracted scope
+                              </span>
+                            )}
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                              Weekly Hourly Billing ($/hr)
+                            </span>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1 text-center">
@@ -10920,34 +11151,63 @@ Due Date: ${proj.paymentDueDate}
                             <div className="text-sm font-black text-cyan-300 font-mono mt-0.5">
                               ${rate}/hr
                             </div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">Client Billing Rate</div>
                           </div>
                           <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
-                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Assigned Scope</div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Weekly Allocation vs Scope</div>
                             <div className="text-sm font-black text-indigo-300 font-mono mt-0.5">
-                              {effectiveHrs} hrs / wk
+                              {allocatedHrs}h <span className="text-xs text-slate-400 font-normal">/ {contractedScope}h target</span>
+                            </div>
+                            <div className="text-[10px] mt-0.5 font-bold">
+                              {variance === 0 && <span className="text-emerald-400">100% Assigned</span>}
+                              {variance < 0 && <span className="text-amber-400">{Math.abs(variance)}h Unassigned</span>}
+                              {variance > 0 && <span className="text-rose-400">+{variance}h Margin Leak</span>}
                             </div>
                           </div>
                           <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
-                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Weekly Billing</div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Weekly Client Billing</div>
                             <div className="text-sm font-black text-emerald-400 font-mono mt-0.5">
                               ${weeklyAmt.toLocaleString()} / wk
                             </div>
+                            <div className="text-[10px] text-emerald-500/80 mt-0.5 font-mono">
+                              ~${monthlyAmt.toLocaleString()} / mo (4 wks)
+                            </div>
                           </div>
                           <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
-                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Monthly Est. (4 wks)</div>
-                            <div className="text-sm font-black text-emerald-300 font-mono mt-0.5">
-                              ${monthlyAmt.toLocaleString()} / mo
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Project Total Cap</div>
+                            <div className="text-sm font-black text-cyan-300 font-mono mt-0.5">
+                              {totalCap ? `${totalCap} hrs` : 'Ongoing Retainer'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {totalCap ? `$${totalCapVal?.toLocaleString()} max • ~${runwayWeeks} wks runway` : 'No Lifetime Ceiling'}
                             </div>
                           </div>
                         </div>
 
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
                           <span>
-                            📌 Calculated Price Tag: <strong className="text-white">${rate}/hr × {effectiveHrs} hrs/wk = ${weeklyAmt.toLocaleString()}/wk (~${monthlyAmt.toLocaleString()}/mo)</strong>
+                            📌 Weekly Billing: <strong className="text-white">${rate}/hr × {allocatedHrs} hrs/wk = ${weeklyAmt.toLocaleString()}/wk</strong>
+                            {totalCap && (
+                              <span className="text-cyan-300 ml-1.5 font-medium">
+                                • Total Budget Ceiling: <strong>${totalCapVal?.toLocaleString()}</strong> ({totalCap} hrs)
+                              </span>
+                            )}
                           </span>
-                          {effectiveHrs === 0 && (
+                          {allocatedHrs === 0 ? (
                             <span className="text-amber-400 font-bold">
                               ⚠️ 0 hrs assigned. Allocate deliverable hours in Tab 3.
+                            </span>
+                          ) : variance > 0 ? (
+                            <span className="text-rose-400 font-bold">
+                              ⚠️ Team allocated hours exceed contracted scope by +{variance}h/wk.
+                            </span>
+                          ) : variance < 0 ? (
+                            <span className="text-amber-300 font-medium">
+                              ℹ️ {Math.abs(variance)}h contracted scope still unassigned to specialists.
+                            </span>
+                          ) : (
+                            <span className="text-emerald-400 font-bold">
+                              ✓ Deliverable hours exactly match contracted scope.
                             </span>
                           )}
                         </div>
@@ -11196,124 +11456,235 @@ Due Date: ${proj.paymentDueDate}
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <label className="text-xs font-extrabold text-slate-300">
-                        Deliverable Specialists & Weekly Hours Allocation
+                        Deliverable Specialists &amp; Weekly Hours Allocation
                       </label>
-                    <div className="flex items-center gap-2">
-                      {editingProject.billingType === 'Weekly Hourly Billing' && (() => {
-                        const allocHrs = (editingProject.taskBreakdown || []).reduce((s, a) => s + (Number(a.hours) || 0), 0);
-                        const rateMatch = (editingProject.price || '').match(/\$?([0-9]+(?:\.[0-9]+)?)/);
-                        const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
-                        return (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                            ⚡ Auto-Calc: ${Math.round(rate * allocHrs).toLocaleString()}/wk (${Math.round(rate * allocHrs * 4).toLocaleString()}/mo)
-                          </span>
-                        );
-                      })()}
-                      <span className="text-[11px] text-slate-400">
-                        Allocated:{' '}
-                        {(editingProject.taskBreakdown || []).reduce((s, a) => s + (Number(a.hours) || 0), 0)} hrs /
-                        week
-                      </span>
-                    </div>
-                    </div>
-
-                    {(editingProject.taskBreakdown || []).map((tb) => (
-                      <div
-                        key={tb.id}
-                        className="grid grid-cols-12 gap-2 items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800/80"
-                      >
-                        <div className="col-span-5">
-                          <select
-                            value={tb.taskType}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const updated = (editingProject.taskBreakdown || []).map((i) =>
-                                i.id === tb.id ? { ...i, taskType: val } : i
-                              );
-                              setEditingProject({ ...editingProject, taskBreakdown: updated });
-                            }}
-                            className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold"
-                          >
-                            <option value="On-Page SEO">On-Page SEO</option>
-                            <option value="Off-Page SEO">Off-Page SEO</option>
-                            <option value="Technical SEO">Technical SEO</option>
-                            <option value="Content Optimization">Content Optimization</option>
-                            <option value="AEO & GEO Strategy">AEO & GEO Strategy</option>
-                            <option value="Wordpress Dev">Wordpress Dev</option>
-                          </select>
-                        </div>
-
-                        <div className="col-span-4">
-                          <select
-                            value={tb.assigneeId || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const updated = (editingProject.taskBreakdown || []).map((i) =>
-                                i.id === tb.id ? { ...i, assigneeId: val } : i
-                              );
-                              setEditingProject({ ...editingProject, taskBreakdown: updated });
-                            }}
-                            className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg px-2 py-1.5 text-xs text-slate-200"
-                          >
-                            <option value="">-- Unassigned --</option>
-                            {customMembers.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {getMemberCapacityLabel(m)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="col-span-2">
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min={0}
-                              value={tb.hours}
-                              onChange={(e) => {
-                                const val = Number(e.target.value) || 0;
-                                const updated = (editingProject.taskBreakdown || []).map((i) =>
-                                  i.id === tb.id ? { ...i, hours: val } : i
-                                );
-                                setEditingProject({ ...editingProject, taskBreakdown: updated });
-                              }}
-                              className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg pl-2 pr-5 py-1.5 text-xs text-white font-bold text-right"
-                            />
-                            <span className="absolute right-1.5 top-2 text-[10px] text-slate-500">h</span>
-                          </div>
-                        </div>
-
-                        <div className="col-span-1 flex justify-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = (editingProject.taskBreakdown || []).filter((i) => i.id !== tb.id);
-                              setEditingProject({ ...editingProject, taskBreakdown: updated });
-                            }}
-                            className="text-slate-500 hover:text-red-400 p-1 cursor-pointer transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(() => {
+                          const allocHrs = (editingProject.taskBreakdown || []).reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                          const contractedScope = Number(editingProject.totalHours) || 0;
+                          const variance = allocHrs - contractedScope;
+                          return (
+                            <>
+                              {variance === 0 ? (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                  🟢 Balanced Scope ({allocHrs}/{contractedScope}h)
+                                </span>
+                              ) : variance < 0 ? (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                  🟡 Under-Allocated: {allocHrs}/{contractedScope}h ({Math.abs(variance)}h unassigned)
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                  🔴 Scope Leak: +{variance}h over target
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
+                        {editingProject.billingType === 'Weekly Hourly Billing' && (() => {
+                          const allocHrs = (editingProject.taskBreakdown || []).reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                          const rateMatch = (editingProject.price || '').match(/\$?([0-9]+(?:\.[0-9]+)?)/);
+                          const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
+                          return (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                              ⚡ Auto-Calc: ${Math.round(rate * allocHrs).toLocaleString()}/wk (${Math.round(rate * allocHrs * 4).toLocaleString()}/mo)
+                            </span>
+                          );
+                        })()}
+                        <span className="text-[11px] text-slate-400">
+                          Allocated:{' '}
+                          {(editingProject.taskBreakdown || []).reduce((s, a) => s + (Number(a.hours) || 0), 0)} hrs /
+                          week
+                        </span>
                       </div>
-                    ))}
+                    </div>
+
+                    {(editingProject.taskBreakdown || []).map((tb) => {
+                      const isSpecOpen = expandedDeliverableSpecs[tb.id] ?? false;
+                      return (
+                        <div
+                          key={tb.id}
+                          className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-all space-y-2.5"
+                        >
+                          {/* Row 1: Category (4), Custom Title (5), Hours (2), Delete (1) */}
+                          <div className="grid grid-cols-12 gap-2 items-center">
+                            <div className="col-span-12 sm:col-span-4">
+                              <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1 block">Category</label>
+                              <select
+                                value={tb.taskType}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const updated = (editingProject.taskBreakdown || []).map((i) =>
+                                    i.id === tb.id ? { ...i, taskType: val } : i
+                                  );
+                                  setEditingProject({ ...editingProject, taskBreakdown: updated });
+                                }}
+                                className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg px-2.5 py-1.5 text-xs text-cyan-300 font-bold"
+                              >
+                                <option value="On-Page SEO">On-Page SEO</option>
+                                <option value="Off-Page SEO">Off-Page SEO</option>
+                                <option value="Technical SEO">Technical SEO</option>
+                                <option value="Content Optimization">Content Optimization</option>
+                                <option value="AEO & GEO Strategy">AEO & GEO Strategy</option>
+                                <option value="Wordpress Dev">Wordpress Dev</option>
+                                <option value="Local SEO">Local SEO</option>
+                                <option value="Web Design">Web Design</option>
+                                <option value="Guest Post">Guest Post</option>
+                                <option value="Content Strategy">Content Strategy</option>
+                              </select>
+                            </div>
+
+                            <div className="col-span-12 sm:col-span-5">
+                              <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1 block">
+                                Custom Title <span className="text-slate-500 font-normal lowercase">(optional)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={tb.title || ''}
+                                placeholder="e.g. GA4/GTM E-commerce Tracking & Search Console Audit"
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const updated = (editingProject.taskBreakdown || []).map((i) =>
+                                    i.id === tb.id ? { ...i, title: val } : i
+                                  );
+                                  setEditingProject({ ...editingProject, taskBreakdown: updated });
+                                }}
+                                className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium placeholder:text-slate-600 transition-colors"
+                              />
+                            </div>
+
+                            <div className="col-span-8 sm:col-span-2">
+                              <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1 block">Allocated</label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={tb.hours}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value) || 0;
+                                    const updated = (editingProject.taskBreakdown || []).map((i) =>
+                                      i.id === tb.id ? { ...i, hours: val } : i
+                                    );
+                                    setEditingProject({ ...editingProject, taskBreakdown: updated });
+                                  }}
+                                  className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg pl-2 pr-5 py-1.5 text-xs text-emerald-400 font-bold text-right"
+                                />
+                                <span className="absolute right-1.5 top-1.5 text-[10px] text-slate-500 font-bold">h</span>
+                              </div>
+                            </div>
+
+                            <div className="col-span-4 sm:col-span-1 flex items-end justify-center pb-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = (editingProject.taskBreakdown || []).filter((i) => i.id !== tb.id);
+                                  setEditingProject({ ...editingProject, taskBreakdown: updated });
+                                }}
+                                className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg cursor-pointer transition-colors"
+                                title="Remove deliverable"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Row 2: Assignee + Scope Spec Pocket Toggle */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-900">
+                            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider shrink-0">Assignee:</span>
+                              <select
+                                value={tb.assigneeId || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const updated = (editingProject.taskBreakdown || []).map((i) =>
+                                    i.id === tb.id ? { ...i, assigneeId: val } : i
+                                  );
+                                  setEditingProject({ ...editingProject, taskBreakdown: updated });
+                                }}
+                                className="w-full max-w-xs glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-lg px-2 py-1 text-xs text-slate-200"
+                              >
+                                <option value="">-- Unassigned --</option>
+                                {customMembers.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {getMemberCapacityLabel(m)}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedDeliverableSpecs((prev) => ({
+                                  ...prev,
+                                  [tb.id]: !prev[tb.id]
+                                }));
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                                tb.notes
+                                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
+                                  : isSpecOpen
+                                  ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-300'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                              }`}
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span>{tb.notes ? 'Scope Spec Added' : '+ Add Scope Spec / SOP'}</span>
+                              <span className="text-[10px]">{isSpecOpen ? '▴' : '▾'}</span>
+                            </button>
+                          </div>
+
+                          {/* Row 3: Deliverable Description / Spec Pocket */}
+                          {isSpecOpen && (
+                            <div className="pt-2 border-t border-slate-900/80 bg-slate-900/50 -mx-3 -mb-3 p-3 rounded-b-xl space-y-1.5">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                                  <span>Deliverable Scope &amp; Technical Spec Pocket</span>
+                                </span>
+                                <span className="text-[10px] text-slate-500">
+                                  Specialists can view this scope directly from the project card
+                                </span>
+                              </div>
+                              <textarea
+                                rows={2}
+                                value={tb.notes || ''}
+                                placeholder="Write brief deliverable scope, SOP doc links, required deliverables, target URLs, or acceptance checklist..."
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const updated = (editingProject.taskBreakdown || []).map((i) =>
+                                    i.id === tb.id ? { ...i, notes: val } : i
+                                  );
+                                  setEditingProject({ ...editingProject, taskBreakdown: updated });
+                                }}
+                                className="w-full glass-panel border-slate-700/60 focus:border-cyan-400 rounded-lg p-2.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none resize-y"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
 
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <button
                         type="button"
                         onClick={() => {
+                          const newId = `tb-${Date.now()}`;
                           const updated = [
                             ...(editingProject.taskBreakdown || []),
                             {
-                              id: `tb-${Date.now()}`,
+                              id: newId,
                               taskType: 'On-Page SEO',
+                              title: '',
+                              notes: '',
                               assigneeId: customMembers[0]?.id || '',
                               hours: 5
                             }
                           ];
                           setEditingProject({ ...editingProject, taskBreakdown: updated });
+                          setExpandedDeliverableSpecs((prev) => ({ ...prev, [newId]: true }));
                         }}
                         className="px-3 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 text-[11px] font-extrabold flex items-center gap-1 transition-all cursor-pointer"
                       >
@@ -12404,123 +12775,196 @@ Due Date: ${proj.paymentDueDate}
                     {(liveProject.taskBreakdown && liveProject.taskBreakdown.length > 0
                       ? liveProject.taskBreakdown
                       : []
-                    ).map((tb) => (
-                      <div
-                        key={tb.id}
-                        className="grid grid-cols-1 md:grid-cols-12 gap-3 p-3.5 rounded-2xl bg-slate-900 border border-slate-800/90 text-xs items-center shadow-md"
-                      >
-                        <div className="md:col-span-4 flex flex-col gap-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-slate-400">Task Category</span>
-                            {tb.clickUpUrl && (
-                              <a
-                                href={tb.clickUpUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={`Open ClickUp task #${tb.clickUpTaskId || ''} in browser`}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-white border border-purple-700/60 text-[9px] font-bold transition-all"
-                              >
-                                <span>ClickUp #{tb.clickUpTaskId ? tb.clickUpTaskId.slice(-6) : 'task'}</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                          </div>
-                          <select
-                            value={tb.taskType}
-                            onChange={(e) =>
-                              handleUpdateTaskAllocation(
-                                liveProject.id,
-                                tb.id,
-                                'taskType',
-                                e.target.value as AgencyTaskCategory
-                              )
-                            }
-                            className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 cursor-pointer"
-                          >
-                            <option value="On-Page SEO">On-Page SEO</option>
-                            <option value="Off-Page SEO">Off-Page SEO</option>
-                            <option value="Technical SEO">Technical SEO</option>
-                            <option value="Local SEO">Local SEO</option>
-                            <option value="Web Design">Web Design</option>
-                            <option value="Guest Post">Guest Post</option>
-                            <option value="Content Strategy">Content Strategy</option>
-                          </select>
-                        </div>
-
-                        <div className="md:col-span-5 flex flex-col gap-1">
-                          <span className="text-[10px] font-bold text-slate-400">Assigned Member</span>
-                          <select
-                            value={tb.assigneeId || ''}
-                            onChange={(e) =>
-                              handleUpdateTaskAllocation(liveProject.id, tb.id, 'assigneeId', e.target.value)
-                            }
-                            className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-purple-500 cursor-pointer"
-                          >
-                            <option value="">-- Unassigned --</option>
-                            {customMembers.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.name} ({m.role})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="md:col-span-3 flex items-end justify-between gap-2.5">
-                          <div className="flex flex-col gap-1 flex-1">
-                            <span className="text-[10px] font-bold text-slate-400">Weekly Hours</span>
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="number"
-                                min="1"
-                                max="60"
-                                value={tb.hours}
+                    ).map((tb) => {
+                      const isSpecOpen = expandedDeliverableSpecs[tb.id] ?? false;
+                      return (
+                        <div
+                          key={tb.id}
+                          className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800/90 text-xs space-y-2.5 shadow-md"
+                        >
+                          {/* Row 1: Category (3), Custom Title (4), Assignee (3), Hours (2), Actions */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
+                            <div className="md:col-span-3 flex flex-col gap-1">
+                              <span className="text-[10px] uppercase font-bold text-slate-400">Category</span>
+                              <select
+                                value={tb.taskType}
                                 onChange={(e) =>
                                   handleUpdateTaskAllocation(
                                     liveProject.id,
                                     tb.id,
-                                    'hours',
-                                    parseInt(e.target.value, 10) || 1
+                                    'taskType',
+                                    e.target.value as AgencyTaskCategory
                                   )
                                 }
-                                className="w-20 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs font-extrabold text-emerald-400 focus:outline-none text-center"
+                                className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 cursor-pointer"
+                              >
+                                <option value="On-Page SEO">On-Page SEO</option>
+                                <option value="Off-Page SEO">Off-Page SEO</option>
+                                <option value="Technical SEO">Technical SEO</option>
+                                <option value="Content Optimization">Content Optimization</option>
+                                <option value="AEO & GEO Strategy">AEO & GEO Strategy</option>
+                                <option value="Wordpress Dev">Wordpress Dev</option>
+                                <option value="Local SEO">Local SEO</option>
+                                <option value="Web Design">Web Design</option>
+                                <option value="Guest Post">Guest Post</option>
+                                <option value="Content Strategy">Content Strategy</option>
+                              </select>
+                            </div>
+
+                            <div className="md:col-span-4 flex flex-col gap-1">
+                              <span className="text-[10px] uppercase font-bold text-slate-400">
+                                Custom Title <span className="text-slate-500 font-normal lowercase">(optional)</span>
+                              </span>
+                              <input
+                                type="text"
+                                value={tb.title || ''}
+                                placeholder="e.g. GA4/GTM E-commerce Tracking & Search Console Audit"
+                                onChange={(e) =>
+                                  handleUpdateTaskAllocation(liveProject.id, tb.id, 'title', e.target.value)
+                                }
+                                className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 focus:border-cyan-400 rounded-xl px-2.5 py-1.5 text-xs font-medium text-white placeholder:text-slate-600 focus:outline-none"
                               />
-                              <span className="text-slate-400 text-xs font-bold">hrs/wk</span>
+                            </div>
+
+                            <div className="md:col-span-3 flex flex-col gap-1">
+                              <span className="text-[10px] uppercase font-bold text-slate-400">Assigned Member</span>
+                              <select
+                                value={tb.assigneeId || ''}
+                                onChange={(e) =>
+                                  handleUpdateTaskAllocation(liveProject.id, tb.id, 'assigneeId', e.target.value)
+                                }
+                                className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                              >
+                                <option value="">-- Unassigned --</option>
+                                {customMembers.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.name} ({m.role})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="md:col-span-2 flex items-end justify-between gap-1.5">
+                              <div className="flex flex-col gap-1 flex-1">
+                                <span className="text-[10px] uppercase font-bold text-slate-400">Hours</span>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="60"
+                                    value={tb.hours}
+                                    onChange={(e) =>
+                                      handleUpdateTaskAllocation(
+                                        liveProject.id,
+                                        tb.id,
+                                        'hours',
+                                        parseInt(e.target.value, 10) || 1
+                                      )
+                                    }
+                                    className="w-16 bg-slate-950 border border-slate-800 rounded-xl px-2 py-1.5 text-xs font-extrabold text-emerald-400 focus:outline-none text-center"
+                                  />
+                                  <span className="text-slate-500 text-[10px] font-bold">h</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0 pb-0.5">
+                                {tb.clickUpUrl && (
+                                  <a
+                                    href={tb.clickUpUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={`Open ClickUp task #${tb.clickUpTaskId || ''} in browser`}
+                                    className="p-1.5 rounded-lg bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-white border border-purple-700/60 transition-all"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                                {tb.clickUpTaskId && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleOpenClickUpTicketModal(
+                                        tb.clickUpTaskId!,
+                                        tb.title ? `[${liveProject.name}] ${tb.title}` : `[${liveProject.name}] ${tb.taskType}`,
+                                        {
+                                          taskUrl: tb.clickUpUrl,
+                                          projectName: liveProject.name,
+                                          clientName: liveProject.client,
+                                          status: tb.clickUpStatus || tb.status
+                                        }
+                                      )
+                                    }
+                                    title="💬 View ClickUp comments & activities"
+                                    className="p-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 hover:text-white border border-purple-500/40 transition-all cursor-pointer"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTaskAllocation(liveProject.id, tb.id)}
+                                  title="Delete Task Allocation"
+                                  className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 transition-all cursor-pointer"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           </div>
 
-                          {tb.clickUpTaskId && (
+                          {/* Row 2: Scope Spec Pocket Toggle */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
+                            <span className="text-[10px] text-slate-500">
+                              {tb.notes ? '✓ Scope spec defined for specialists' : 'No scope notes written yet'}
+                            </span>
                             <button
                               type="button"
-                              onClick={() =>
-                                handleOpenClickUpTicketModal(
-                                  tb.clickUpTaskId!,
-                                  `[${liveProject.name}] ${tb.taskType}`,
-                                  {
-                                    taskUrl: tb.clickUpUrl,
-                                    projectName: liveProject.name,
-                                    clientName: liveProject.client,
-                                    status: tb.clickUpStatus || tb.status
-                                  }
-                                )
-                              }
-                              title="💬 View ClickUp comments & activities / post update"
-                              className="p-2 rounded-xl bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 hover:text-white border border-purple-500/40 transition-all cursor-pointer shrink-0"
+                              onClick={() => {
+                                setExpandedDeliverableSpecs((prev) => ({
+                                  ...prev,
+                                  [tb.id]: !prev[tb.id]
+                                }));
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                                tb.notes
+                                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
+                                  : isSpecOpen
+                                  ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-300'
+                                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                              }`}
                             >
-                              <MessageSquare className="w-4 h-4" />
+                              <FileText className="w-3 h-3" />
+                              <span>{tb.notes ? 'Scope Spec Added' : '+ Add Scope Spec / SOP'}</span>
+                              <span className="text-[10px]">{isSpecOpen ? '▴' : '▾'}</span>
                             </button>
-                          )}
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTaskAllocation(liveProject.id, tb.id)}
-                            title="Delete Task Allocation"
-                            className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 transition-all cursor-pointer shrink-0"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                          {/* Row 3: Deliverable Description / Spec Pocket */}
+                          {isSpecOpen && (
+                            <div className="pt-2 border-t border-slate-800/80 bg-slate-950/60 -mx-3.5 -mb-3.5 p-3 rounded-b-2xl space-y-1.5">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                                  <span>Deliverable Scope &amp; Technical Spec Pocket</span>
+                                </span>
+                                <span className="text-[10px] text-slate-500">
+                                  Specialists can view this scope directly from the project card
+                                </span>
+                              </div>
+                              <textarea
+                                rows={2}
+                                value={tb.notes || ''}
+                                placeholder="Write brief deliverable scope, SOP doc links, required deliverables, target URLs, or acceptance checklist..."
+                                onChange={(e) =>
+                                  handleUpdateTaskAllocation(liveProject.id, tb.id, 'notes', e.target.value)
+                                }
+                                className="w-full glass-panel border-slate-700/60 focus:border-cyan-400 rounded-xl p-2.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none resize-y"
+                              />
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {(!liveProject.taskBreakdown || liveProject.taskBreakdown.length === 0) && (
                       <div className="text-center py-4 text-slate-500 text-xs">
                         No task deliverables added yet. Click &quot;Add Task Deliverable&quot; above to assign on-page, technical, or web design tasks!
@@ -14391,6 +14835,184 @@ Due Date: ${proj.paymentDueDate}
         </>,
         document.body
       )}
+
+      {/* Deliverable Scope Spec Pocket Modal (Direct View / Edit Without Opening Another Tab) */}
+      <AnimatePresence>
+        {activeScopeSpecPocket && (
+          <div key="scope-spec-modal-container" className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              key="scope-spec-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm cursor-pointer"
+              onClick={() => {
+                setActiveScopeSpecPocket(null);
+                setIsEditingScopeSpecInPocket(false);
+              }}
+            />
+
+            {/* Modal Card */}
+            <motion.div
+              key="scope-spec-card"
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative z-10 w-full max-w-xl bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 flex items-start justify-between gap-3">
+                <div className="space-y-1.5 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      {activeScopeSpecPocket.category}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-400">
+                      {activeScopeSpecPocket.projName} • {activeScopeSpecPocket.clientName}
+                    </span>
+                    <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/50 px-1.5 py-0.2 rounded border border-emerald-800/40">
+                      {activeScopeSpecPocket.hours}h / wk
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-white leading-snug break-words">
+                    {activeScopeSpecPocket.title || activeScopeSpecPocket.category}
+                  </h3>
+                  {activeScopeSpecPocket.assigneeName && (
+                    <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                      <span>Assigned Specialist:</span>
+                      <span className="text-slate-200 font-semibold">{activeScopeSpecPocket.assigneeName}</span>
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveScopeSpecPocket(null);
+                    setIsEditingScopeSpecInPocket(false);
+                  }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content Body */}
+              <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-cyan-400" />
+                    <span>Deliverable Scope &amp; Technical Spec</span>
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {!isEditingScopeSpecInPocket && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPocketNotesDraft(activeScopeSpecPocket.notes);
+                          setIsEditingScopeSpecInPocket(true);
+                        }}
+                        className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        <span>Edit Spec</span>
+                      </button>
+                    )}
+                    {activeScopeSpecPocket.notes && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(activeScopeSpecPocket.notes);
+                          sonnerToast.success('📋 Deliverable scope copied to clipboard!');
+                        }}
+                        className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Copy</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {isEditingScopeSpecInPocket ? (
+                  <div className="space-y-3">
+                    <textarea
+                      rows={6}
+                      value={pocketNotesDraft}
+                      onChange={(e) => setPocketNotesDraft(e.target.value)}
+                      placeholder="Enter deliverable scope description, required assets, SOP guidelines, target landing pages, and acceptance criteria..."
+                      className="w-full glass-panel border-cyan-500/50 rounded-xl p-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 leading-relaxed font-sans resize-y"
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingScopeSpecInPocket(false)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const { projId, id } = activeScopeSpecPocket;
+                          handleUpdateTaskAllocation(projId, id, 'notes', pocketNotesDraft);
+                          setActiveScopeSpecPocket((prev) => prev ? { ...prev, notes: pocketNotesDraft } : null);
+                          setIsEditingScopeSpecInPocket(false);
+                          sonnerToast.success('✓ Deliverable scope saved!');
+                        }}
+                        className="px-4 py-1.5 rounded-lg text-xs font-extrabold bg-cyan-500 hover:bg-cyan-400 text-slate-950 flex items-center gap-1.5 cursor-pointer shadow-lg shadow-cyan-500/20 transition-all"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save Spec</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 min-h-[100px]">
+                    {activeScopeSpecPocket.notes ? (
+                      <div className="text-slate-200 whitespace-pre-wrap leading-relaxed text-xs font-normal selection:bg-cyan-500 selection:text-slate-950">
+                        {activeScopeSpecPocket.notes}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-6 text-center text-slate-500 space-y-2">
+                        <FileText className="w-8 h-8 text-slate-600" />
+                        <p className="text-xs">No scope description or spec notes added yet.</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPocketNotesDraft('');
+                            setIsEditingScopeSpecInPocket(true);
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 cursor-pointer transition-colors"
+                        >
+                          + Add Scope Spec Now
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Quick Context / ClickUp footer */}
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 flex-wrap gap-2">
+                  <span>Specialists can reference this scope at any time without opening another tab.</span>
+                  {activeScopeSpecPocket.clickUpUrl && (
+                    <a
+                      href={activeScopeSpecPocket.clickUpUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-purple-400 hover:text-purple-300 font-bold"
+                    >
+                      <span>Open in ClickUp</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {clickUpActivityModalState?.isOpen && (
         <ClickUpTaskActivityModal

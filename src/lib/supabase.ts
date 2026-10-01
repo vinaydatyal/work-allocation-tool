@@ -79,6 +79,9 @@ export async function dispatchTaskToSupabase(task: {
   priority?: 'high' | 'medium' | 'low';
   due_date?: string;
   source?: 'allocated' | 'clickup' | 'local';
+  clickup_task_id?: string;
+  clickup_url?: string;
+  clickup_status?: string;
 }) {
   return supabase.from('tasks').upsert({
     id: task.id || crypto.randomUUID(),
@@ -91,7 +94,11 @@ export async function dispatchTaskToSupabase(task: {
     priority: task.priority || 'medium',
     status: 'assigned',
     due_date: task.due_date || null,
-    source: task.source || 'allocated'
+    source: task.source || (task.clickup_task_id ? 'clickup' : 'allocated'),
+    clickup_task_id: task.clickup_task_id || null,
+    clickup_url: task.clickup_url || null,
+    clickup_status: task.clickup_status || null,
+    updated_at: new Date().toISOString()
   });
 }
 

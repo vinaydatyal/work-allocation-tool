@@ -6757,5 +6757,248 @@ We freshly compiled the Windows distribution binaries in `e:\Antigravity\DSR Tra
 3. **Option C: Live Developer Mode**
    - Run `npm start` in `e:\Antigravity\DSR Tracker` in PowerShell or Command Prompt.
 
+---
 
+## 👤 User (Turn #212)
+
+<USER_REQUEST>
+Don't you think there are some duplicate things in the header
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Yes, absolutely! The header currently has two rows of navigation controls doing the exact same thing:
+- `Project roster` vs `Projects & Retainers`
+- `Workload` vs `Squad Workload & Heatmap`
+- `Financial pulse` vs `VIP & Financial Pulse`
+- `Past Projects & Trash` vs `Past Projects & Trash`
+- `Business Leads` vs `New Business Leads`
+
+---
+
+## 👤 User (Turn #213)
+
+<USER_REQUEST>
+Great, yeah
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Removed the 5 duplicate navigation buttons from the top command bar in `VisualAgencyHub.tsx`:
+1. `Project roster` (superseded by `Projects & Retainers` tab)
+2. `Workload` (superseded by `Squad Workload & Heatmap` tab)
+3. `Financial pulse` (superseded by `VIP & Financial Pulse` tab)
+4. `Past Projects & Trash` (superseded by `Past Projects & Trash` tab)
+5. `Business Leads` (superseded by `New Business Leads` tab)
+
+Now, the top command bar is strictly dedicated to operational actions and sync indicators (`ClickUp Status`, `Live Sync`, `⚡ Sync CRM Accounts`, `⚡ Sync Deliverables`, `Add employee`, `+ Add Active Project`), while the segmented bar directly underneath serves as the clean, single source of truth for Sub-Hub Navigation.
+
+- All 36/36 Vitest unit tests pass.
+- Production build compiles cleanly with 0 errors.
+
+---
+
+## 👤 User (Turn #214)
+
+<USER_REQUEST>
+Where will I see my executive's profile in the dashboard
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Clarified the exact locations where executive profiles (Agam Grover, Manpreet S. Nagpal, Vinay Datyal) can be viewed and switched:
+1. Floating Dock / Profile Switcher (bottom-right avatar popover with role titles and persona switching)
+2. Top Header Breadcrumbs bar (`Session: [Name]` indicator)
+3. Org Map Studio (`#/org` - Executive Leadership pod with Crown badges)
+4. Team Roster Studio & Member Profiles (`#/roster` and `#/member/:id`)
+5. Monday Allocation War-Room (`#/war-room` - CEO/Executive Command Center)
+
+---
+
+## 👤 User (Turn #215)
+
+<USER_REQUEST>
+3. Executive Deep-Dive Profile Cards (#/member/:id) - but they are not linked from anywhere?
+</USER_REQUEST>
+
+---
+
+## 👤 User (Turn #216)
+
+<USER_REQUEST>
+lets go, with all 4, and I think team roaster is also not in the navigation
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Implemented all 4 executive profile deep-dive card link touchpoints and added Team Roster Studio to main navigation:
+1. **Added Team Roster Studio to Main Navigation**: Added `roster` to `NAV_ITEMS` in `Navbar.tsx` dock navigation.
+2. **Profile Popover**: Added top button `👤 View My Executive Profile ↗` and individual `ArrowUpRight` profile links next to every persona in the switcher.
+3. **Top Breadcrumbs Header**: Converted `Session: [Name]` into an interactive button navigating directly to `/member/:id`.
+4. **Org Map Studio**: Made pod Team Lead ribbons and member cards clickable to `/member/:id` with `ArrowUpRight` profile link buttons.
+5. **Team Roster Studio**: Added `View Profile Card ↗` button in the header bar beside member select dropdown.
+
+- Vitest unit tests: 36/36 passed.
+- Production build: `tsc -b && vite build` succeeded in 1.27s with 0 errors.
+
+---
+
+## 👤 User (Turn #217)
+
+<USER_REQUEST>
+Read this thorouly, don't do anything just understood it 
+
+"Two way Sync
+Pure Internal / WAT Tasks
+
+
+Here is a comprehensive, strategic breakdown of improvements and additions to make "Project & Assigned Deliverables" the most powerful agency command center in its class:
+
+1. Deliverables & Allocation Intelligence (The Core Engine)
+Currently, the deliverable row in 
+
+VisualAgencyHub.tsx
+ offers a static 6-item dropdown (On-Page SEO, Off-Page SEO, etc.) and a manual hours input.
+
+Recommended Enhancements:
+Freeform Custom Deliverable Titles & Notes:
+Allow custom titles alongside category (e.g., Category: Technical SEO + Title: GA4/GTM E-commerce Tracking & Search Console Audit).
+Add a brief deliverable description/spec pocket so specialists know the exact deliverable scope without opening another tab.
+
+Live Specialist Capacity Indicator in the Dropdown:
+In the assignee select dropdown, display real-time workload next to each name:
+Kamakshi Chopra (28/40h • 12h free) 🟢
+Neeraj Panwar (38/40h • 2h free) 🟡
+Anshum (44/40h • ⚠️ 4h Overload) 🔴
+Prevents managers from accidentally overloading specialists while assigning project scope.
+AI Smart Matchmaker "Best Fit" Suggestion Button:
+A ⚡ "Suggest Specialist" button right next to each deliverable row that runs your matching algorithm (skill score + open capacity) and recommends the top specialist with 1 click.
+Cadence / Recurrence Selector:
+Tag deliverables as Weekly Recurring, Bi-Weekly, or One-Off Sprint Milestone.
+2. Live Parity with ClickUp & DSR Tracker Desktop
+Now that your Supabase Realtime and ClickUp APIs are fully wired up, each deliverable can reflect live execution state:
+
+Recommended Enhancements:
+Per-Deliverable Sync Badges:
+ClickUp Indicator: Show ⚡ ClickUp: #86b... with a direct link opening the task in ClickUp.
+DSR Tracker Indicator: Show 💻 Desktop: In Bucket with a 1-click dsr-tracker://track?... launch button.
+Planned vs Actual Hours Logged (Live Progress Bar):
+Alongside Estimated: 5h/wk, pull live time logs from Supabase time_logs / ClickUp to show:
+Logged: 3.5h / 5.0h (70%) with a sleek progress bar.
+Alerts in red if a specialist has logged 6.5h / 5.0h (over-budget alert).
+Status Pill per Deliverable:
+Show live deliverable status (Backlog ➔ Assigned ➔ In Progress ➔ Review ➔ Done), synced bidirectionally from ClickUp and DSR Tracker.
+3. 1-Click Agency SOP Deliverable Bundles (Templates)
+Instead of manually adding 4–6 rows every time a new client signs, add "Load SOP Bundle":
+
+Bundle Template	Pre-Populated Deliverables	Default Weekly Hours
+Full SEO Retainer	Technical SEO (4h) + On-Page (6h) + Off-Page/Backlinks (6h) + Monthly Reporting (2h)	18 hrs/wk
+Local SEO Jumpstart	GMB Optimization (4h) + Citations & Reviews (4h) + Content Optimization (3h)	11 hrs/wk
+Website & Tech Revamp	Dev & CMS Architecture (10h) + UI/UX Design (6h) + Speed/Core Web Vitals (4h)	20 hrs/wk
+Enterprise AEO/GEO	Answer Engine Opt (8h) + Entity Search Optimization (6h) + High-DR PR (6h)	20 hrs/wk
+Clicking a template instantly generates the deliverable rows with recommended skills and hour allocations.
+
+4. Financial & Profitability Health Guardrails
+You already calculate weekly billing for hourly clients. We can turn this into an Executive Margin Guardrail:
+
+Client Retainer vs Allocated Cost Meter:
+Retainer: $2,000 / month.
+Team Allocated Cost: Allocated Hours × Blended Specialist Hourly Rate.
+Gross Margin Indicator:
+🟢 68% Estimated Gross Margin ($1,360 profit)
+🔴 22% Low Margin Alert (Over-allocated by 6 hrs)
+Retainer Hour Cap Guardrail:
+If a client purchased 20 hours/month (5 hrs/week) and the manager allocates 8 hrs/week:
+Display a visual alert: ⚠️ Scope Exceeds Retainer by +3 hrs/wk (+12 hrs/mo).
+5. Client SLA & Renewal Countdown Header
+In the modal header or Tab 1:
+
+Client Tier Badge: Display the client's tier tag (
+
+CLIENT_TIER_CONFIG
+) prominently (💎 Tier S VIP, 🏢 Tier A Agency Partner, 📍 Tier B Local Standard).
+Renewal Countdown: Renewal in 12 days (Oct 13, 2026) with an alert if deliverables are less than 50% completed as renewal approaches.
+Client Health Indicator: Green (On Track), Amber (Pending Deliverables), Red (SLA at risk / overdue).
+6. UI / UX & Usability Polish
+Drag-and-Drop Reordering: Drag deliverable rows to prioritize them.
+Duplicate Project / Clone Deliverables: A 1-click "Clone Deliverables to Another Client" button.
+One-Page Export / SOW Generator: A "Copy Client Deliverables Plan" button that copies a clean, formatted Markdown/HTML summary for Slack, email, or a client proposal.
+Suggested Priority Order:
+High Impact, Quick to Add:
+Live Specialist Capacity in the assignee dropdown (32/40h • 8h free).
+Planned vs Actual Hours comparison bar (3.5h / 5h logged).
+1-Click SOP Bundles ("Full SEO Retainer", "Local SEO", etc.).
+Strategic / Financial:
+Gross Margin & Hour Cap warning banner.
+Per-deliverable ClickUp & Desktop sync badge.
+Which of these features would you like to implement first?
+"
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Thoroughly reviewed and analyzed the entire specification. No code modifications performed, as instructed. Cataloged all 6 functional domains and prioritized readiness for execution.
+
+---
+
+## 👤 User (Turn #218)
+
+<USER_REQUEST>
+tell me how we will do this "Allocated Weekly Hours: Real-time auto-calculation of weekly and monthly spend for hourly billing accounts.? Freeform Custom Deliverable Titles & Notes/Scope Specs: is already done, need to push to git
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Detailed the comprehensive architecture, mathematical formulas, and UI integration for **Allocated Weekly Hours: Real-time auto-calculation of weekly and monthly spend for hourly billing accounts**, including drawer live calculations, deliverable row reactivity, guardrails against retainer budget caps, and rollup to executive dashboards. Provided the exact git staging, commit, and push steps for all completed work.
+
+---
+
+## 👤 User (Turn #219)
+
+<USER_REQUEST>
+Assigned Scope each week and allocated hours each week are different things, and I think a manager and a team lead should know about it.
+
+Interactive 4-Metric Live Banner: there could also be a limit on how many hours you can totally bill for the overall project, along with how much weekly
+
+And I guess we also did changes in the top header for repeated things, those are also not live yet
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Clarified:
+1. Operational distinction between **Contracted/Assigned Scope Each Week** (client agreement commitment) vs. **Allocated Hours Each Week** (actual scheduled specialist workload), and the resulting delta (Under-allocated delivery risk vs. Over-allocated scope leak).
+2. Architecture for enhancing the Interactive Banner to support **Overall Total Project Billable Hours Cap** alongside **Weekly Hours Cap**, displaying total project budget value, burn rate, and runway.
+3. Verification of the header de-duplication: confirmed changes exist locally in code but are awaiting a `git push origin main` to trigger Vercel's automated build and go live.
+
+---
+
+## 👤 User (Turn #220)
+
+<USER_REQUEST>
+yes
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Implemented the dual-cap hourly billing governance and scope variance architecture, verified with tests and build, and committed/pushed to Git:
+1. **Contracted Scope vs. Allocated Hours Variance**:
+   - Implemented real-time delta indicators in both Add Project Drawer and Edit Project Drawer (`VisualAgencyHub.tsx`):
+     - `🟢 Balanced: X/Yh (100% Assigned)` when hours match.
+     - `🟡 Under-Allocated: X/Yh (Zh unassigned)` when specialists are under-scheduled.
+     - `🔴 Scope Leak: +Zh over contracted scope` when team allocations exceed contracted hours.
+   - Enhanced Tab 3 deliverables allocation header with real-time variance badges.
+2. **Project Total Billable Hours Cap (Lifetime Ceiling)**:
+   - Added `totalProjectHoursCap` to `ActiveProjectItem`.
+   - Added optional input in Add and Edit Project Drawers for `Project Total Cap (Max Hours)`.
+   - Enhanced Live Preview Banner to display:
+     - Client Hourly Rate.
+     - Weekly Allocation vs. Scope with variance status.
+     - Weekly Client Billing & 4-week monthly equivalent.
+     - Project Total Budget Cap with calculated dollar ceiling ($Rate \times Cap$) and estimated Runway in weeks.
+     - Real-time warnings when allocated hours breach contracted caps.
+3. **Tests & Build Verification**:
+   - All 36/36 Vitest unit tests passed.
+   - Production bundle compiled with `tsc -b && vite build` in 1.99s with 0 errors.
+4. **Git Commit & Push**:
+   - Pushed all staged changes to `origin/main` to trigger Vercel deployment.
 

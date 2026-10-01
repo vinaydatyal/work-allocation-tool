@@ -17,8 +17,8 @@ export default async function handler(req, res) {
   const { code, error } = req.query;
 
   const APP_URL         = process.env.VITE_APP_URL         || 'https://work-allocation-tool.vercel.app';
-  const CLIENT_ID       = process.env.CLICKUP_CLIENT_ID;
-  const CLIENT_SECRET   = process.env.CLICKUP_CLIENT_SECRET;
+  const CLIENT_ID       = process.env.CLICKUP_CLIENT_ID     || '94FD55TF4IXUJT4924U1DKUZQ54BRMUL';
+  const CLIENT_SECRET   = process.env.CLICKUP_CLIENT_SECRET || '62S4781KTSNCHGKORV2EXF7GG1EWUGJOI3MLCG0ECBCI4UHPOJ38P6P2ZY3N3DB6';
   const SUPABASE_URL    = process.env.VITE_SUPABASE_URL     || 'https://xqfihbxihlufglrqalyd.supabase.co';
   const SUPABASE_KEY    = process.env.SUPABASE_SECRET_KEY   || process.env.VITE_SUPABASE_ANON || 'sb_publishable_3m8gmqelS2hnhi199n3-bA_ZIEBL9p5';
 

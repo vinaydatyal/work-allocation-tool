@@ -18,7 +18,7 @@ interface MatchModalProps {
   teamMembers: TeamMember[];
   allTasks: Task[];
   onClose: () => void;
-  onDispatchTask: (taskId: string, memberId: string) => void;
+  onDispatchTask: (taskId: string, memberId: string, alsoCreateClickUp?: boolean) => void;
 }
 
 export const MatchModal: React.FC<MatchModalProps> = ({
@@ -31,6 +31,7 @@ export const MatchModal: React.FC<MatchModalProps> = ({
   const rankedCandidates = task ? rankCandidatesForTask(task, teamMembers, allTasks) : [];
   const topCandidate = rankedCandidates[0];
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
+  const [alsoCreateClickUp, setAlsoCreateClickUp] = useState<boolean>(true);
 
   useEffect(() => {
     setSelectedCandidateId(topCandidate?.member.id ?? '');
@@ -51,7 +52,7 @@ export const MatchModal: React.FC<MatchModalProps> = ({
       // ignore
     }
 
-    onDispatchTask(task.id, selectedCandidateId);
+    onDispatchTask(task.id, selectedCandidateId, alsoCreateClickUp);
     onClose();
   };
 
@@ -185,17 +186,30 @@ export const MatchModal: React.FC<MatchModalProps> = ({
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
-          >
-            Cancel
-          </button>
+        <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-300 cursor-pointer select-none px-3 py-1.5 rounded-xl bg-purple-950/40 border border-purple-500/30 hover:border-purple-500/50 transition-colors">
+              <input
+                type="checkbox"
+                checked={alsoCreateClickUp}
+                onChange={(e) => setAlsoCreateClickUp(e.target.checked)}
+                className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 bg-slate-900 border-slate-700 cursor-pointer"
+              />
+              <span className="flex items-center gap-1.5">
+                <span className="text-purple-300 font-bold">⚡ Also Create in ClickUp</span>
+              </span>
+            </label>
+          </div>
           <button
             onClick={handleDispatch}
             disabled={!selectedCandidateId}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
           >
             <Send className="w-4 h-4" />
             <span>Assign &amp; Dispatch Task</span>

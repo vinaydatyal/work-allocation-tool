@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { TeamMember, SkillCategory, AppUserProfile } from '../types';
-import { Users, Plus, Award, Check, Lock, ShieldCheck } from 'lucide-react';
+import { Users, Plus, Award, Check, Lock, ShieldCheck, User, ArrowUpRight } from 'lucide-react';
+import { navigate } from '../utils/router';
 
 interface TeamRosterStudioProps {
   teamMembers: TeamMember[];
@@ -116,6 +117,19 @@ export const TeamRosterStudio: React.FC<TeamRosterStudioProps> = ({
               </option>
             ))}
           </select>
+
+          {currentMember && (
+            <button
+              type="button"
+              onClick={() => navigate(`/member/${currentMember.id}`)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 font-bold text-xs transition-all cursor-pointer shadow-sm"
+              title={`View ${currentMember.name}'s deep-dive profile card`}
+            >
+              <User className="w-3.5 h-3.5 text-cyan-400" />
+              <span>View Profile Card</span>
+              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+          )}
 
           {canEdit ? (
             <button

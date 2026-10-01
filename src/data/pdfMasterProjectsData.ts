@@ -91,6 +91,26 @@ export function getPDFMasterProjects(members: TeamMember[]): ActiveProjectItem[]
       projectHealthEmoji: '☺☺☺',
       reportingPlatform: 'Rank Harvest Email',
       serviceLabels: ['Email Marketing'],
+      taskBreakdown: [
+        {
+          id: 'tb-rh-1',
+          taskType: 'Technical SEO',
+          title: 'GA4/GTM E-commerce Tracking & Search Console Audit',
+          notes: 'Audit all GA4 purchase events & conversion tags in GTM. Ensure Search Console sitemap indexing is verified without 404 crawl errors. SOP: https://docs.google.com/document/d/technical-audit-v2',
+          hours: 5,
+          assigneeId: khuvaishId,
+          status: 'in progress'
+        },
+        {
+          id: 'tb-rh-2',
+          taskType: 'Content Optimization',
+          title: 'Email Welcome Funnel & Retention Nurture Flow',
+          notes: 'Configure 5-part email welcome onboarding flow in Klaviyo with dynamic coupon codes and mobile-optimized layouts.',
+          hours: 3,
+          assigneeId: agamId,
+          status: 'assigned'
+        }
+      ],
       weeklyHoursTech: 5,
       weeklyHoursOnPage: 3,
       weeklyHoursOffPage: 2
@@ -158,6 +178,26 @@ export function getPDFMasterProjects(members: TeamMember[]): ActiveProjectItem[]
       communicationChannel: 'UW - Amrit',
       projectHealthEmoji: '☺☺☺☺',
       serviceLabels: ['Full SEO', 'Technical SEO'],
+      taskBreakdown: [
+        {
+          id: 'tb-wel-1',
+          taskType: 'Technical SEO',
+          title: 'Core Web Vitals & Next.js Headless Speed Optimization',
+          notes: 'Optimize LCP and CLS scores below 2.5s. Implement server-side edge caching for healthcare provider directory pages.',
+          hours: 6,
+          assigneeId: vinayId,
+          status: 'in progress'
+        },
+        {
+          id: 'tb-wel-2',
+          taskType: 'On-Page SEO',
+          title: 'Schema.org MedicalEntity & Treatment FAQ Enrichment',
+          notes: 'Deploy JSON-LD MedicalCondition and FAQPage structured data on all treatment service templates.',
+          hours: 4,
+          assigneeId: amritId,
+          status: 'assigned'
+        }
+      ],
       weeklyHoursTech: 8,
       weeklyHoursOnPage: 4,
       weeklyHoursOffPage: 3
