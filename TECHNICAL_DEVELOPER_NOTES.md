@@ -1460,3 +1460,30 @@ Agencies frequently maintain their complete client roster inside a specific Clic
     - **Testing & Deployment**:
       - 36/36 Vitest unit tests pass.
       - Production build passed in 1.99s. Staged and pushed to `origin/main`.
+  65. **Calendar Date Pickers for Due Date / Renewal & Smart Date Notification Engine**:
+    - **Architecture & Problem Definition**:
+      - Previously, `Due Date / Renewal` in both Add Project and Edit Project Drawers was a free-form string or text input, while `Start Date` was a date picker.
+      - Furthermore, critical milestone dates, project kickoffs, and SLA renewal dates were passive text without proactive notifications.
+    - **Date Normalization Helper (`src/utils/dateUtils.ts`)**:
+      - Added `toDateInputValue(val?: string, fallbackOffsetDays = 30): string`:
+        - Safely parses ISO dates (`YYYY-MM-DD`), timestamps, or historical freeform renewal strings (e.g. `'Monthly Renewal: 30th'`) using regex patterns.
+        - Calculates the appropriate future or target date in `YYYY-MM-DD` format so `<input type="date">` never renders empty or causes format exceptions.
+        - Unit tested with Vitest in `tests/dateUtils.test.ts`.
+    - **Calendar UI Upgrades (`src/components/VisualAgencyHub.tsx`)**:
+      - Converted `Due Date / Renewal` inputs in both Add and Edit Project drawers to native HTML5 `<input type="date">` with theme styling, calendar icon indicators, and quick-action date buttons:
+        - `+14d Sprint`: Sets due date 14 days out.
+        - `+30d Renewal`: Sets due date 30 days out.
+      - Converted Milestone delivery date pickers to native HTML5 `<input type="date">`.
+    - **Proactive Smart Date Notification Engine**:
+      - Implemented a proactive background scanner (`useEffect`) evaluating all active projects and milestones against the current calendar day:
+        - 🔴 **Overdue Milestone / Renewal Alert**: Triggered when `daysDiff < 0`, alerting that account SLA or milestone delivery is overdue.
+        - 🚨 **Due Today**: Triggered when `daysDiff === 0`, alerting managers that renewal or milestone sign-off is due today.
+        - ⚡ **Urgent Upcoming (1–3 Days)**: High-priority amber alert to finalize pending deliverables before renewal.
+        - 📅 **Approaching Renewal (4–7 Days)**: Standard cadence heads-up.
+        - 🚀 **Project Kickoff Alert**: Triggered when `startDate` matches today or within $\pm 1$ day.
+      - Seamlessly injects dynamic alert items into `notificationsList` under category `'milestone'` with direct 1-click navigation (`filterClient`) to the affected client.
+      - Dispatches reactive toast notifications when project dates are created or updated.
+    - **Build & Quality Gates**:
+      - All 37/37 Vitest unit tests passing.
+      - TypeScript compilation (`tsc -b`) and Vite production bundle passed cleanly in 1.22s.
+

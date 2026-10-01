@@ -4,7 +4,8 @@ import {
   todayLocal,
   daysFromToday,
   firstDayOfCurrentMonth,
-  monthOption
+  monthOption,
+  toDateInputValue
 } from '../src/utils/dateUtils';
 
 describe('dateUtils', () => {
@@ -43,5 +44,14 @@ describe('dateUtils', () => {
 
     const nextOption = monthOption(1);
     expect(nextOption.id).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  it('should normalize various date formats to ISO YYYY-MM-DD via toDateInputValue', () => {
+    // 1. Direct ISO
+    expect(toDateInputValue('2026-10-15')).toBe('2026-10-15');
+    // 2. Fallback on undefined
+    expect(toDateInputValue(undefined, 30)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // 3. Day of month pattern "Monthly Renewal: 30th"
+    expect(toDateInputValue('Monthly Renewal: 30th')).toMatch(/^\d{4}-\d{2}-30$/);
   });
 });

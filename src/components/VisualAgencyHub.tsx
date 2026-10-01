@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { daysFromToday, firstDayOfCurrentMonth, monthOption, todayLocal, getNextDeliverableDueInfo } from '../utils/dateUtils';
+import { daysFromToday, firstDayOfCurrentMonth, monthOption, todayLocal, getNextDeliverableDueInfo, toDateInputValue } from '../utils/dateUtils';
 import { createPortal } from 'react-dom';
 import { navigate } from '../utils/router';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -505,6 +505,116 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     }
   }, [archivedProjects]);
 
+  // SMART DATE NOTIFICATION ENGINE
+  // Automatically scans projectsList and generates live milestone, renewal, and kickoff smart notifications
+  useEffect(() => {
+    if (!projectsList || projectsList.length === 0) return;
+
+    const smartDateNotifs: AgencyNotificationItem[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    projectsList.forEach((proj) => {
+      // 1. Due Date / Renewal Smart Notification
+      if (proj.dueDateOrRenewal) {
+        const dueInfo = getNextDeliverableDueInfo(proj);
+        if (dueInfo.daysRemaining !== null) {
+          const daysDiff = dueInfo.daysRemaining;
+          if (dueInfo.urgency === 'overdue') {
+            smartDateNotifs.push({
+              id: `notif-overdue-${proj.id}`,
+              title: `🔴 SLA Overdue Alert (${Math.abs(daysDiff)}d past due)`,
+              description: `"${proj.name}" (${proj.client}) delivery date (${proj.dueDateOrRenewal}) has elapsed. Review pending deliverables with squad lead.`,
+              timestamp: `${Math.abs(daysDiff)}d past due`,
+              category: 'milestone',
+              read: false,
+              targetView: 'projects',
+              targetProjectId: proj.id
+            });
+          } else if (dueInfo.urgency === 'due_today') {
+            smartDateNotifs.push({
+              id: `notif-today-${proj.id}`,
+              title: `🚨 Renewal / Milestone Due Today!`,
+              description: `"${proj.name}" (${proj.client}) contract SLA checkpoint is due today (${proj.dueDateOrRenewal}). Deliverables require QA verification.`,
+              timestamp: 'Due Today',
+              category: 'milestone',
+              read: false,
+              targetView: 'projects',
+              targetProjectId: proj.id
+            });
+          } else if (dueInfo.urgency === 'urgent') {
+            smartDateNotifs.push({
+              id: `notif-urgent-${proj.id}`,
+              title: `⚡ Milestone / Renewal in ${daysDiff} Days`,
+              description: `"${proj.name}" milestone review is scheduled for ${proj.dueDateOrRenewal}. Verify deliverable hours.`,
+              timestamp: `In ${daysDiff}d`,
+              category: 'milestone',
+              read: false,
+              targetView: 'projects',
+              targetProjectId: proj.id
+            });
+          } else if (daysDiff <= 7) {
+            smartDateNotifs.push({
+              id: `notif-upcoming-${proj.id}`,
+              title: `📅 Upcoming Renewal Alert (${daysDiff}d)`,
+              description: `"${proj.name}" monthly retainer renewal is coming up on ${proj.dueDateOrRenewal}.`,
+              timestamp: `In ${daysDiff}d`,
+              category: 'milestone',
+              read: false,
+              targetView: 'projects',
+              targetProjectId: proj.id
+            });
+          }
+        }
+      }
+
+      // 2. Start Date / Kickoff Smart Notification
+      if (proj.startDate) {
+        const startMs = Date.parse(proj.startDate);
+        if (!isNaN(startMs)) {
+          const startDate = new Date(startMs);
+          startDate.setHours(0, 0, 0, 0);
+          const startDiffDays = Math.round((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (startDiffDays >= -2 && startDiffDays <= 1) {
+            smartDateNotifs.push({
+              id: `notif-kickoff-${proj.id}`,
+              title: `🚀 Project Kickoff: ${proj.name}`,
+              description: `Onboarding & initial sprint starts on ${proj.startDate}. Check specialist allocations.`,
+              timestamp: startDiffDays === 0 ? 'Today' : startDiffDays < 0 ? `${Math.abs(startDiffDays)}d ago` : 'Tomorrow',
+              category: 'capacity',
+              read: false,
+              targetView: 'projects',
+              targetProjectId: proj.id
+            });
+          }
+        }
+      }
+    });
+
+    if (smartDateNotifs.length > 0) {
+      setNotificationsList((prev) => {
+        const readMap = new Map(prev.map((n) => [n.id, n.read]));
+        
+        // Merge without losing user read status
+        const mergedSmart = smartDateNotifs.map((sn) => ({
+          ...sn,
+          read: readMap.get(sn.id) ?? false
+        }));
+
+        const nonSmartExisting = prev.filter(
+          (n) =>
+            !n.id.startsWith('notif-overdue-') &&
+            !n.id.startsWith('notif-today-') &&
+            !n.id.startsWith('notif-urgent-') &&
+            !n.id.startsWith('notif-upcoming-') &&
+            !n.id.startsWith('notif-kickoff-')
+        );
+
+        return [...mergedSmart, ...nonSmartExisting];
+      });
+    }
+  }, [projectsList]);
+
   // New Business Leads & Sales Pipeline with localStorage persistence
   const [businessLeads, setBusinessLeads] = useState<BusinessLeadItem[]>(() => {
     try {
@@ -982,7 +1092,7 @@ export const VisualAgencyHub: React.FC<VisualAgencyHubProps> = ({
     'Monthly Retainer' | 'Milestone Delivery' | 'Weekly Hourly Billing'
   >('Monthly Retainer');
   const [newStartDate, setNewStartDate] = useState(todayLocal);
-  const [newDueDate, setNewDueDate] = useState('Monthly Renewal: 30th');
+  const [newDueDate, setNewDueDate] = useState(() => daysFromToday(30));
   const [newMilestonesTotal, setNewMilestonesTotal] = useState(4);
   const [newPrice, setNewPrice] = useState('$3,500 / mo');
   const [newTotalHours, setNewTotalHours] = useState(20);
@@ -3181,8 +3291,8 @@ Due Date: ${proj.paymentDueDate}
     if (viewingProjectDetail?.id === editingProject.id) {
       setViewingProjectDetail(sanitizedProject);
     }
-    toast('Project Updated Successfully', {
-      description: `"${sanitizedProject.name}" updated with all recalculated hours and specs.`,
+    toast('Project Updated & Date Notifications Resynced', {
+      description: `"${sanitizedProject.name}": Kickoff ${sanitizedProject.startDate} • Renewal/Due ${sanitizedProject.dueDateOrRenewal}. Smart SLA alerts active.`,
       type: 'success'
     });
     setEditingProject(null);
@@ -10171,12 +10281,16 @@ Due Date: ${proj.paymentDueDate}
                               />
                             </div>
                             <div>
-                              <label className="text-[11px] font-bold text-slate-300 block mb-1">
-                                Next Milestone Delivery / Reminder Note
-                              </label>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-[11px] font-bold text-slate-300 block">
+                                  Next Milestone Delivery Date
+                                </label>
+                                <span className="text-[9px] text-cyan-400 font-mono">
+                                  {newDueDate}
+                                </span>
+                              </div>
                               <input
-                                type="text"
-                                placeholder="e.g. Milestone 1 Checkpoint due July 31, 2026"
+                                type="date"
                                 value={newDueDate}
                                 onChange={(e) => setNewDueDate(e.target.value)}
                                 className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
@@ -10198,9 +10312,29 @@ Due Date: ${proj.paymentDueDate}
                         </div>
 
                         <div>
-                          <label className="text-[11px] font-bold text-slate-400 block mb-1">Due Date / Renewal</label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[11px] font-bold text-slate-400 block">Due Date / Renewal</label>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setNewDueDate(daysFromToday(14))}
+                                className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                                title="Set 14-day sprint checkpoint"
+                              >
+                                +14d
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNewDueDate(daysFromToday(30))}
+                                className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-bold transition-colors cursor-pointer"
+                                title="Set 30-day monthly renewal"
+                              >
+                                +30d
+                              </button>
+                            </div>
+                          </div>
                           <input
-                            type="text"
+                            type="date"
                             value={newDueDate}
                             onChange={(e) => setNewDueDate(e.target.value)}
                             className="w-full glass-panel border-slate-700/50 hover:border-cyan-500/30 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
@@ -11263,13 +11397,17 @@ Due Date: ${proj.paymentDueDate}
                           />
                         </div>
                         <div>
-                          <label className="text-[11px] font-bold text-slate-300 block mb-1">
-                            Milestone Reminder / Due Note
-                          </label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[11px] font-bold text-slate-300 block">
+                              Milestone Due Date (Calendar)
+                            </label>
+                            <span className="text-[9px] text-cyan-400 font-mono">
+                              {toDateInputValue(editingProject.dueDateOrRenewal)}
+                            </span>
+                          </div>
                           <input
-                            type="text"
-                            placeholder="e.g. Milestone 2 Due: July 28, 2026"
-                            value={editingProject.dueDateOrRenewal}
+                            type="date"
+                            value={toDateInputValue(editingProject.dueDateOrRenewal)}
                             onChange={(e) =>
                               setEditingProject({ ...editingProject, dueDateOrRenewal: e.target.value })
                             }
@@ -11292,10 +11430,40 @@ Due Date: ${proj.paymentDueDate}
                     </div>
 
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">Due Date / Renewal</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-slate-400 block">Due Date / Renewal</label>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditingProject({
+                                ...editingProject,
+                                dueDateOrRenewal: daysFromToday(14)
+                              })
+                            }
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                            title="Set 14-day sprint checkpoint"
+                          >
+                            +14d
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditingProject({
+                                ...editingProject,
+                                dueDateOrRenewal: daysFromToday(30)
+                              })
+                            }
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-bold transition-colors cursor-pointer"
+                            title="Set 30-day monthly renewal"
+                          >
+                            +30d
+                          </button>
+                        </div>
+                      </div>
                       <input
-                        type="text"
-                        value={editingProject.dueDateOrRenewal}
+                        type="date"
+                        value={toDateInputValue(editingProject.dueDateOrRenewal)}
                         onChange={(e) =>
                           setEditingProject({ ...editingProject, dueDateOrRenewal: e.target.value })
                         }

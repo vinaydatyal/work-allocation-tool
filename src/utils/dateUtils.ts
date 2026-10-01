@@ -157,3 +157,29 @@ export const getNextDeliverableDueInfo = (project: {
   };
 };
 
+/**
+ * Normalizes any freeform or historic due/renewal string into an ISO YYYY-MM-DD string for HTML5 date inputs
+ */
+export const toDateInputValue = (val?: string, fallbackOffsetDays = 30): string => {
+  if (!val) return daysFromToday(fallbackOffsetDays);
+  const trimmed = val.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const parsed = Date.parse(trimmed);
+  if (!isNaN(parsed) && !trimmed.toLowerCase().includes('renewal:')) {
+    return formatLocalDate(new Date(parsed));
+  }
+  const dayMatch = trimmed.match(/(\d{1,2})(?:st|nd|rd|th)?/i);
+  if (dayMatch) {
+    const day = parseInt(dayMatch[1], 10);
+    if (day >= 1 && day <= 31) {
+      const now = new Date();
+      let target = new Date(now.getFullYear(), now.getMonth(), day);
+      if (target.getTime() < now.getTime()) {
+        target = new Date(now.getFullYear(), now.getMonth() + 1, day);
+      }
+      return formatLocalDate(target);
+    }
+  }
+  return daysFromToday(fallbackOffsetDays);
+};
+

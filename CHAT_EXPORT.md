@@ -7002,3 +7002,42 @@ Implemented the dual-cap hourly billing governance and scope variance architectu
 4. **Git Commit & Push**:
    - Pushed all staged changes to `origin/main` to trigger Vercel deployment.
 
+---
+
+## 👤 User (Turn #221)
+
+<USER_REQUEST>
+Due Date / Renewal, should also be a calandar just like "Start Date" both connected to notification sending smart notification on dates
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Implemented native calendar date pickers for **Due Date / Renewal** (and milestone deadlines) and engineered the **Smart Date Notification Engine** connecting both Start Date and Due Date / Renewal to real-time notification alerts:
+
+1. **Date Normalization Helper (`src/utils/dateUtils.ts`)**:
+   - Created `toDateInputValue(val?: string, fallbackOffsetDays = 30)` to reliably normalize ISO dates, standard dates, or historical freeform strings (such as `"Monthly Renewal: 30th"`) into standardized `YYYY-MM-DD` strings required by native `<input type="date">`.
+   - Added unit tests in `tests/dateUtils.test.ts`.
+
+2. **Native Calendar Date Pickers (`src/components/VisualAgencyHub.tsx`)**:
+   - Upgraded `Due Date / Renewal` in both the **Add Project Drawer** and **Edit Project Drawer** to native HTML5 `<input type="date">` with calendar iconography.
+   - Provided ergonomic preset shortcut buttons:
+     - `+14d Sprint` (sets due date 14 days ahead)
+     - `+30d Renewal` (sets renewal 30 days ahead)
+   - Upgraded milestone delivery date pickers to native HTML5 `<input type="date">`.
+
+3. **Smart Date Notification Engine (`src/components/VisualAgencyHub.tsx`)**:
+   - Automated a proactive date scanner evaluating active projects and milestone deadlines against the current local date:
+     - 🔴 **Overdue Alert**: Triggered if `daysDiff < 0` (milestone or renewal past due SLA).
+     - 🚨 **Due Today Alert**: Triggered if `daysDiff === 0` (due today checkpoint).
+     - ⚡ **Urgent Renewal (1–3 Days)**: High-priority warning to finalize deliverables before contract renewal.
+     - 📅 **Upcoming Renewal (4–7 Days)**: Advance notification for upcoming SLA cycle.
+     - 🚀 **Project Kickoff Alert**: Triggered when `startDate` is today or within $\pm 1$ day.
+   - Automatically populates alerts in the notification bell drawer under category `'milestone'`, featuring 1-click navigation directly to the client's project.
+   - Added toast feedback alerts when projects are created or saved with date schedules.
+
+4. **Testing & Build Verification**:
+   - All 37/37 Vitest unit tests passed.
+   - Production build `tsc -b && vite build` succeeded in 1.22s with 0 errors.
+   - Staged, committed, and pushed changes to `origin/main` for live deployment.
+
+
