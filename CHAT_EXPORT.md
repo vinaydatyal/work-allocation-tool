@@ -7040,4 +7040,24 @@ Implemented native calendar date pickers for **Due Date / Renewal** (and milesto
    - Production build `tsc -b && vite build` succeeded in 1.22s with 0 errors.
    - Staged, committed, and pushed changes to `origin/main` for live deployment.
 
+---
+
+## 👤 User (Turn #222)
+
+<USER_REQUEST>
+why there is a memo here, what it does?
+</USER_REQUEST>
+
+## 🤖 Assistant (Antigravity)
+
+Explained the purpose, architecture, and behavior of the **`+ Memo`** button on project cards:
+1. **What It Is**: A 1-click **Quick Sticky Note / Operational Memo** for project cards.
+2. **Why It Exists**: Allows account managers, team leads, and executives to quickly record short, high-priority operational updates (e.g., *"Waiting for GTM access"*, *"Hold backlinks pending site redesign"*, *"Review call Thursday 4 PM"*) directly from the dashboard board without opening the full Project Details/Edit modal.
+3. **How It Works**:
+   - Clicking `+ Memo` opens an inline text box with autofocus.
+   - Pressing `Enter` (or clicking `Save`) saves the note and automatically appends a timestamp (e.g. `🕒 Oct 1, 11:15 PM`).
+   - The card displays an amber badge with the note, timestamp, an `Edit` (pencil) button, and a `Clear` (`✕`) button.
+4. **Data Model & Persistence**: Persisted under `quickMemo` and `quickMemoUpdatedAt` on `ActiveProjectItem` in `src/components/VisualAgencyHub.tsx` and covered by unit tests in `tests/retainerAndMemo.test.ts`.
+
+
 

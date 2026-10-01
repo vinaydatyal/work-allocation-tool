@@ -1486,4 +1486,18 @@ Agencies frequently maintain their complete client roster inside a specific Clic
     - **Build & Quality Gates**:
       - All 37/37 Vitest unit tests passing.
       - TypeScript compilation (`tsc -b`) and Vite production bundle passed cleanly in 1.22s.
+  66. **1-Click Quick Memo on Project Cards (Purpose & Architecture)**:
+    - **Functional Purpose**:
+      - Enables team leads, account managers, and executives to jot down ephemeral operational notes or status updates directly on the project card without opening the heavy Project Details/Edit modal or switching to ClickUp/Slack (e.g., *"Waiting for GTM access"*, *"Hold backlinks pending site migration"*, *"Review call Thursday 4 PM"*).
+    - **UI Mechanics (`src/components/VisualAgencyHub.tsx`)**:
+      - Default state: Displays a discrete `+ Memo` button with a `StickyNote` icon directly below the project title.
+      - Active inline editing: Clicking `+ Memo` expands an inline text input with autofocus, `Enter` to save, and `Escape` to cancel.
+      - Displayed memo state: Replaces `+ Memo` with an amber highlight badge containing:
+        - The memo text.
+        - Automatic human-readable timestamp (e.g. `🕒 Oct 1, 11:15 PM`).
+        - 1-click Edit (pencil) and Clear (`✕`) action buttons.
+    - **Data Persistence & Testing**:
+      - Stored under `quickMemo` and `quickMemoUpdatedAt` on `ActiveProjectItem`.
+      - Tested in `tests/retainerAndMemo.test.ts`.
+
 
